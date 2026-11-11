@@ -837,8 +837,13 @@ def test_braid_order_refreshes_mi_after_gate():
     assert "func refresh_cached_mi" in qc
     assert "compute_all_mutual_information" in qc.split("func refresh_cached_mi")[1].split("\nfunc ")[0]
     inj = src(ROOT / "Core" / "QuantumSubstrate" / "GateInjector.gd")
-    inv = inj.split("static func _invalidate_lookahead")[1].split("static func ")[0]
-    assert "refresh_cached_mi" in inv
+    # Every gate path ends in _refresh_mi (2026-11-11: the batcher notices the
+    # write to ρ itself; the MI refresh is all GateInjector still owes).
+    refresh = inj.split("static func _refresh_mi")[1].split("static func ")[0]
+    assert "refresh_cached_mi" in refresh
+    for fn in ("inject_gate_batch", "inject_gate", "inject_gate_2q"):
+        body = inj.split(f"static func {fn}(")[1].split("\nstatic func ")[0]
+        assert "_refresh_mi(" in body, fn
     qsps = src(ROOT / "Core" / "Quests" / "QuestStateProjectionService.gd")
     mi = qsps.split('"mutual_information_at_least"')[1].split("\n\t\t\"")[0]
     assert "get_cached_max_mutual_information" in mi

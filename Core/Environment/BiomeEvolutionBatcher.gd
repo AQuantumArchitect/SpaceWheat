@@ -320,15 +320,24 @@ var biome_last_good_rho: Dictionary = {}  # biome_name -> PackedFloat64Array
 var biome_last_good_bloch: Dictionary = {}  # biome_name -> PackedFloat64Array
 var biome_last_good_purity: Dictionary = {}  # biome_name -> float
 var biome_dirty: Dictionary = {}  # biome_name -> bool (buffer invalidated)
+# biome_name -> QuantumComputer.state_epoch the buffered frames continue from.
+# The batcher's own frame loads move it along; anything else that writes ρ (a
+# strike, a gate, a jolt, a standing channel's tick, a rig driver, a load) leaves
+# the epoch ahead of it, and the next phrame evolves the live ρ instead of
+# replaying a forecast of the old one. Nobody outside invalidates by hand.
+var _forecast_epoch: Dictionary = {}
+# Phrames evolved live because ρ had been written (see _evolve_live_phrame), and
+# how many of those had to hold instead (an async packet had the engine).
+var live_phrames_total: int = 0
+var live_phrames_held: int = 0
+var live_ms_total: float = 0.0  # main-thread native time spent on live phrames
+var _live_streak: Dictionary = {}  # biome_name -> consecutive phrames stepped live
 var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
 ## The physics_signature the C++ engine's H/L copy was (re)registered FROM, per biome.
 ## The engine holds its own copy of the operators; this records which build it came from
 ## so drift between the live builders and the engine's copy can be DETECTED (signature
 ## mismatch) rather than relying on a caller remembering to mark_for_reregister.
 var _biome_registered_signature: Dictionary = {}  # biome_name -> String
-
-# Signal for user action (invalidates lookahead)
-signal user_action_detected
 
 # Signal emitted when a biome has its 10-step lookahead buffers primed and is ready
 signal biome_ready(biome_name: String)
@@ -798,6 +807,8 @@ func _erase_biome_runtime_state(biome_name: String) -> void:
 	biome_last_good_bloch.erase(biome_name)
 	biome_last_good_purity.erase(biome_name)
 	biome_dirty.erase(biome_name)
+	_forecast_epoch.erase(biome_name)
+	_live_streak.erase(biome_name)
 	biome_pending_reregister.erase(biome_name)
 	biome_buffer_states.erase(biome_name)
 	biome_fib_indices.erase(biome_name)
@@ -1092,6 +1103,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 
 		# Reset cursor to start
 		lookahead_buffer.cursor = 0
+		_note_forecast_from_live(biome_name, biome.quantum_computer)
 
 		# Update viz_cache from first phrame
 		if biome.viz_cache and not lookahead_buffer.frames.is_empty():
@@ -1546,6 +1558,7 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 				push_warning("BiomeEvolutionBatcher: degenerate rho for '%s' (tr=%.6f), reinitializing to mixed state" % [biome_name, trace])
 			var fresh_packed := DegenerateRho.maximally_mixed_packed(dim)
 			qc.density_matrix._from_packed(fresh_packed, dim)
+			qc.mark_state_written()
 			rho_packed = fresh_packed
 			status.rho = rho_packed
 
@@ -1891,6 +1904,7 @@ func _queue_emergency_packet(starving_biomes: Array) -> void:
 		"active_flags": active_flags_arr,
 		"num_steps": EMERGENCY_RESCUE_STEPS,  # Small: 5 frames (consistent field name)
 		"is_emergency": true,
+		"generations": _snapshot_buffer_generations(),
 	}
 
 	# PRIORITY: Push to front of queue
@@ -2099,21 +2113,120 @@ func invalidate_biome_buffer(biome_name: String):
 	# Hybrid system: ONE global packet, per-biome buffers
 	# Just clear this biome's buffers - next packet will refill it
 
-	# Clear this biome's consumer frames (other biomes unaffected).
-	# Bumps generation so an in-flight packet for this biome is dropped on take.
-	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
-	lookahead_buffer.reset_frames()
-	biome_dirty[biome_name] = true
-
-	# Re-prime this biome from current state (frozen 13 phrames)
-	var biome = _get_biome_by_name(biome_name)
-	if biome:
-		_prime_single_biome_frozen(biome)
+	# A write to ρ needs no call here — the batcher notices it (see
+	# _forecast_epoch). This is for changes ρ doesn't show: resolution, a
+	# re-register, a time skip, a load.
+	_restart_forecast_from_live(biome_name)
 
 	_log("info", "INVALIDATE", "🔄", "%s: buffer cleared, re-primed with %d frozen phrames" % [
 		biome_name, LOOKAHEAD_STEPS
 	])
 	_log("info", "INVALIDATE", "📦", "Next packet will refill %s (active_flag=true)" % biome_name)
+
+
+## Drop this biome's frames and forecast again from the live ρ: frozen frames
+## now, a fresh packet next (dirty). Bumps the generation, so a packet already
+## computing from the old state is dropped when it lands.
+func _restart_forecast_from_live(biome_name: String) -> void:
+	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
+	lookahead_buffer.reset_frames()
+	biome_dirty[biome_name] = true
+	var biome = _get_biome_by_name(biome_name)
+	if biome:
+		_prime_single_biome_frozen(biome)
+
+
+## The buffered frames continue the live ρ as it is now.
+func _note_forecast_from_live(biome_name: String, qc) -> void:
+	if qc != null:
+		_forecast_epoch[biome_name] = int(qc.state_epoch)
+
+
+## Has ρ been written since this biome's frames were forecast?
+func _forecast_is_stale(biome_name: String, qc) -> bool:
+	return qc != null and _forecast_epoch.has(biome_name) \
+		and int(_forecast_epoch[biome_name]) != int(qc.state_epoch)
+
+
+## Something wrote ρ since the last frame we played, so the buffered frames
+## forecast a world that no longer exists. This phrame evolves the live ρ
+## instead — the same `steps` phrames the buffer would have played — and the
+## forecast restarts from the result. A one-off write (a strike) costs one
+## native step; a write every tick (a standing channel in an open regime) makes
+## this biome step live each tick, so the channel and H compose in order
+## (ρ ← C(E(ρ))) instead of the channel being overwritten by the next frame.
+func _evolve_live_phrame(biome, steps: int) -> void:
+	var biome_name = _get_biome_name(biome)
+	var qc = biome.quantum_computer
+	var engine_id: int = int(_biome_engine_ids.get(biome_name, -1))
+	var dim: int = int(qc.register_map.dim()) if qc.register_map else 0
+	var engine_free: bool = lookahead_engine != null and not (
+		lookahead_engine.has_method("is_lookahead_job_running") and lookahead_engine.is_lookahead_job_running())
+	# The native engine refuses a single-biome step while an async packet is
+	# computing; then this phrame holds the written ρ, and the refill packet
+	# (seeded from it) carries on.
+	live_phrames_total += 1
+	if not engine_free:
+		live_phrames_held += 1
+	if engine_free and engine_id >= 0 and dim > 0 and qc.density_matrix != null \
+			and int(_biome_engine_dims.get(biome_name, -1)) == dim:
+		var rho: PackedFloat64Array = qc.density_matrix._to_packed()
+		if rho.size() >= dim * dim * 2 and not DegenerateRho.is_degenerate(rho, dim):
+			var dt := _live_phrame_dt()
+			var live_us := Time.get_ticks_usec()
+			var result = lookahead_engine.evolve_single_biome(engine_id, rho, maxi(1, steps), dt, dt)
+			live_ms_total += float(Time.get_ticks_usec() - live_us) / 1000.0
+			var results: Array = result.get("results", []) if result is Dictionary else []
+			if not results.is_empty() and results[results.size() - 1] is PackedFloat64Array \
+					and (results[results.size() - 1] as PackedFloat64Array).size() > 0:
+				qc.load_packed_state(results[results.size() - 1], dim, true)
+	_restart_forecast_from_live(biome_name)
+	var streak: int = int(_live_streak.get(biome_name, 0)) + 1
+	_live_streak[biome_name] = streak
+	if streak > 1:
+		# Written every phrame (a standing channel): a refill would be dropped by
+		# the next write before it landed. Ask again when the writes stop.
+		biome_dirty[biome_name] = false
+	_apply_buffered_step(biome)
+
+
+## The step one buffered frame covers. Packets evolve every biome they carry at
+## the smallest max_evolution_dt among them, so a live phrame does the same —
+## a written biome must not run at a different speed from its neighbours.
+func _live_phrame_dt() -> float:
+	var active: Array = []
+	for b in biomes:
+		if _is_valid_biome(b) and not biome_paused.get(_get_biome_name(b), false):
+			active.append(b)
+	return _get_packet_dt_for_biomes(active)
+
+
+## A biome's resolution (max_evolution_dt) changed. BiomeBase's setter calls
+## this, whoever changed it — the − / = keys, the rig's set_resolution, a load.
+## Finer: the frames were forecast at the old step, drop them. Coarser by a
+## whole factor: every Nth frame is still the right state, keep those.
+func note_resolution_changed(biome, old_dt: float, new_dt: float) -> void:
+	var biome_name = _get_biome_name(biome)
+	if biome_name == "" or _get_biome_by_name(biome_name) != biome:
+		return   # not one of ours (a biome being built, another farm's)
+	reset_stride_carry(biome_name)
+	if not _lookahead_buffers.has(biome_name):
+		return
+	var factor: float = new_dt / maxf(old_dt, 0.000001)
+	var whole: int = roundi(factor)
+	if whole >= 2 and is_equal_approx(factor, float(whole)):
+		decimate_biome_buffer(biome_name, whole)
+	else:
+		invalidate_biome_buffer(biome_name)
+
+
+## A biome's observation stride changed (BiomeBase's setter). The frames stay
+## right — stride only chooses how many to skip — but a carried partial step
+## from the old stride would land in the new one.
+func note_stride_changed(biome) -> void:
+	var biome_name = _get_biome_name(biome)
+	if biome_name != "" and _get_biome_by_name(biome_name) == biome:
+		reset_stride_carry(biome_name)
 
 
 func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
@@ -2216,6 +2329,8 @@ func _prime_single_biome_frozen(biome):
 			_log("warn", "INVALIDATE", "⚠️", "%s: cannot prime frozen buffer (empty rho)" % biome_name)
 			return
 		rho_packed = last_good
+	else:
+		_note_forecast_from_live(biome_name, qc)
 
 	# Fill with frozen current state
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
@@ -2264,6 +2379,15 @@ func _advance_all_buffers():
 		if stride <= 0:
 			continue  # Locked — no advancement
 
+		if _forecast_is_stale(biome_name, biome.quantum_computer):
+			_evolve_live_phrame(biome, stride)
+			advanced += 1
+			continue
+		if _live_streak.has(biome_name):
+			# The writes stopped: forecast again from here.
+			_live_streak.erase(biome_name)
+			biome_dirty[biome_name] = true
+
 		if stride > 1:
 			# Fast-forward: advance cursor by (stride-1) without applying, then apply final
 			var lookahead_buffer = _get_lookahead_buffer(biome_name)
@@ -2297,8 +2421,11 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	if not _is_valid_biome(biome):
 		return
 
+	var biome_name = _get_biome_name(biome)
+	# Never play a frame forecast from a ρ that has since been written.
+	if _forecast_is_stale(biome_name, biome.quantum_computer):
+		_restart_forecast_from_live(biome_name)
 	var state = _get_biome_buffer_state(biome)
-	var biome_name = state.biome_name
 	var lookahead_buffer = _get_lookahead_buffer(biome_name)
 	var cursor = state.cursor
 
@@ -2312,6 +2439,7 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 	var qc = biome.quantum_computer  # Cache reference (accessed multiple times below)
 	var dim = qc.register_map.dim()
 	qc.load_packed_state(rho_packed, dim, true)
+	_note_forecast_from_live(biome_name, qc)   # our own write: the forecast goes on
 
 	var metadata_payload = lookahead_buffer.metadata
 	var num_qubits = metadata_payload.get("num_qubits", 0)
@@ -2422,6 +2550,7 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 		biome,
 		result.get("icon_map", lookahead_buffer.icon_map)
 	)
+	_note_forecast_from_live(biome_name, qc)
 
 	_apply_buffered_step(biome, false)
 
@@ -2911,6 +3040,7 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 		lookahead_buffer.mi_steps = []
 		_sync_biome_structure_payload(biome)
 		lookahead_buffer.icon_map = {}
+		_note_forecast_from_live(biome_name, qc)
 
 
 func _post_evolution_update(biome):
@@ -2924,17 +3054,6 @@ func _post_evolution_update(biome):
 		"VolcanicWorlds":
 			if biome.has_method("_update_eruption_state"):
 				biome._update_eruption_state()
-
-
-func signal_user_action():
-	# Called when user takes an action that may invalidate lookahead.
-	#
-	# Triggers immediate refill of affected biome's buffer.
-	if lookahead_enabled:
-		# Force immediate refill on next physics tick
-		lookahead_accumulator = LOOKAHEAD_DT * LOOKAHEAD_STEPS
-		_mark_biome_activity_dirty()
-		user_action_detected.emit()
 
 
 func get_viz_snapshot(biome_name: String, register_id: int, offset: int = 0) -> Dictionary:
@@ -3256,6 +3375,10 @@ func get_performance_metrics() -> Dictionary:
 		# was never in the report).
 		"native_ms_total": _native_ms_total,
 		"packets_total": _packets_total,
+		# Phrames stepped live after a write to ρ (strikes, gates, standing channels).
+		"live_phrames_total": live_phrames_total,
+		"live_phrames_held": live_phrames_held,
+		"live_ms_total": live_ms_total,
 		"merge_ms_total": _merge_ms_total,
 		"take_ms_total": _take_ms_total,
 		# GDScript sides of the same physics callback. native+merge were not
@@ -3370,6 +3493,9 @@ func _queue_adaptive_packet(biome_rhos: Array, active_flags_arr: Array, packet_s
 		"num_steps": packet_size,  # Number of phrames to compute
 		"biome_rhos": biome_rhos,
 		"active_flags": active_flags_arr,  # Engine-id order
+		# Stamped when the ρs are captured, not at submit: a restart between the
+		# two (a write noticed next phrame) must drop this packet when it lands.
+		"generations": _snapshot_buffer_generations(),
 	}
 	_packet_queue.append(packet_request)
 
@@ -3423,7 +3549,8 @@ func _process_next_packet_async() -> void:
 		return
 
 	_active_packet_request = _packet_queue.pop_front()
-	_active_packet_request["generations"] = _snapshot_buffer_generations()
+	if not _active_packet_request.has("generations"):
+		_active_packet_request["generations"] = _snapshot_buffer_generations()
 	_mark_awaiting_packet(_active_packet_request.get("active_flags", []), true)
 	_packet_started_at_ms = Time.get_ticks_msec()
 

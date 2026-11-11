@@ -329,8 +329,10 @@ def test_open_country_drops_the_dlc_padlock():
     # Keeper 14: the Spark jolt fired in Gilded Rot (open country) but its chip
     # wore the closed-mode 🔒, so it was never pressed.
     ucc = src("UI/Managers/UIContextController.gd")
-    assert "not BalanceConfig.dissipative_enabled() and not _active_biome_open()" in ucc
-    assert "is_open_here()" in ucc.split("func _active_biome_open(")[1].split("\nfunc ")[0]
+    # Superseded on main (#65) by _ground_is_open, which reads the open
+    # country of the selected plot (else the active biome).
+    assert "var closed_mode := not _ground_is_open()" in ucc
+    assert "is_open_here()" in ucc.split("func _ground_is_open(")[1].split("\nfunc ")[0]
 
 
 def test_guide_never_names_a_blind_arc_accept():

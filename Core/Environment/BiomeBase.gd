@@ -96,11 +96,27 @@ var quantum_time_scale: float = 0.5  # Overwritten in _ready from BalanceConfig
 # At 0.05, a typical phrame is ONE substep (cheapest).
 # Reduce if evolution becomes unstable (oscillations, trace divergence).
 # See PhysicsConfig.MAX_SUBSTEP_DT for the global default.
-var max_evolution_dt: float = _PC.MAX_SUBSTEP_DT
+# Whoever sets it (the − / = keys, the rig's set_resolution, a profile, a load),
+# the batcher is told here, so its lookahead frames never outlive their step.
+var max_evolution_dt: float = _PC.MAX_SUBSTEP_DT:
+	set(value):
+		var old_dt := max_evolution_dt
+		max_evolution_dt = value
+		if not is_equal_approx(old_dt, value):
+			var batcher = _active_batcher()
+			if batcher != null and batcher.has_method("note_resolution_changed"):
+				batcher.note_resolution_changed(self, old_dt, value)
 
 # Observation stride: phrames consumed per physics tick (playback speed)
 # 0 = locked (no advancement), 1 = normal, 2+ = fast forward
-var observation_stride: int = 1
+var observation_stride: int = 1:
+	set(value):
+		var changed := value != observation_stride
+		observation_stride = value
+		if changed:
+			var batcher = _active_batcher()
+			if batcher != null and batcher.has_method("note_stride_changed"):
+				batcher.note_stride_changed(self)
 
 # BUILD mode pause
 var evolution_paused: bool = false
@@ -410,9 +426,17 @@ func _on_coupling_updated(emoji_a: String, emoji_b: String, strength: float) -> 
 func _mark_lookahead_dirty() -> void:
 	# H mutated → both ambient scalars are stale (gap is a pure function of H).
 	_ambient_scalars_dirty = true
+	var batcher = _active_batcher()
+	if batcher != null and batcher.has_method("mark_for_reregister"):
+		batcher.mark_for_reregister(get_biome_type())
+
+
+## The running farm's evolution batcher, or null before boot / in bare tests.
+func _active_batcher():
 	var farm = InstrumentLocator.resolve_active_farm(self)
-	if farm and farm.biome_evolution_batcher and farm.biome_evolution_batcher.has_method("mark_for_reregister"):
-		farm.biome_evolution_batcher.mark_for_reregister(get_biome_type())
+	if farm == null or not ("biome_evolution_batcher" in farm):
+		return null
+	return farm.biome_evolution_batcher
 
 
 ## Runtime thermodynamic-regime change (What Fades, docs/design/OPEN_CAMPAIGN.md).

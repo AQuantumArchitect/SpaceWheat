@@ -48,7 +48,19 @@ func is_closed_here() -> bool:
 
 ## Model C (Analog Upgrade): RegisterMap-based architecture
 var register_map: RegisterMap = RegisterMap.new()
-var density_matrix: ComplexMatrix = null
+
+## How many times ρ has been written. Every write stamps it: assigning
+## density_matrix (the setter below) or any in-place writer here, which all end
+## in _state_written(). The lookahead batcher remembers the epoch its frames were
+## forecast from and drops a forecast of a ρ that no longer exists — so a strike,
+## a gate, a jolt, a standing channel's tick or a rig driver never has to know
+## the batcher is there. Code outside this class that writes the packed store in
+## place calls mark_state_written() (tests/test_rho_write_epoch.py pins that).
+var state_epoch: int = 0
+var density_matrix: ComplexMatrix = null:
+	set(value):
+		density_matrix = value
+		_state_written()
 
 ## Per-qubit Berry phase (geometric solid angle) tracking. Sim-side truth;
 ## viz layer reads from here. Headless-visible.
@@ -123,6 +135,17 @@ func _init(name: String = ""):
 	biome_name = name
 
 
+## ρ changed: the purity cache is stale and the write epoch moves on.
+func _state_written() -> void:
+	_purity_cache = -1.0
+	state_epoch += 1
+
+
+## For a writer outside this class that changed ρ's packed store in place.
+func mark_state_written() -> void:
+	_state_written()
+
+
 func clear() -> void:
 	# Release runtime state so biome/session teardown can break ref cycles.
 	if register_map and register_map.has_method("clear"):
@@ -138,7 +161,7 @@ func clear() -> void:
 		berry_register.clear()
 	sink_flux_per_emoji.clear()
 	_cached_mi_values = PackedFloat64Array()
-	_purity_cache = -1.0
+	_state_written()
 
 
 func restore_register_map_from_axes(axes_data: Array) -> bool:
@@ -696,7 +719,7 @@ func initialize_thermal(beta: float) -> void:
 	var neg_beta_H = hamiltonian.scale_real(-beta)
 	density_matrix = neg_beta_H.expm()
 	density_matrix.renormalize_trace()
-	_purity_cache = -1.0  # state changed — don't serve a stale purity
+	_state_written()
 	_log("debug", "quantum", "🌡️", "Initialized to thermal state β=%.1f (dim=%d)" % [beta, register_map.dim()])
 
 
@@ -775,7 +798,7 @@ func _set_pure_state_from_dominant_eigenvector(source) -> bool:
 			var vj_im := v[j * 2 + 1]
 			rho.set_element(i, j, Complex.new(vi_re * vj_re + vi_im * vj_im, vi_im * vj_re - vi_re * vj_im))
 	density_matrix = rho
-	_purity_cache = -1.0
+	_state_written()
 	return true
 
 
@@ -1221,7 +1244,7 @@ func _project_qubit(qubit_index: int, outcome_pole: int) -> void:
 	# Renormalize and invalidate caches
 	density_matrix = rho_new
 	density_matrix.renormalize_trace()
-	_purity_cache = -1.0
+	_state_written()
 
 	# Collapse cuts every tracked Berry walk in this computer — the Bloch jump
 	# is nonlocal under entanglement, so ALL tracked registers reseed, not just
@@ -1286,7 +1309,7 @@ func drain_qubit(qubit_index: int, outcome_pole: int, eta: float) -> void:
 			# else: other pole's block — untouched
 
 	density_matrix.renormalize_trace()
-	_purity_cache = -1.0
+	_state_written()
 
 
 func get_basis_probability(basis_index: int) -> float:
@@ -1387,7 +1410,7 @@ func apply_jump_channel(from_q: int, from_p: int, to_q: int, to_p: int,
 			rho_new.set_element(i, j, term0.add(term1))
 
 	density_matrix = rho_new
-	_purity_cache = -1.0
+	_state_written()
 
 
 func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
@@ -1451,7 +1474,7 @@ func _apply_lindblad_1q(qubit_index: int, from_pole: int, to_pole: int,
 	density_matrix = rho_new
 	# No _renormalize() needed — Kraus map is CPTP by construction.
 	# Only invalidate purity cache.
-	_purity_cache = -1.0
+	_state_written()
 
 	# track_flux=false for ambient recirculation (gated channels): the flux
 	# ledger meters extraction, not the webway's own churn.
@@ -1487,7 +1510,7 @@ func apply_dephase(qubit_index: int, gamma: float, dt: float) -> void:
 			if ((i >> shift) & 1) != ((j >> shift) & 1):
 				density_matrix.set_element(i, j, density_matrix.get_element(i, j).scale(s))
 
-	_purity_cache = -1.0
+	_state_written()
 
 
 func _emoji_for_qubit_pole(qubit_index: int, pole_str: int) -> String:
@@ -1583,7 +1606,7 @@ func _renormalize() -> void:
 
 	# Write packed data back as authoritative
 	density_matrix._packed_cache = p
-	_purity_cache = -1.0
+	_state_written()
 
 
 func load_packed_state(rho_packed: PackedFloat64Array, dim: int, already_normalized: bool = false) -> void:
@@ -1597,7 +1620,7 @@ func load_packed_state(rho_packed: PackedFloat64Array, dim: int, already_normali
 	# STALE value after a C++ writeback (the cache was only refreshed by evolve()). Shipping
 	# closed mode masked it (always pure ⇒ stale 1.0 is coincidentally right); dissipative
 	# modes exposed it as "purity stuck at 1.0 despite mixing".
-	_purity_cache = -1.0
+	_state_written()
 
 
 func _reinitialize_mixed_state() -> void:
@@ -1619,6 +1642,7 @@ func _reinitialize_mixed_state() -> void:
 				density_matrix.set_element(i, j, Complex.new(diag_val, 0.0))
 			else:
 				density_matrix.set_element(i, j, Complex.zero())
+	_state_written()
 
 
 func _recover_to_steady_state() -> void:
@@ -1670,7 +1694,7 @@ func _recover_to_steady_state() -> void:
 			else:
 				density_matrix.set_element(i, j, Complex.zero())
 
-	_purity_cache = -1.0
+	_state_written()
 
 
 ## Evolution lives in the NATIVE engine (QuantumEvolutionEngine / MultiBiomeLookaheadEngine),

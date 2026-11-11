@@ -392,6 +392,7 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 		if DegenerateRho.is_degenerate(rho_packed, dim):
 			var fresh_packed := DegenerateRho.maximally_mixed_packed(dim)
 			qc.density_matrix._from_packed(fresh_packed, dim)
+			qc.mark_state_written()
 			rho_packed = fresh_packed
 
 	var result = batcher.lookahead_engine.evolve_single_biome(engine_id, rho_packed, 1, dt, max_dt)

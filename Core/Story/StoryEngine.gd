@@ -16,6 +16,7 @@ const StoryGraph := preload("res://Core/Story/StoryGraph.gd")
 const StorySeedLoader := preload("res://Core/Story/StorySeedLoader.gd")
 const TrajectoryLog := preload("res://Core/Story/TrajectoryLog.gd")
 const SocialiteCluster := preload("res://Core/Story/SocialiteCluster.gd")
+const FactionChatterCls := preload("res://Core/Story/FactionChatter.gd")
 
 # Tunables (per plan §Open Questions defaults)
 const TICK_HZ: float = 1.0                 # substrate tick rate
@@ -33,6 +34,7 @@ const CONV_TRANSITION_FLOOR: float = 0.02
 var graph = null         # StoryGraph
 var trajectory = null    # TrajectoryLog (named "trajectory" to avoid shadowing log())
 var cluster = null       # SocialiteCluster
+var voices = null        # FactionChatter — factions speaking their own scope
 
 var _tick_accum: float = 0.0
 var _verbose
@@ -71,6 +73,7 @@ func start_for_session() -> void:
 	trajectory = TrajectoryLog.new()
 	cluster = SocialiteCluster.new()
 	cluster.populate(graph, 6)  # 6 seed socialites: Demos + 5 NPC factions
+	voices = FactionChatterCls.new()
 	if _verbose:
 		_verbose.info("story", "📖", "StoryEngine ready — %d nodes, %d edges, %d socialites" % [
 			graph.nodes.size(), graph.edges.size(), cluster.size()
@@ -83,6 +86,7 @@ func reset() -> void:
 	graph = null
 	trajectory = null
 	cluster = null
+	voices = null
 	_tick_accum = 0.0
 
 
@@ -106,15 +110,21 @@ func _tick_substrate() -> void:
 	_decay_recent_player_actions()
 	# Each tick: each socialite picks a biome and emits a basis-state measurement.
 	var events: Array = cluster.tick(graph)
+	# Factions speak their own scope (docs/GLYPH_LANGUAGE.md §8). Lines the Story
+	# room shows (standing-weighted) ride chatter_emitted; B and N read the ring.
+	if voices != null and cluster.farm != null and cluster.farm.grid != null 			and cluster.farm.grid.has_method("get_all_biomes"):
+		var standings: Dictionary = cluster.farm.faction_standings if "faction_standings" in cluster.farm and cluster.farm.faction_standings is Dictionary else {}
+		var icon_registry = get_node_or_null("/root/IconRegistry")
+		for line in voices.tick(cluster.farm.grid.get_all_biomes(), icon_registry, cluster.shared_registry, standings):
+			if line.get("kind", "") == "faction_line" and bool(line.get("story", false)):
+				chatter_emitted.emit(
+					str(line.get("speaker", "")),
+					str(line.get("faction", "")),
+					str(line.get("line", "")),
+					str(line.get("topic_node", ""))
+				)
 	for ev in events:
-		if ev.get("kind", "") == "chatter":
-			chatter_emitted.emit(
-				str(ev.get("speaker", "")),
-				str(ev.get("faction", "")),
-				str(ev.get("line", "")),
-				str(ev.get("topic_node", ""))
-			)
-		elif ev.get("kind", "") == "step":
+		if ev.get("kind", "") == "step":
 			trajectory.record_socialite_step(
 				str(ev.get("speaker", "")),
 				str(ev.get("from_node", "")),
@@ -841,8 +851,35 @@ func _ticks_now() -> int:
 # moves — all flow through real biome physics now and are sampled, not injected.
 
 
-## Recent chatter (last n events as structured lines for Z to render).
+## Recent biome-scope chatter (socialite measurements; N's live view).
 func recent_chatter(n: int = 5) -> Array:
 	if cluster == null:
 		return []
 	return cluster.recent_chatter(n)
+
+
+## The Story room's lines: factions drawn by standing (plus your own people).
+func story_chatter(n: int = 6) -> Array:
+	if voices == null:
+		return []
+	return voices.recent(n, func(ev): return ev.get("kind", "") == "faction_line" and bool(ev.get("story", false)))
+
+
+## B's lines: the latest line of each faction connected to this biome (the
+## market's rule: it owns an icon matching one of the biome's qubit pairs).
+func faction_lines_for_biome(biome, n: int = 6) -> Array:
+	if voices == null or biome == null:
+		return []
+	var connected: Array = FactionBiomeMap.factions_for_biome_by_signature(biome)
+	var latest: Dictionary = {}
+	for ev in voices.recent(96, func(ev): return ev.get("kind", "") == "faction_line" and connected.has(str(ev.get("faction", "")))):
+		latest[str(ev.get("faction", ""))] = ev
+	var out: Array = latest.values()
+	return out.slice(maxi(0, out.size() - n))
+
+
+## N's cross-biome lines: one icon read in two biomes, ⚠ or 🟰.
+func between_chatter(n: int = 6) -> Array:
+	if voices == null:
+		return []
+	return voices.recent(n, func(ev): return ev.get("kind", "") == "between")

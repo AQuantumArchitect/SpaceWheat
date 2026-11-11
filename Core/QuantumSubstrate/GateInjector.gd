@@ -1,27 +1,24 @@
 class_name GateInjector
 extends RefCounted
 
-## GateInjector - Coordinates gate application with evolution buffer invalidation
-##
-## This module handles the handoff between UI gate operations and the quantum
-## computer, ensuring that the C++ lookahead buffer is invalidated after gates
-## are applied (otherwise the pre-computed evolution frames become stale).
+## GateInjector - applies gates to a biome's QuantumComputer, singly or in order.
 ##
 ## Flow:
 ##   input/instrument command → GateActionHandler → GateInjector.inject_gate()
 ##        ↓
-##   QuantumComputer.apply_gate()  +  BiomeEvolutionBatcher.signal_user_action()
+##   QuantumComputer.apply_gate()  →  ρ written, state_epoch stamped
+##
+## Nothing here touches the lookahead batcher. A gate is a write to ρ like any
+## other; the batcher sees the QuantumComputer's state_epoch move past the epoch
+## its frames were forecast from, and evolves from the live ρ instead of replaying
+## them (BiomeEvolutionBatcher._forecast_epoch). The one thing left to do after a
+## gate is braid_order's: refresh the cached mutual information from the live ρ,
+## so a just-built Bell scores at once (_refresh_mi).
 ##
 ## Batch Flow (for multi-select):
 ##   UI Shift+E → GateInjector.inject_gate_batch(ordered_gates)
 ##        ↓
-##   Apply all gates in order → SINGLE signal_user_action() at end
-##
-## Why this exists:
-##   The BiomeEvolutionBatcher pre-computes 5 lookahead frames in C++ for smooth
-##   visualization. If a gate is applied directly to density_matrix, the buffer
-##   contains stale states. This module ensures buffer invalidation happens
-##   atomically with gate application.
+##   Apply all gates in order → one MI refresh per touched biome at the end
 
 
 
@@ -29,8 +26,8 @@ extends RefCounted
 ## BATCH GATE INJECTION (Multi-select operations)
 ## ============================================================================
 
-static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
-	# Apply multiple gates in order, invalidate buffer ONCE at end.
+static func inject_gate_batch(gate_ops: Array, _farm = null) -> Dictionary:
+	# Apply multiple gates in order, refresh MI once per biome at the end.
 
 	# Args:
 	# gate_ops: Array of gate operations, each is a Dictionary:
@@ -40,7 +37,7 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 	# gate_name: String (e.g., "H", "X", "Rx"),
 	# gate_matrix: ComplexMatrix (optional, if not using gate_name)
 	# }
-	# farm: Farm reference for batcher access
+	# _farm: unused (kept for callers; the batcher notices writes itself)
 
 	# Returns:
 	# Dictionary with:
@@ -56,9 +53,9 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 	var applied_count = 0
 	var failed_count = 0
 	var order: Array = []
-	var any_biome = null  # Track for invalidation
+	var touched: Array = []
 
-	# Apply gates in order WITHOUT invalidating buffer
+	# Apply gates in order
 	for op in gate_ops:
 		var biome = op.get("biome")
 		var qubit = op.get("qubit", -1)
@@ -70,7 +67,8 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 			failed_count += 1
 			continue
 
-		any_biome = biome
+		if not touched.has(biome):
+			touched.append(biome)
 
 		# Get gate matrix from library if not provided
 		if gate_matrix == null and gate_name != "":
@@ -83,7 +81,6 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 			failed_count += 1
 			continue
 
-		# Apply gate directly (no invalidation yet)
 		var success = biome.quantum_computer.apply_gate(qubit, gate_matrix)
 
 		if success:
@@ -94,9 +91,10 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 			failed_count += 1
 			results.append({"success": false, "error": "apply_failed", "qubit": qubit, "gate": gate_name})
 
-	# SINGLE invalidation after all gates applied
-	if applied_count > 0 and any_biome:
-		_invalidate_lookahead(any_biome, farm)
+	# One MI refresh per touched biome, after all gates applied
+	if applied_count > 0:
+		for touched_biome in touched:
+			_refresh_mi(touched_biome)
 
 	return {
 		"success": applied_count > 0,
@@ -132,14 +130,14 @@ static func inject_named_gate_batch(biome, qubits: Array, gate_name: String, far
 	return inject_gate_batch(gate_ops, farm)
 
 
-static func inject_gate(biome, qubit: int, gate_matrix, farm = null) -> Dictionary:
-	# Apply a 1-qubit gate and invalidate lookahead buffer.
+static func inject_gate(biome, qubit: int, gate_matrix, _farm = null) -> Dictionary:
+	# Apply a 1-qubit gate.
 
 	# Args:
 	# biome: Biome containing the quantum computer
 	# qubit: Target qubit index
 	# gate_matrix: 2x2 ComplexMatrix unitary
-	# farm: Farm reference for batcher access (optional, extracted from biome if null)
+	# _farm: unused (kept for callers)
 
 	# Returns:
 	# Dictionary with success/error
@@ -153,8 +151,7 @@ static func inject_gate(biome, qubit: int, gate_matrix, farm = null) -> Dictiona
 	var success = biome.quantum_computer.apply_gate(qubit, gate_matrix)
 
 	if success:
-		# Invalidate lookahead buffer
-		_invalidate_lookahead(biome, farm)
+		_refresh_mi(biome)
 
 	return {
 		"success": success,
@@ -163,15 +160,15 @@ static func inject_gate(biome, qubit: int, gate_matrix, farm = null) -> Dictiona
 	}
 
 
-static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm = null) -> Dictionary:
-	# Apply a 2-qubit gate and invalidate lookahead buffer.
+static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, _farm = null) -> Dictionary:
+	# Apply a 2-qubit gate.
 
 	# Args:
 	# biome: Biome containing the quantum computer
 	# qubit_a: First qubit (control for CNOT)
 	# qubit_b: Second qubit (target for CNOT)
 	# gate_matrix: 4x4 ComplexMatrix unitary
-	# farm: Farm reference for batcher access (optional)
+	# _farm: unused (kept for callers)
 
 	# Returns:
 	# Dictionary with success/error
@@ -185,8 +182,7 @@ static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm 
 	var success = biome.quantum_computer.apply_gate_2q(qubit_a, qubit_b, gate_matrix)
 
 	if success:
-		# Invalidate lookahead buffer
-		_invalidate_lookahead(biome, farm)
+		_refresh_mi(biome)
 
 	return {
 		"success": success,
@@ -197,7 +193,7 @@ static func inject_gate_2q(biome, qubit_a: int, qubit_b: int, gate_matrix, farm 
 
 
 static func inject_named_gate(biome, qubit: int, gate_name: String, farm = null) -> Dictionary:
-	# Apply a named gate from the library and invalidate lookahead.
+	# Apply a named gate from the library.
 
 	# Args:
 	# biome: Biome containing the quantum computer
@@ -221,7 +217,7 @@ static func inject_named_gate(biome, qubit: int, gate_name: String, farm = null)
 
 
 static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: String, farm = null) -> Dictionary:
-	# Apply a named 2-qubit gate from the library and invalidate lookahead.
+	# Apply a named 2-qubit gate from the library.
 
 	# Args:
 	# biome: Biome containing the quantum computer
@@ -245,30 +241,9 @@ static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: S
 	return result
 
 
-static func _invalidate_lookahead(biome, farm = null) -> void:
-	# Notify the evolution batcher that lookahead buffer is stale.
-
-	# Called after any gate injection to force refill of pre-computed frames.
-	var batcher = null
-
-	# Try to get batcher from farm
-	if farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
-		batcher = farm.biome_evolution_batcher
-
-	# Fallback: try to get farm from scene tree
-	if batcher == null:
-		var tree = Engine.get_main_loop()
-		if tree and tree is SceneTree:
-			var root = tree.root
-			var farm_node = root.get_node_or_null("Farm")
-			if farm_node and "biome_evolution_batcher" in farm_node:
-				batcher = farm_node.biome_evolution_batcher
-
-	# Signal the batcher to invalidate lookahead
-	if batcher and batcher.has_method("signal_user_action"):
-		batcher.signal_user_action()
-	# braid_order: refill MI from the live ρ now. Frozen lookahead would
-	# otherwise leave a just-built Bell scoring 0 until the next evolve_with_mi.
-	if biome != null and biome.get("quantum_computer") != null \
-			and biome.quantum_computer.has_method("refresh_cached_mi"):
+## braid_order: score the live ρ's mutual information now. A frozen or
+## restarted lookahead would otherwise leave a just-built Bell scoring 0 until
+## the next packet brings MI.
+static func _refresh_mi(biome) -> void:
+	if biome != null and biome.get("quantum_computer") != null 			and biome.quantum_computer.has_method("refresh_cached_mi"):
 		biome.quantum_computer.refresh_cached_mi()

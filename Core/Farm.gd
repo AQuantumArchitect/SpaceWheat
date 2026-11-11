@@ -1156,13 +1156,11 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
-	# Persistent Lindblad pump/drain (the Spark/Merchant frames) is OPEN-SYSTEM ONLY.
-	# The closed system has no dissipation — hard-gate here so the live game can never
-	# run this path even if a stray register flag survives from an open save / DLC toggle.
-	# (Previously this relied only on Spark/Merchant being frame-hidden in closed mode.)
-	if not BalanceConfig.dissipative_enabled():
-		return
-	# Apply persistent Lindblad pump/drain effects from the Spark/Merchant frames.
+	# Persistent Lindblad pump/drain (the Merchant frame's standing contracts) runs
+	# wherever the biome's regime is open — per biome, below (is_open_here). The
+	# world switch is NOT a gate here: What Fades opens biomes one at a time long
+	# before the endgame door, and a contract signed in open country must tick
+	# there (owner ruling 2026-11-11). Sealed ground still never ticks a stray flag.
 	if not grid:
 		return
 
