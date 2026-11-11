@@ -248,21 +248,24 @@ know which one you're touching.
   `quantum_computer.lindblad_operators`.
 
 **Live-evolution authorities (every tick):**
-- `QuantumComputer.evolve(dt)` — canonical Lindblad master equation integrator
-  (GDScript). Reads H + L from above.
-- **`MultiBiomeLookaheadEngine` (C++)** — *silent twin*. Holds its OWN copy of
-  H + L, registered via `BiomeEvolutionBatcher._register_biome_with_engine`.
-  Computes 13-step lookahead in the background; results are played back into
-  `density_matrix` by `BiomeEvolutionBatcher._apply_buffered_step`. **For
-  batched biomes (the default) this is the production tick path** — GDScript
-  `evolve()` is bypassed. Any in-place mutation of H or L MUST call
-  `BiomeEvolutionBatcher.mark_for_reregister(name)` or the C++ engine replays
-  stale physics. (Dim changes auto-detect; same-dim H mutations don't.)
+- **`MultiBiomeLookaheadEngine` (C++)** — the only integrator (the GDScript
+  `evolve()` was deleted 2026-07-06). Holds its OWN copy of H + L, registered
+  via `BiomeEvolutionBatcher._register_native_biome`. Computes ~13-phrame
+  lookahead in the background; results are played back into `density_matrix`
+  by `BiomeEvolutionBatcher._apply_buffered_step`. Any in-place mutation of H or
+  L should call `BiomeEvolutionBatcher.mark_for_reregister(name)`; the batcher
+  also re-registers when the live `physics_signature` drifts from the one it
+  registered.
 - `FactionDensityMatrix` (`QuantumMythosEngine` C++) — separate 12-qubit
   emoji-basis engine. Independent H + L. Drives factions / market lattice /
   story flags. **Read-only from biomes** — does not write back.
 
-**Discrete event mutators (intentional, scoped):**
+**Discrete event mutators (intentional, scoped):** each stamps
+`QuantumComputer.state_epoch`, and the batcher evolves the live ρ the next phrame
+instead of replaying frames forecast before the write, so neither the mutator nor
+its caller touches the batcher. A new writer goes through a `QuantumComputer`
+method, or calls `mark_state_written()` after an in-place write
+(`tests/test_lookahead_follows_writes.py` pins both).
 - Gates (`apply_gate`, `apply_gate_2q`)
 - Measurement / collapse / drain (`_project_qubit`, `drain_qubit`,
   `BiomeDensityMatrixMutator.collapse_register`,

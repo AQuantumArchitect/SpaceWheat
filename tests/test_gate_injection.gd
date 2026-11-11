@@ -4,7 +4,8 @@ extends SceneTree
 ##
 ## Verifies that:
 ## 1. Gates are applied correctly to the density matrix (ρ' = U ρ U†)
-## 2. GateInjector properly calls signal_user_action() on the batcher
+## 2. A GateInjector gate stamps QuantumComputer.state_epoch (the batcher drops a
+##    stale lookahead forecast on its own when the epoch moves)
 ## 3. The untested _embed_1q_unitary and apply_gate paths work correctly
 ##
 ## Run with: godot --headless -s tests/test_gate_injection.gd
@@ -131,8 +132,8 @@ func test_embed_1q_unitary():
 
 
 func test_gate_injector_invalidates_buffer():
-	# Test GateInjector calls signal_user_action() on batcher.
-	print("\n[TEST] GateInjector buffer invalidation")
+	# A gate through GateInjector stamps the write epoch the batcher watches.
+	print("\n[TEST] GateInjector write stamps state_epoch")
 
 	# Create mock biome with quantum computer
 	var qc = QuantumComputer.new("test_injector")
@@ -143,8 +144,10 @@ func test_gate_injector_invalidates_buffer():
 	var mock_biome = _MockBiome.new(qc)
 	var H = QuantumGateLibrary.get_gate("H")["matrix"]
 
+	var epoch_before: int = qc.state_epoch
 	var result = GateInjector.inject_gate(mock_biome, 0, H, null)
 	assert_eq(result.success, true, "Inject_gate succeeds with mock biome")
+	assert_eq(qc.state_epoch > epoch_before, true, "gate stamped state_epoch")
 	assert_eq(result.get("gate_injected", false), true, "gate_injected flag set")
 
 	# Verify the gate actually changed the state

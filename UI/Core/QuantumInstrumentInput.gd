@@ -117,21 +117,9 @@ signal surface_ring_step_requested(delta: int)
 ## the chrome refs) decoupled from the owner (QII, which holds the state).
 signal cursor_layer_changed(layer: int)
 
-# Actions that modify density matrix at phrame 0 (require buffer invalidation)
-const BUFFER_INVALIDATING_ACTIONS: Array[String] = [
-	# Druid frame: reversible unitary rotations + Hadamard
-	"rotate_up", "rotate_down", "hadamard",
-	# Spark frame: instant pole shifts (strong one-shot drive/decay)
-	"spark_north", "spark_south",
-	# Ace frame: coherent Rabi preparation
-	"plant",
-	# Merchant frame: persistent Lindbladian contracts (settle stops them)
-	"drain", "pump", "settle",
-	# Operator frame: entangling gates
-	"measure", "build_gate", "remove_gates",
-# Icon frame: icon injection/removal (adds/removes qubits via icon assignment)
-	"inject_icon", "remove_icon"
-]
+# No verb here invalidates the lookahead. A verb that writes ρ is noticed by the
+# batcher itself (QuantumComputer.state_epoch); one that changes resolution goes
+# through BiomeBase.max_evolution_dt's setter. The game comes second to the sim.
 
 
 func _ready() -> void:
@@ -819,9 +807,6 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		_toast_player("✓ %s/%s took root in %s — +1 qubit" % [
 			str(icon.get("north", "")), str(icon.get("south", "")), str(biome.get_biome_type())])
 
-		# Invalidate buffer (icon injection adds qubits, modifies density matrix)
-		_invalidate_biome_buffer_for_action("inject_icon")
-
 		_append_dispatch_ledger("inject_icon", true)
 		# (story notification now fires inside QuantumInstrument.action_inject_icon_pair)
 		action_performed.emit("inject_icon", {
@@ -972,8 +957,8 @@ func _execute_incorporate_icon() -> Dictionary:
 	elif str(result.get("message", "")) != "":
 		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
-	# double-emit pattern as inject_icon. Incorporate does NOT touch the biome ρ, so no
-	# lookahead-buffer invalidation (it only consumes a berry entry + grows the signature).
+	# double-emit pattern as inject_icon. Incorporate does NOT touch the biome ρ (it
+	# only consumes a berry entry + grows the signature).
 	action_performed.emit("incorporate_icon", result)
 	return result
 
@@ -981,8 +966,7 @@ func _execute_incorporate_icon() -> Dictionary:
 ## ============================================================================
 ## MAJORANA BRIDGE VERBS (Spark frame, 🌉 mode — BridgeRegister, What Connects)
 ## R spans (two-step: near shore, then far shore in another biome), F braids,
-## Q fuses, E reads the card. Bridge ops never touch biome density matrices, so
-## no lookahead buffer invalidation is needed.
+## Q fuses, E reads the card. Bridge ops never touch biome density matrices.
 ## ============================================================================
 
 ## The near shore awaiting its far shore. UI state only — never serialized.
@@ -1935,8 +1919,8 @@ func _tap_blocked_by_overlay() -> bool:
 
 ## measure on a live bubble, pop on a measured one (a tap must never arm
 ## Captain-cull or a keyboard-F confirm chord). Dispatch goes through the SAME
-## validator + _run_action tail as the keyboard, so refusal toasts, lookahead
-## buffer invalidation, whispers and action_performed behave identically —
+## validator + _run_action tail as the keyboard, so refusal toasts, whispers
+## and action_performed behave identically —
 ## one mechanics authority (anti-gating law). A tap on a non-active biome's
 ## station only switches + focuses; it never fires a verb on a biome the
 ## player isn't looking at.
@@ -2369,7 +2353,7 @@ func _cost_shortfall_words(action_name: String) -> String:
 func _perform_shift_key_action(action_key: String) -> void:
 	# Apply the Q/E/R action across all checked plots (multi-select batch operation).
 
-	# For gate actions (Druid frame: unitary gates), uses batch injection with single buffer invalidation.
+	# For gate actions (Druid frame: unitary gates), uses batch injection.
 	# Selection order is preserved - gates are applied in the order plots were checked.
 	var current_frame_name: String = ToolConfig.get_current_frame()
 	# Progressive disclosure (phase-3 funnel): structurally separate dispatch
@@ -2433,7 +2417,7 @@ func _run_shift_batch(action_name: String, positions: Array, symbol: String, log
 	}
 
 	# BATCH GATE PATH: For Druid frame (unitary) gate actions, use batch injection
-	# This applies all gates in selection order with SINGLE buffer invalidation
+	# This applies all gates in selection order
 	if _is_gate_action(action_name):
 		_perform_batch_gate_action(action_name, positions, symbol, log_label)
 		_restore_selection(original_selection)
@@ -2474,7 +2458,6 @@ func _perform_batch_gate_action(action_name: String, positions: Array, symbol: S
 	# Apply gate action to multiple qubits using batch injection.
 
 	# Gates are applied in selection order (first checked = first gate applied).
-	# Buffer invalidation happens ONCE at the end, not per-gate.
 
 	# Args:
 	# action_name: Gate action (hadamard, rotate_up, rotate_down)
@@ -2529,17 +2512,13 @@ func _perform_batch_gate_action(action_name: String, positions: Array, symbol: S
 		log_label, gate_ops.size(), " → ".join(order_log)
 	])
 
-	# BATCH INJECTION: All gates applied, single buffer invalidation
+	# BATCH INJECTION: all gates applied in order
 	var result = GateInjectorClass.inject_gate_batch(gate_ops, farm)
 
 	if result.success:
 		_verbose.info("input", "✓", "Applied %d gates, order preserved: %s" % [
 			result.applied_count, result.order
 		])
-
-		# Invalidate buffer ONCE after batch gate application
-		if action_name in BUFFER_INVALIDATING_ACTIONS:
-			_invalidate_biome_buffer_for_action(action_name)
 	else:
 		_verbose.warn("input", "✗", "Batch gate failed: %s" % result.get("error", "unknown"))
 
@@ -2596,10 +2575,6 @@ func _run_action(action_name: String, log_symbol: String, action_label: String) 
 	var result = _execute_action(action_name)
 
 	_append_dispatch_ledger(action_name, bool(result.get("success", false)))
-
-	# Invalidate buffer if action modified density matrix at phrame 0
-	if result.get("success", false) and action_name in BUFFER_INVALIDATING_ACTIONS:
-		_invalidate_biome_buffer_for_action(action_name)
 
 	_log_action_result(action_name, log_symbol, action_label, result)
 
@@ -2691,32 +2666,6 @@ func _log_action_result(action_name: String, log_symbol: String, action_label: S
 	action_performed.emit(action_name, result)
 
 
-func _invalidate_biome_buffer_for_action(action_name: String) -> void:
-	# Invalidate biome buffer after density matrix modification.
-
-	# When actions modify the density matrix at phrame 0, the lookahead buffer
-	# becomes invalid and must be recomputed. This triggers high-priority emergency refill.
-
-	# Args:
-	# action_name: Name of action that modified the density matrix
-	# Get affected biome
-	var biome = _get_current_biome()
-	if not biome:
-		_verbose.debug("input", "🔄", "No biome to invalidate for %s" % action_name)
-		return
-
-	var biome_name = BiomeBase.type_name(biome)
-
-	# Get batcher reference from farm
-	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
-	if not batcher:
-		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
-		return
-
-	# Invalidate buffer (triggers emergency refill with high priority)
-	batcher.invalidate_biome_buffer(biome_name)
-	_verbose.info("input", "🔄", "Buffer invalidated for %s (action: %s)" % [biome_name, action_name])
-
 
 func _get_target_biome_for_granularity() -> Dictionary:
 	# Get the target biome for granularity control (-/= keys).
@@ -2756,101 +2705,9 @@ func _get_target_biome_for_granularity() -> Dictionary:
 	return {"biome": null, "name": "", "reason": "no_selection_method"}
 
 
-func _invalidate_single_biome_buffer(biome_name: String, reason: String) -> void:
-	# Invalidate a single biome's lookahead buffer after granularity change.
-	if not farm:
-		_verbose.debug("input", "🔄", "No farm for buffer invalidation")
-		return
-
-	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if not batcher:
-		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
-		return
-
-	batcher.invalidate_biome_buffer(biome_name)
-	_verbose.debug("input", "🔄", "[%s] Buffer invalidated: %s" % [biome_name, reason])
 
 
-func _decimate_single_biome_buffer(biome_name: String, decimation_factor: int) -> void:
-	# Decimate a single biome's buffer when coarsening granularity.
-	if not farm:
-		_verbose.debug("input", "✂️", "No farm for buffer decimation")
-		return
 
-	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if not batcher:
-		_verbose.debug("input", "✂️", "No batcher available for buffer decimation")
-		return
-
-	var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
-	_verbose.debug("input", "✂️", "[%s] Buffer decimated (1/%d) - preserved %d frames" % [
-		biome_name, decimation_factor, new_depth
-	])
-
-
-func _reset_single_biome_stride_carry(biome_name: String) -> void:
-	# Reset stride dt carry so stride/resolution changes apply deterministically.
-	if not farm:
-		return
-	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if batcher:
-		batcher.reset_stride_carry(biome_name)
-
-
-func _invalidate_all_biome_buffers(reason: String) -> void:
-	# Invalidate ALL biome buffers after global parameter changes.
-
-	# When simulation parameters change (granularity, time scale), all lookahead
-	# buffers become invalid because they were computed with old parameters.
-
-	# Args:
-	# reason: Reason for invalidation (for logging)
-	if not farm or not farm.grid:
-		_verbose.debug("input", "🔄", "No farm/grid for buffer invalidation")
-		return
-
-	# Get batcher reference from farm
-	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if not batcher:
-		_verbose.debug("input", "🔄", "No batcher available for buffer invalidation")
-		return
-
-	# Invalidate ALL biomes
-	var biome_count = 0
-	for biome_name in farm.grid.get_biome_names():
-		batcher.invalidate_biome_buffer(biome_name)
-		biome_count += 1
-
-	_verbose.info("input", "🔄", "All %d biome buffers invalidated (reason: %s)" % [biome_count, reason])
-
-
-func _decimate_all_biome_buffers(decimation_factor: int) -> void:
-	# Decimate ALL biome buffers when coarsening granularity.
-
-	# When dt doubles (2x coarser), existing frames are still valid but oversampled.
-	# Instead of full invalidation, keep every Nth frame to preserve computed work.
-
-	# Args:
-	# decimation_factor: Keep every Nth frame (2 for 2x coarsening)
-	if not farm or not farm.grid:
-		_verbose.debug("input", "✂️", "No farm/grid for buffer decimation")
-		return
-
-	var batcher = farm.biome_evolution_batcher if "biome_evolution_batcher" in farm else null
-	if not batcher:
-		_verbose.debug("input", "✂️", "No batcher available for buffer decimation")
-		return
-
-	var biome_count = 0
-	var total_preserved = 0
-	for biome_name in farm.grid.get_biome_names():
-		var new_depth = batcher.decimate_biome_buffer(biome_name, decimation_factor)
-		total_preserved += new_depth
-		biome_count += 1
-
-	_verbose.info("input", "✂️", "All %d biome buffers decimated (1/%d) - preserved %d frames total" % [
-		biome_count, decimation_factor, total_preserved
-	])
 
 
 func _execute_action(action_name: String) -> Dictionary:
@@ -3422,7 +3279,6 @@ func _decrease_time_controls() -> void:
 
 	var stride_result = GranularityController.decrease_stride([target_biome])
 	var speed_result = GranularityController.decrease_time_scale([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	_persist_runtime_timescale(stride_result.new_stride, speed_result.new_time_scale)
 
@@ -3467,7 +3323,6 @@ func _increase_time_controls() -> void:
 
 	var stride_result = GranularityController.increase_stride([target_biome])
 	var speed_result = GranularityController.increase_time_scale([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	_persist_runtime_timescale(stride_result.new_stride, speed_result.new_time_scale)
 
@@ -3501,7 +3356,6 @@ func _decrease_stride() -> void:
 	var target_biome_name = target_biome_info.name
 
 	var result = GranularityController.decrease_stride([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so stride survives save/load
 	_persist_runtime_timescale(result.new_stride, null)
@@ -3531,7 +3385,6 @@ func _increase_stride() -> void:
 	var target_biome_name = target_biome_info.name
 
 	var result = GranularityController.increase_stride([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so stride survives save/load
 	_persist_runtime_timescale(result.new_stride, null)
@@ -3563,15 +3416,11 @@ func _decrease_resolution() -> void:
 
 	# Use granularity controller on single biome
 	var result = GranularityController.decrease_granularity([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so resolution survives save/load
 	_persist_runtime_resolution(result.new_dt)
 
-	# CRITICAL: Invalidate ONLY target biome's buffer - lookahead was computed with old dt
-	_invalidate_single_biome_buffer(target_biome_name, "granularity_decrease")
-
-	_verbose.info("input", "🔬", "[%s] Resolution: %.4fs → %.4fs (finer, buffer invalidated)" % [
+	_verbose.info("input", "🔬", "[%s] Resolution: %.4fs → %.4fs (finer)" % [
 		target_biome_name, result.current_dt, result.new_dt
 	])
 
@@ -3597,15 +3446,11 @@ func _increase_resolution() -> void:
 
 	# Use granularity controller on single biome
 	var result = GranularityController.increase_granularity([target_biome])
-	_reset_single_biome_stride_carry(target_biome_name)
 
 	# Persist to GameState so resolution survives save/load
 	_persist_runtime_resolution(result.new_dt)
 
-	# OPTIMIZATION: Decimate buffer instead of full invalidation (10x coarser = keep every 10th frame)
-	_decimate_single_biome_buffer(target_biome_name, 10)
-
-	_verbose.info("input", "🔭", "[%s] Resolution: %.4fs → %.4fs (coarser, buffer decimated)" % [
+	_verbose.info("input", "🔭", "[%s] Resolution: %.4fs → %.4fs (coarser)" % [
 		target_biome_name, result.current_dt, result.new_dt
 	])
 

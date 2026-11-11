@@ -287,11 +287,6 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	else:
 		drain_eta = _resolve_drain_fraction(biome, measured_purity, farm)
 		collapse_ok = _drain_register(biome, register_id, is_north, drain_eta)
-	if collapse_ok:
-		# The collapse is a write to ρ outside the batcher: drop the biome's stale
-		# lookahead frames, or the next buffered step restores the pre-strike state
-		# (found 2026-11-10: a direct strike lasted ~2 frames with lookahead on).
-		GateInjector.invalidate_after_write(biome, farm)
 	if not collapse_ok:
 		# Honest failure: the quantum state was NOT collapsed (no quantum_computer, or
 		# missing project/drain). Don't finalize the terminal or charge the cost — a

@@ -13,17 +13,21 @@ extends SceneTree
 ##   direct  QuantumInstrument.action_measure called directly (rig drivers,
 ##           ReelRunner, anything that skips QuantumInstrumentInput)
 ##   gate    an X gate through GateInjector.inject_gate (p → 1 − p)
+##   raw     an X gate straight on the QuantumComputer, no helper at all
+##   pump    a standing pump contract (open regime) ticked by Farm every physics
+##           frame, rate 20 so it outruns any H: the north marginal goes to ~1
 ##
 ## `expect` is the p_north the write produced; `before` the p_north it replaced.
-## Before the fix (2026-11-10) the direct strike and the gate were overwritten
-## within ~2 frames by the batcher's stale lookahead frames; the keys path was
-## fine because QuantumInstrumentInput invalidates after player actions.
-## tests/test_strike_collapse_lookahead.py runs this with lookahead on.
+## Before 2026-11-10 the direct strike and the gate were overwritten within ~2
+## frames by the batcher's stale lookahead frames; the keys path was fine only
+## because QuantumInstrumentInput invalidated after player actions. Since
+## 2026-11-11 the batcher notices any write to ρ itself (QuantumComputer.state_epoch)
+## and nobody invalidates by hand.
 ##
 ##   godot --headless --script tests/strike_collapse_probe.gd
 ##
 ## Set SW_PROBE_USER_DIR_PREFIX to refuse to boot unless user:// resolves under it.
-## Not run by pytest: it is a repro, not a gate.
+## tests/test_lookahead_follows_writes.py runs it with lookahead on.
 
 func _init() -> void:
 	call_deferred("_run")
@@ -101,6 +105,27 @@ func _run() -> void:
 	var lib = QuantumGateLibrary.new()
 	GateInjector.inject_gate(village, 0, lib.GATES["X"]["matrix"], farm)
 	await _trace("gate", lookahead, village, {"register_id": 0}, 1.0 - before, before)
+
+	# raw: the same flip with no helper in between — QuantumComputer only.
+	before = _p_north(village, 1)
+	village.quantum_computer.apply_pauli_x(1)
+	await _trace("raw", lookahead, village, {"register_id": 1}, 1.0 - before, before)
+
+	# pump: a standing contract, ticked by Farm every physics frame. Farm only
+	# ticks contracts once the world is open (the endgame door's switch).
+	BalanceConfig.merge_physics_override({"dissipative_dynamics": true})
+	var fqc = forest.quantum_computer
+	fqc.regime_override = "open"
+	fqc.set_register_infra_field(0, "lindblad_channel_kind", "damp")
+	fqc.set_register_infra_field(0, "lindblad_pump_rate", 20.0)
+	fqc.set_register_infra_field(0, "lindblad_pump_active", true)
+	var pumped: Array = [[0, _p_north(forest, 0)]]
+	for t in range(1, 41):
+		await physics_frame
+		if t in [1, 2, 5, 10, 20, 30, 40]:
+			pumped.append([t, _p_north(forest, 0)])
+	print("STRIKE_TRACE " + JSON.stringify({"path": "pump", "lookahead": lookahead,
+		"biome": "StarterForest", "register": 0, "expect": 1.0, "before": pumped[0][1], "trace": pumped}))
 	quit(0)
 
 
@@ -119,7 +144,8 @@ func _trace(path: String, lookahead: bool, biome, strike: Dictionary, expect: fl
 		if f in [1, 2, 3, 5, 10, 20, 30, 45, 60]:
 			trace.append([f, _p_north(biome, reg)])
 	print("STRIKE_TRACE " + JSON.stringify({"path": path, "lookahead": lookahead,
-		"biome": BiomeBase.type_name(biome), "register": reg, "expect": expect, "before": before, "trace": trace}))
+		"biome": BiomeBase.type_name(biome), "register": reg, "expect": expect, "before": before,
+		"dt": biome.max_evolution_dt, "stride": biome.observation_stride, "trace": trace}))
 
 
 func _p_north(biome, q: int) -> float:
