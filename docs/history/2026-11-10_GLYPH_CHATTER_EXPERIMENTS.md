@@ -78,3 +78,26 @@ With a separate standing draw only, a 90-second boot (lookahead on) produced no 
 line at all. Your own people's first, all-news line usually went out through the
 general draw. Now every line from a faction with positive standing, or from The Demos, is
 a Story line, and the standing draw adds air on top.
+
+## Correction, later the same day
+
+Two claims above were too broad. Both were checked again while fixing them
+([PR #65](https://github.com/AQuantumArchitect/SpaceWheat/pull/65)).
+
+- **§2 applies to direct callers, not players.** The probes called
+  `QuantumInstrument.action_measure` and `GateInjector` directly. The player's key path
+  (8 G F R) invalidates the lookahead in `QuantumInstrumentInput` and holds the collapse,
+  so player strikes do reach the chatter. The write sites themselves didn't invalidate,
+  so rig drivers, `ReelRunner` and bots lost their writes. PR #65 moves invalidation into
+  the write sites.
+- **§4: the viz cache's MI is live with lookahead on.** The StarterForest 🐺–🦅 pair reads
+  0.29–0.42 bits. The Village's MI is genuinely tiny, which is where the ≈0 came from.
+  With lookahead **off** (the rig default) the MI cache is never filled and every pair
+  reads 0. Ties still use pole MI from the basis distribution, because that is the
+  distribution the line's poles are drawn from.
+- **§1's "lookahead on vs off changes how fast the state moves" is real.** The player
+  lane advances `max_evolution_dt` (0.02 s) of simulation per tick, while the rig lane
+  advances the tick delta (0.1 s): 0.2× against 1.0× real time. TheDemos' half-period is
+  10.3 s for players and 2.0 s in the rig. `quantum_time_scale` (documented 0.5×) is read
+  by neither lane.
+

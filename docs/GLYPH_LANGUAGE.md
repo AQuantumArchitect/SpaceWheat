@@ -293,11 +293,11 @@ review):**
    never has news. Should rumours exist, e.g. a 🗝-gated chance to name what it deals in?
 2. **The early Story room is quiet.** Before anyone stands well with you, only your own
    people talk there, and only when their registers move.
-3. **Strikes don't reach chatter in the shipped configuration.** In a headless boot with
-   lookahead on (the player default), a strike's collapse is overwritten within about 10
-   frames, so the factions never hear about it. With lookahead off it persists. This is a
-   physics finding, not a chatter one; it's written up in the history note, and the
-   chatter will show strikes once it's resolved.
+3. **The rig's world isn't the player's.** With lookahead off (the rig default) the
+   simulation runs 5× faster than the player's lane and never fills the mutual-information
+   cache. Chatter tuned against rig runs would be tuned against a different world.
+   Found while tuning; see [PR #65](https://github.com/AQuantumArchitect/SpaceWheat/pull/65).
+   Which speed is canonical is a design call.
 
 ## 11. For Semantica: what SpaceWheat proposes upstream
 
