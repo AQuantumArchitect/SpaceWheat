@@ -155,3 +155,16 @@ def test_loom_post_game_soft_locks():
     assert _campaign()["guide"]["walks"]["purity_at_most"] == ["gray"]
     gray = _read("Core/Campaign/Guide.gd").split("static func _gray(", 1)[1].split("\nstatic func ", 1)[0]
     assert "_biome_open(" in gray and '_last_action_ms("hadamard")' in gray
+
+
+def test_a_still_country_gets_a_nudge_not_an_endless_wait():
+    # Gilded Rot at the shipped speed: its plots go still, and a loop 0.003 rad
+    # short of 2π never ripens on its own (pn3: 25 min at ×32). One Druid
+    # Spin ripens it.
+    guide = _read("Core/Campaign/Guide.gd")
+    berry = guide.split("static func _berry(", 1)[1].split("\nstatic func ", 1)[0]
+    assert "_nudge(q)" in berry
+    nudge = guide.split("static func _nudge(", 1)[1].split("\nstatic func ", 1)[0]
+    assert '["Spin +", "R"]' in nudge and "NUDGE_AFTER_MS" in nudge
+    # The Icon-hat steps defer to a due nudge while the Druid is worn.
+    assert guide.count("var nd := _nudge(q)") >= 2

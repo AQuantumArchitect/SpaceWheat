@@ -439,6 +439,12 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 					only = _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", "")))
 				if _berry_needs_reveal(only):
 					return {}
+				# Mid-nudge in the Druid: the spin comes first, or "Druid hat [0]"
+				# ⇄ "Icon hat [5]" for ever.
+				if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID:
+					var nd := _nudge(q)
+					if not nd.is_empty():
+						return nd
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
@@ -744,7 +750,57 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)]))
 	if stride < int(_km().get("clock_max_stride", 32)):
 		return _chord(_close_first() + ["loops ripening", ["faster clock", _verb("faster")]], q, "clock")
+	var nudge := _nudge(q)
+	if not nudge.is_empty():
+		return nudge
 	return _wait("loops ripening — wait", q, "ripen")
+
+
+## A country whose motion has died (Gilded Rot at the shipped speed: its sinks
+## have no outflow, so the plots go still) never ripens a loop on its own: pn3
+## waited 25 min at ×32 with a loop 0.003 rad short of 2π. Moving the qubit by
+## hand walks the loop: one Druid Spin + ripened it at once. Offered only when
+## the clock is maxed, nothing is ripe, and neither a spin nor a new track
+## happened in the last minute (so the walk never thrashes the plot).
+const NUDGE_AFTER_MS := 60000
+
+
+static func _nudge(q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var reg = UIP._berry_register()
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	if reg == null or farm == null or farm.grid == null or farm.grid.get_biome(biome) == null:
+		return {}
+	var b = farm.grid.get_biome(biome)
+	if int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+		return {}
+	var now := Time.get_ticks_msec()
+	for a in ["rotate", "toggle_berry_track"]:
+		var last := _last_action_ms(a)
+		if last >= 0 and now - last < NUDGE_AFTER_MS:
+			return {}
+	var nq: int = int(b.quantum_computer.register_map.num_qubits) if b.quantum_computer != null and b.quantum_computer.register_map != null else 0
+	var best := -1
+	var best_p := -1.0
+	for col in range(mini(nq, BERRY_ROWS)):
+		if bool(reg.is_ripe(col)):
+			return {}
+		if bool(reg.is_tracked(col)) and _is_revealed(biome, col):
+			var ph := absf(float(reg.get_phase(col)))
+			if ph > best_p:
+				best_p = ph
+				best = col
+	if best < 0:
+		return {}
+	var parts: Array = _close_first() + ["the country has gone still — nudge the loop"]
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		parts.append([_hat_name("druid") + " hat", _hat_key("druid")])
+	if _live_col() != best:
+		parts.append_array(_pick_plot(best))
+	parts.append(["Spin +", "R"])
+	return _chord(parts, q, "nudge")
 
 
 ## Standing is earned by keeping a faction's contracts. On that faction's
@@ -1318,6 +1374,10 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 			_t("learn %s cols %s" % [str(b), str(cols)])
 			if _berry_needs_reveal(cols):
 				return _berry(q, cols)
+			if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID:
+				var nd := _nudge(q)
+				if not nd.is_empty():
+					return nd
 			var h := _hat("icon", q)
 			if not h.is_empty():
 				return h
