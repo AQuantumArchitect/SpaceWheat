@@ -25,6 +25,10 @@ playtest. No release tag and no itch push until Luke signs off in the
 - `strict_follow.py --patience N` added for player-lane runs: ripening there
   takes 1–4 min in places.
 - Not yet done: one continuous run from a new game through a post-game ending.
+- Later: the shipped-speed run hit a wall at Watch It Fade. Gilded Rot goes
+  still, and a loop sat 0.003 rad short of ripe for 25 min. The Guide now
+  offers a Druid "nudge" when a country has gone still (39192523), and #67 has
+  a comment with the new SHA.
 
 ---
 
