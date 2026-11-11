@@ -43,3 +43,29 @@ tests/       pytest suite (drives Godot headless where needed)
 scripts/     build, export, release and deploy
 docs/        player, physics and developer docs (history/ and design/ inside)
 ```
+
+## Ready for a human playtest
+
+When you judge the game ready for a release cut and a human playtest, open a
+GitHub issue labelled `ready-for-human-playtest` (create the label if the repo
+does not have it yet). Wait for Luke's sign-off in that issue before any
+release: a version tag and `.\tools\release.ps1` (the itch push) both wait on
+that reply.
+
+The issue must include:
+
+- **Commit SHA** of the tree you are handing over.
+- **How to run it.** Both shipping builds of that SHA: the Windows build and
+  the Web-Slim browser build. CI's `build` job uploads them as the `windows`
+  and `web-slim` artifacts (`.\tools\build.ps1 -Preset windows` and
+  `-Preset web-slim`; see [RELEASE.md](RELEASE.md)). Those artifacts expire
+  after 7 days, so also give the local commands.
+- **Evidence.** CI on that SHA, the pytest floor
+  (`SW_SKIP_LONG=1 python3 -m pytest tests/ -q`), campaign drives, and
+  playthrough reports. Link the runs and the reports.
+- **Known issues.** What is still broken, flaky, or untested by a human.
+
+SpaceWheat takes many hours to beat. In the same issue, propose how to split
+the human playtest into sessions of 2 to 3 hours. Each session needs a clear
+stopping point and a goal. Use act and chapter boundaries in
+[docs/CAMPAIGN.md](docs/CAMPAIGN.md) as the seams.
