@@ -1602,6 +1602,15 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 const GRAY_EVERY_MS := 60000
 
 
+static func _entropy_norm(biome: String) -> float:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	var qc = b.quantum_computer if b != null else null
+	if qc == null or not qc.has_method("get_entropy") or not qc.has_method("get_dimension"):
+		return 0.0
+	return clampf(float(qc.get_entropy()) / log(float(maxi(int(qc.get_dimension()), 2))), 0.0, 1.0)
+
+
 static func _biome_open(biome: String) -> bool:
 	var farm = UIP._active_farm()
 	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null and biome != "" else null
@@ -1637,10 +1646,19 @@ static func _gray(pred: Dictionary, q: Dictionary) -> Dictionary:
 	if ofr != null and ofr.has_method("get_unlocked_biomes"):
 		for b in ofr.get_unlocked_biomes():
 			want.append(str(b))
+	# The most mixed open country grays fastest. The first open one could be
+	# the Shrine, whose basin pulls it back to a pure pole (pr1 waited there).
+	# Ranked by live diagonal entropy (QuantumComputer.get_entropy, the reading
+	# EnergyPricing trusts), normalized; ties keep the order above.
+	var best_s := -1.0
 	for n in want:
-		if _biome_open(str(n)):
-			biome = str(n)
-			break
+		var nm := str(n)
+		if not _biome_open(nm):
+			continue
+		var s_norm := _entropy_norm(nm)
+		if s_norm > best_s + 1e-6:
+			best_s = s_norm
+			biome = nm
 	if biome == "":
 		return {}
 	var t := _travel(biome, q)
