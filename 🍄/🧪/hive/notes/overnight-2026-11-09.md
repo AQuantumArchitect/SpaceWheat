@@ -46,6 +46,44 @@ Watch It Fade turned out slow, not broken (claimed by keeper 11).
 
 Pytest floor at the end: **699 passed**, the same 6 Windows-host failures. Tutorial gate: banner_follow 55 presses, 0/0/0.
 
+## Owner's calls (2026-11-11) and what was done (cd71e733)
+
+Luke's answers to the night-2 list:
+
+1. **Fill the Urn** ("if a player flips it with a Druid or Spark, does it hold?") — **yes, with the Druid.**
+   From sk32_end (urn at 100% 💀): one Druid Superpose [E] sends ⚱ 0% → 100%, and it holds with hands off
+   (25 s, no contract); the quest goes READY. My "the drain always wins" maths was wrong — it used spec rates
+   this biome never applies. Spin ± only nudges the plot and it falls back to 💀; Superpose crosses the
+   tipping point. Spark S.Pole and a Merchant export both work in principle, but both stake ⚱ priced by
+   surprisal, and at p(⚱)=0 that is the ceiling (≈14·kT ⚱) of a resource the player can't gather there.
+   Merchant contracts add a standing channel (rate 0.5); they don't change the biome's own rates.
+   Fold: the Guide lifts a pinned plot with Superpose before the strike walk (`_lift_off_pole`), and the hint
+   names it. **Strict follower from sk32_end: 50 → 53 flags in 30 presses**, Fill the Urn claimed on the banner;
+   from its bank, 54. (First cut of the lift skipped struck plots only where you stand → Shrine ⇄ Village;
+   fixed before commit.)
+2. **Stay Yourself** — "an exercise in cultivating a whole system, but it should show the number." The selected
+   Charge row now reads "• now Tr(ρ²) 0.06, needs 0.40 (fully mixed is ~0.01)". Mechanics untouched.
+3. **Two Chores** — "teach slowing time; the latch is cool too, isn't that done earlier?" Yes: a quest latches
+   once READY (Still the Pond). What was lost on save/load was the gate order, now kept as a lesson receipt.
+   The gate-word and weave walks lock the biome clock first ("hold the pair still → slower clock [-]"; at ×1 one
+   more − stops it, = resumes), and the hint teaches − / =. Not verified live: whether a locked Forest pair
+   reaches 1 bit (one manual try read 0.33 bits, but my marks were wrong).
+4. **Walkless types** — closed rituals got walks: Turn Every Needle (Operator → compass → Turn, verified live:
+   claimed), The Fence Remembers (Loops [E] then Turn [R], verified live: claimed), The Span / Braid Alphabet
+   (Spark 🌉 → Braid, alternating shores), The Fusion (Fuse → confirm), The Second Loop (track/ripen walk).
+   Open-ended ones (the knot, the number that lied, close it upstairs, the middle cannot hold, the gray) show
+   their end condition live on the Charge row (`PredicateGloss.live`) instead of a walk.
+5. **Cull** — the banner now offers the cullable biomes by travel key ("biome slots full — pick one to let go
+   …"); standing in one makes it the pick. **Ace F** on a struck plot: gather-first (the chip no longer offers
+   Explore). **🪔** — resources entry added (plots Lanternfall/Zeno Latch, Village rescue 🍞10 → 3🪔, quest-gated
+   like 🔨/🪓/🌊; numbers copied from those peers). **Literalist text** — hat captions carry their key
+   ("[0] Druid"), delivery bars say "in hand", empty Charge says "nothing on Charge right now", the Loom's 🍼
+   arrives on Claim, A Kept Contract lists its steps in order, the Explore chip names ⇧ Mass Explore. Left as
+   is: "tap" wording (mouse parity, the key is shown beside it), U = Charge/Commitments (contextual keys).
+
+Gate: banner_follow 55 presses 0/0/0 · pytest 698 passed + the 6 Windows-host failures (+9 new pins in
+`tests/test_owner_calls_2026_11_11.py`) · campaign build --check + validate clean.
+
 ## Morning summary (final, 11:10, loop stopped after 15 waves)
 
 **Where a brand-new player gets now.**
