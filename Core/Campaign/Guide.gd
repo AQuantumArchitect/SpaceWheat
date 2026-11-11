@@ -2093,13 +2093,19 @@ static func _cull(q: Dictionary) -> Dictionary:
 	var here := UIP._active_biome_name()
 	if not options.is_empty() and abm != null:
 		var keyed: Array = []
+		var keyed_keys: Array = []
 		for n in options:
 			var slot := int(abm.get_slot_for_biome(str(n)))
 			if slot >= 0 and str(n) != here:
-				keyed.append([biome_label(str(n)), str(abm.get_slot_key(slot)).to_upper()])
+				keyed.append("%s [%s]" % [biome_label(str(n)), str(abm.get_slot_key(slot)).to_upper()])
+				keyed_keys.append(str(abm.get_slot_key(slot)).to_upper())
 		if not options.has(here):
 			if not keyed.is_empty():
-				return _chord(_close_first() + ["biome slots full — pick one to let go"] + keyed.slice(0, 3), q, "cull choose")
+				# One segment joined by "or": as chord steps the options read as
+				# a sequence ("Zeno Latch [O] → Shrine Of Ashes [P]", kd run).
+				var choose := _chord(_close_first() + ["biome slots full — pick one to let go: " + " or ".join(PackedStringArray(keyed.slice(0, 3)))], q, "cull choose")
+				(choose["keys"] as Array).append_array(keyed_keys.slice(0, 3))
+				return choose
 		else:
 			want = here
 	var t := _travel(want, q)

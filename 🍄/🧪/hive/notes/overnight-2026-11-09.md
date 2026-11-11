@@ -84,6 +84,11 @@ Luke's answers to the night-2 list:
 Gate: banner_follow 55 presses 0/0/0 · pytest 698 passed + the 6 Windows-host failures (+9 new pins in
 `tests/test_owner_calls_2026_11_11.py`) · campaign build --check + validate clean.
 
+Follow-up run, strict follower from keeper_demos_latest (60 presses): 58 → 59 flags, 0 script errors. It charted
+the Shrine, took the "lift it off the 💀 pole → Superpose [E]" step, claimed Fill the Urn, was offered the cull
+choice, and planted 🌉/🪔. The choice read "Zeno Latch [O] → Shrine Of Ashes [P]", as if it were a sequence, so it
+now reads "pick one to let go: Zeno Latch [O] or Shrine Of Ashes [P]". Parse-checked at boot, not re-driven live.
+
 ## Morning summary (final, 11:10, loop stopped after 15 waves)
 
 **Where a brand-new player gets now.**
