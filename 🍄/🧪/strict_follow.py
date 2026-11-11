@@ -11,6 +11,8 @@ ping-pong, at zero token cost.
 
     python3 🍄/🧪/strict_follow.py <seat> <checkpoint|--fresh> <max_presses> [--until TEXT]
 
+--patience N waits N looks on a wait line before calling it stuck (default 24).
+
 --until TEXT stops (and banks <seat>_until) the first time the banner contains
 TEXT: the way to cut a checkpoint right at a lesson for off-path probes.
 
@@ -20,6 +22,11 @@ Banks <seat>_end at the end.
 import json, re, subprocess, sys
 seat, ckpt, steps = sys.argv[1], sys.argv[2], int(sys.argv[3])
 until = sys.argv[sys.argv.index("--until") + 1] if "--until" in sys.argv else ""
+# --patience N: wait/ripening looks before a repeat counts as stuck (default 24,
+# about 4 min). The player lane (RIG_DISABLE_LOOKAHEAD=0) ripens 5× slower than
+# the rig, so a human-speed run needs more (2026-11-11: a Blood Ledger loop took
+# 1–4 min to cross its threshold).
+patience = int(sys.argv[sys.argv.index("--patience") + 1]) if "--patience" in sys.argv else 24
 def run(*a):
     r = subprocess.run(["sh", "-c", " ".join(["python3", "'🍄/🧪/player_seat.py'"] + [f"'{x}'" for x in a])], capture_output=True, text=True, encoding="utf-8")
     try: return json.loads(r.stdout.strip().splitlines()[-1])
@@ -43,7 +50,7 @@ for i in range(steps):
         print("STUCK (ping-pong) after", presses, "presses:", " ⇄ ".join(sorted(set(recent))))
         break
     waity = ("wait" in ban) or ("ripening" in ban)
-    if same >= (24 if waity else 10):
+    if same >= (patience if waity else 10):
         print("STUCK after", presses, "presses,", waits, "waits:", ban); break
     m = re.search(r"(CTRL\+SHIFT |SHIFT )?\[([^\]\s]{1,8})\]", ban)
     if not m:

@@ -711,6 +711,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	var nq: int = int(qc.register_map.num_qubits) if qc != null and qc.register_map != null else 0
 	var focused := UIP._focused_col()
 	var n := mini(nq, BERRY_ROWS)
+	_t("berry %s nq %d only %s" % [biome, nq, str(only)])
 	for col in range(n):
 		if not only.is_empty() and not (col in only):
 			continue
@@ -1314,6 +1315,7 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 			# Ace hat again — "Icon hat [5]" ⇄ "explore it first → Ace hat [8]"
 			# forever (keeper sitting 1 and a strict follower, Master of the Mill).
 			var cols := _unknown_cols(str(b))
+			_t("learn %s cols %s" % [str(b), str(cols)])
 			if _berry_needs_reveal(cols):
 				return _berry(q, cols)
 			var h := _hat("icon", q)
