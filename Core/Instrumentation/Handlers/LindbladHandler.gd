@@ -181,6 +181,7 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 		}
 
 	var success_count = 0
+	var written: Array = []  # biomes whose ρ this jolt wrote
 	var sealed = 0
 	var driven_emojis: Dictionary = {}
 	var drive_rate = PULSE_RATE  # Strong drive (1/s)
@@ -210,8 +211,14 @@ static func lindblad_drive(farm, positions: Array[Vector2i]) -> Dictionary:
 			continue
 
 		biome.quantum_computer.apply_drive(emoji, drive_rate, dt)
+		if not written.has(biome):
+			written.append(biome)
 		success_count += 1
 		driven_emojis[emoji] = driven_emojis.get(emoji, 0) + 1
+
+	# The jolt wrote ρ directly: drop the stale lookahead frames (GateInjector).
+	for wb in written:
+		GateInjector.invalidate_after_write(wb, farm)
 
 	var result = {
 		"success": success_count > 0,
@@ -246,6 +253,7 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 		}
 
 	var success_count = 0
+	var written: Array = []  # biomes whose ρ this jolt wrote
 	var sealed = 0
 	var decayed_emojis: Dictionary = {}
 	var decay_rate = PULSE_RATE  # Strong decay (1/s)
@@ -274,8 +282,14 @@ static func lindblad_decay(farm, positions: Array[Vector2i]) -> Dictionary:
 
 		# Get qubit index and apply decay
 		biome.quantum_computer.apply_decay(qubit_idx, decay_rate, dt)
+		if not written.has(biome):
+			written.append(biome)
 		success_count += 1
 		decayed_emojis[emoji] = decayed_emojis.get(emoji, 0) + 1
+
+	# The jolt wrote ρ directly: drop the stale lookahead frames (GateInjector).
+	for wb in written:
+		GateInjector.invalidate_after_write(wb, farm)
 
 	var result = {
 		"success": success_count > 0,

@@ -837,7 +837,11 @@ def test_braid_order_refreshes_mi_after_gate():
     assert "func refresh_cached_mi" in qc
     assert "compute_all_mutual_information" in qc.split("func refresh_cached_mi")[1].split("\nfunc ")[0]
     inj = src(ROOT / "Core" / "QuantumSubstrate" / "GateInjector.gd")
-    inv = inj.split("static func _invalidate_lookahead")[1].split("static func ")[0]
+    # The refresh lives in invalidate_after_write (2026-11-10: the one helper every
+    # ρ write outside the batcher calls); _invalidate_lookahead delegates to it.
+    legacy = inj.split("static func _invalidate_lookahead")[1].split("static func ")[0]
+    assert "invalidate_after_write(" in legacy
+    inv = inj.split("static func invalidate_after_write")[1].split("static func ")[0]
     assert "refresh_cached_mi" in inv
     qsps = src(ROOT / "Core" / "Quests" / "QuestStateProjectionService.gd")
     mi = qsps.split('"mutual_information_at_least"')[1].split("\n\t\t\"")[0]

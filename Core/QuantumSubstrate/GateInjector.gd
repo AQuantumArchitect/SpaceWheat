@@ -10,7 +10,16 @@ extends RefCounted
 ## Flow:
 ##   input/instrument command → GateActionHandler → GateInjector.inject_gate()
 ##        ↓
-##   QuantumComputer.apply_gate()  +  BiomeEvolutionBatcher.signal_user_action()
+##   QuantumComputer.apply_gate()  +  GateInjector.invalidate_after_write()
+##
+## invalidate_after_write() is the one rule for ANY code that writes a biome's ρ
+## outside the batcher (gates here, a strike's collapse in ProbeActions, a Spark
+## jolt in LindbladHandler): drop the biome's precomputed frames and re-prime from
+## the state just written. signal_user_action() alone only schedules a refill; the
+## stale frames stay, and the next buffered step overwrites the write with a frame
+## computed from the state before it (a strike's collapse lasted ~2 frames).
+## QuantumInstrumentInput also invalidates after player actions; this makes the
+## write itself safe for every other caller (rig drivers, ReelRunner, bots).
 ##
 ## Batch Flow (for multi-select):
 ##   UI Shift+E → GateInjector.inject_gate_batch(ordered_gates)
@@ -57,6 +66,7 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 	var failed_count = 0
 	var order: Array = []
 	var any_biome = null  # Track for invalidation
+	var touched: Array = []
 
 	# Apply gates in order WITHOUT invalidating buffer
 	for op in gate_ops:
@@ -71,6 +81,8 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 			continue
 
 		any_biome = biome
+		if not touched.has(biome):
+			touched.append(biome)
 
 		# Get gate matrix from library if not provided
 		if gate_matrix == null and gate_name != "":
@@ -94,9 +106,10 @@ static func inject_gate_batch(gate_ops: Array, farm = null) -> Dictionary:
 			failed_count += 1
 			results.append({"success": false, "error": "apply_failed", "qubit": qubit, "gate": gate_name})
 
-	# SINGLE invalidation after all gates applied
-	if applied_count > 0 and any_biome:
-		_invalidate_lookahead(any_biome, farm)
+	# ONE invalidation per touched biome, after all gates applied
+	if applied_count > 0:
+		for touched_biome in touched:
+			invalidate_after_write(touched_biome, farm)
 
 	return {
 		"success": applied_count > 0,
@@ -246,29 +259,31 @@ static func inject_named_gate_2q(biome, qubit_a: int, qubit_b: int, gate_name: S
 
 
 static func _invalidate_lookahead(biome, farm = null) -> void:
-	# Notify the evolution batcher that lookahead buffer is stale.
+	invalidate_after_write(biome, farm)
 
-	# Called after any gate injection to force refill of pre-computed frames.
-	var batcher = null
 
-	# Try to get batcher from farm
-	if farm and "biome_evolution_batcher" in farm and farm.biome_evolution_batcher:
-		batcher = farm.biome_evolution_batcher
-
-	# Fallback: try to get farm from scene tree
-	if batcher == null:
-		var tree = Engine.get_main_loop()
-		if tree and tree is SceneTree:
-			var root = tree.root
-			var farm_node = root.get_node_or_null("Farm")
-			if farm_node and "biome_evolution_batcher" in farm_node:
-				batcher = farm_node.biome_evolution_batcher
-
-	# Signal the batcher to invalidate lookahead
-	if batcher and batcher.has_method("signal_user_action"):
-		batcher.signal_user_action()
+## Drop `biome`'s precomputed lookahead frames and re-prime them from its current
+## ρ. Call after ANY write to a biome's density matrix made outside the batcher.
+static func invalidate_after_write(biome, farm = null) -> void:
+	if biome == null:
+		return
+	var batcher = _resolve_batcher(biome, farm)
+	if batcher != null and batcher.has_method("invalidate_biome_buffer"):
+		var biome_name := BiomeBase.type_name(biome)
+		if biome_name != "":
+			batcher.invalidate_biome_buffer(biome_name)
+		elif batcher.has_method("signal_user_action"):
+			batcher.signal_user_action()
 	# braid_order: refill MI from the live ρ now. Frozen lookahead would
 	# otherwise leave a just-built Bell scoring 0 until the next evolve_with_mi.
-	if biome != null and biome.get("quantum_computer") != null \
-			and biome.quantum_computer.has_method("refresh_cached_mi"):
+	if biome.get("quantum_computer") != null 			and biome.quantum_computer.has_method("refresh_cached_mi"):
 		biome.quantum_computer.refresh_cached_mi()
+
+
+## The batcher that owns `biome`: the farm passed in, else the biome's own farm,
+## else the active farm.
+static func _resolve_batcher(biome, farm = null):
+	for candidate in [farm, biome.get("farm") if biome != null else null, InstrumentLocator.resolve_active_farm_main_loop()]:
+		if candidate != null and is_instance_valid(candidate) and "biome_evolution_batcher" in candidate 				and candidate.biome_evolution_batcher != null:
+			return candidate.biome_evolution_batcher
+	return null
