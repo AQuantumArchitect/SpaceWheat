@@ -1485,6 +1485,11 @@ func _build_live_view() -> void:
 		var speaker: String = str(ev.get("speaker", ""))
 		if faction != "":
 			entry["factions"][faction] = speaker
+		# The biome's latest line in the glyph language (docs/GLYPH_LANGUAGE.md):
+		# scope@tag, what was drawn, and what the biome is unsure of.
+		var glyph = ev.get("glyph", {})
+		if glyph is Dictionary and str(glyph.get("sentence", "")) != "":
+			entry["glyph_sentence"] = str(glyph.get("sentence", ""))
 		var emojis: Array = ev.get("emojis", [])
 		var sample: Array = entry["emoji_sample"]
 		for e in emojis:
@@ -1524,7 +1529,39 @@ func _build_live_view() -> void:
 		_body_box.add_child(
 			_make_live_row(bname, biome_data[bname], i == _live_selected, NETWORK_HOMEROW[i], bname == active_name)
 		)
+		var sentence := str(biome_data[bname].get("glyph_sentence", ""))
+		if sentence != "":
+			var sl := Label.new()
+			sl.text = "      " + sentence
+			sl.add_theme_font_size_override("font_size", 11)
+			sl.add_theme_color_override("font_color", COLOR_MUTED)
+			sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			_body_box.add_child(sl)
+	_build_between_lines(se)
 	_update_action_labels()
+
+
+## Between biomes: a faction reads one icon in two biomes and says whether they
+## agree (🟰) or pull apart (⚠), in the two biomes' product scope.
+func _build_between_lines(se) -> void:
+	if se == null or not se.has_method("between_chatter"):
+		return
+	var lines: Array = se.between_chatter(4)
+	if lines.is_empty():
+		return
+	var hdr := Label.new()
+	hdr.text = "Between biomes"
+	hdr.add_theme_font_size_override("font_size", 12)
+	hdr.add_theme_color_override("font_color", COLOR_BRIDGE_FACTION)
+	_body_box.add_child(hdr)
+	for ev in lines:
+		var glyph = ev.get("glyph", {})
+		var lbl := Label.new()
+		lbl.text = "%s:  %s" % [str(ev.get("faction", "")), str(glyph.get("sentence", "")) if glyph is Dictionary else ""]
+		lbl.add_theme_font_size_override("font_size", 11)
+		lbl.add_theme_color_override("font_color", COLOR_MUTED)
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_body_box.add_child(lbl)
 
 func _make_live_row(biome_name: String, entry: Dictionary, is_selected: bool, key_label: String, overlay_active: bool) -> Control:
 	var hbox := HBoxContainer.new()

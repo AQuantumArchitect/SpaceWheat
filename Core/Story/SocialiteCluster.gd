@@ -15,6 +15,7 @@ extends RefCounted
 
 const Socialite := preload("res://Core/Story/Socialite.gd")
 const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
+const GlyphLanguage := preload("res://Core/Story/GlyphLanguage.gd")
 
 # Demos is the player faction; included so player-faction state surfaces
 # alongside NPC voices via the same measurement mechanism.
@@ -75,7 +76,9 @@ func populate(graph, n: int) -> void:
 ## overlaps biome atoms), samples the QC, emits the result.
 ##
 ## Event shapes:
-##   {kind: "chatter", speaker, faction, topic_node, biome, emojis, line}
+##   {kind: "chatter", speaker, faction, topic_node, biome, emojis, line, glyph}
+##   (glyph: the same measurement written in the glyph language — see
+##   Core/Story/GlyphLanguage.gd and docs/GLYPH_LANGUAGE.md)
 ##   {kind: "step",    speaker, faction, from_node, to_node}   (graph walk)
 func tick(graph) -> Array:
 	var events: Array = []
@@ -134,6 +137,9 @@ func tick(graph) -> Array:
 			"marginals": marginals,
 			"connections": connections,
 			"line": " ".join(emojis),
+			"glyph": GlyphLanguage.compose_chatter(emojis, marginals,
+				GlyphLanguage.biome_scope(biome_label, _biome_pairs(picked_biome)), _ask_draws(emojis.size()),
+				_tie_draws(picked_biome, emojis.size())),
 		}
 		events.append(ev)
 		_push_chatter(ev)
@@ -172,6 +178,41 @@ func _pick_biome_from_names(names: Array, biomes_dict: Dictionary) -> Dictionary
 		if r <= acc:
 			return {"biome": biomes[i], "liveliness": lives[i]}
 	return {"biome": biomes[biomes.size() - 1], "liveliness": lives[biomes.size() - 1]}
+
+
+## The biome's vocabulary as ordered pole pairs — what its scope tag hashes.
+static func _biome_pairs(biome) -> Array:
+	var out: Array = []
+	if biome == null or not ("quantum_computer" in biome) or biome.quantum_computer == null:
+		return out
+	var rm = biome.quantum_computer.register_map
+	if rm == null:
+		return out
+	for q in range(int(rm.num_qubits)):
+		var axis: Dictionary = rm.axes.get(q, {})
+		out.append([str(axis.get("north", "")), str(axis.get("south", ""))])
+	return out
+
+
+## Ties for a biome line: qubit j is written ⌢ qubit j+1 with probability equal
+## to the mutual information (bits) of their pole outcomes in the biome's basis
+## distribution — the distribution the line itself was drawn from.
+static func _tie_draws(biome, n: int) -> Array:
+	var out: Array = []
+	var states: Array = BiomeMeasurementSampler.pole_states(biome)
+	for j in range(maxi(0, n - 1)):
+		var mi := BiomeMeasurementSampler.pair_mutual_information(states, j, j + 1)
+		out.append(randf() < GlyphLanguage.tie_probability(mi))
+	return out
+
+
+## One uniform draw per register: GlyphLanguage asks about register j iff its
+## draw falls under the register's binary entropy (stable states, churning asks).
+static func _ask_draws(n: int) -> Array:
+	var out: Array = []
+	for _i in range(n):
+		out.append(randf())
+	return out
 
 
 func _biome_name_of(biome) -> String:
