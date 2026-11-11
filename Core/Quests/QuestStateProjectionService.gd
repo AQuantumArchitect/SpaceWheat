@@ -12,6 +12,9 @@ const COMPLETION_THRESHOLD: float = 0.85
 
 var _last_observables: Dictionary = {}
 var _action_history: Array = []
+## gate_order words seen by evaluate (receipt key → lowercased gates); not saved,
+## rebuilt on the first evaluation after a load.
+var _gate_words: Dictionary = {}
 var _last_biome = null  # Retained for on-demand predict_population calls
 
 ## Per-biome coherence high-watermark — the witness for coherence_fell (What Fades:
@@ -136,6 +139,15 @@ func record_action(action_name: String, payload: Dictionary = {}) -> void:
 	if _action_history.size() > MAX_ACTION_HISTORY:
 		_action_history.pop_front()
 	gate_counters[action_name] = int(gate_counters.get(action_name, 0)) + 1
+	# Gate words advance their saved receipt one action at a time, so a word
+	# begun before a save resumes after it (lm, 2026-11-11: braid_order
+	# reloaded at step 1 and the CNOT pressed after the load never counted).
+	var low_action := str(action_name).to_lower()
+	for wkey in _gate_words:
+		var w: PackedStringArray = _gate_words[wkey]
+		var st := int(lesson_receipts.get(wkey, 0))
+		if st < w.size() and low_action.find(w[st]) >= 0:
+			lesson_receipts[wkey] = st + 1
 	# lantern_wakes: a Village plant must not light the coast. Stamp the
 	# biome onto a durable key so gate_sequence_contains can ask for it.
 	var biome := str(payload.get("biome", payload.get("biome_name", ""))).strip_edges()
@@ -303,6 +315,7 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			for g in word:
 				word_parts.append(str(g).strip_edges().to_lower())
 			var rkey := "gate_order:" + ",".join(word_parts)
+			_gate_words[rkey] = word_parts
 			var step := int(lesson_receipts.get(rkey, 0))
 			var seen := 0
 			for row in _action_history:

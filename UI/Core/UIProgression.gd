@@ -544,7 +544,11 @@ static func objective_text() -> String:
 			return _waiting_arc_line()
 		if _is_berry_ask(best):
 			return _berry_walk_line(best)
-		return _claim_walk_line(best)
+		# Only a ready beat can be claimed: naming Claim on an active one
+		# opened the Board, found nothing, and ESC'd back for ever (dx3,
+		# 2026-11-11: the_chain_tested, "[C] then [R] Claim" ⇄ "close [ESC]").
+		if str(best.get("status", "")) == "ready":
+			return _claim_walk_line(best)
 	# Wave 24 literalist: gathered 🌱 3→21, then chrome-only. Unsigned plant
 	# is STORY — hiding the banner after the gather walk ate Icon [5].
 	# Plant is the live beat whether or not they have signed the Arc.

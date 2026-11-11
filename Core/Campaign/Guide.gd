@@ -478,6 +478,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _entangle(q)
 		"spinor":
 			return _spinor(q)
+		"gray":
+			return _gray(pred, q)
 		"fence":
 			return _compass(q, true)
 		"braid":
@@ -1513,9 +1515,14 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 			for c in [0, 1, 2, 3, 4, 5]:
 				if have.size() + (parts.size()) >= 2:
 					break
-				if have.has(c) or not _is_revealed(biome, c):
+				# Same test as the reveal check above: a tracked plot counts.
+				# Skipping it left one mark down and "Gate [R]" ⇄ "CNOT [E]"
+				# for ever — the gate needs two (lm, 2026-11-11, 59 flags).
+				if have.has(c) or (not _is_revealed(biome, c) and not _tracked(c)):
 					continue
 				parts.append(["mark", "shift+" + _plot_key(c)])
+			if have.size() + parts.size() < 2:
+				return {}
 	parts.append(["Gate", "R"])  # the chip reads "[R] Gate" (literalist w32: "Build gate" ≠ "Gate")
 	return _chord(parts, q, "pair gate")
 
@@ -1524,6 +1531,81 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 ## traveler, then the mirror's Compare. Wave 20: no walk existed, so the
 ## strict follower fell through to an unrelated gather. Icon hat; key 2 is
 ## the mirror (R Stay Home, E Compare), key 1 the Icon mode (F Track).
+## What Fades (purity_at_most): let the Bath gray the country. A superposed
+## plot in open country loses its phase to the Bath, and Tr(ρ²) falls. One
+## Superpose, then wait: a second press undoes the first (H² = I), so the
+## step superposes at most once a minute per biome. The biome is the beat's
+## own (a sibling predicate names it), else where you stand. dx5, 2026-11-11:
+## The Chain, Tested had no walk and the banner went silent.
+const GRAY_EVERY_MS := 60000
+
+
+static func _biome_open(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null and biome != "" else null
+	return b != null and b.quantum_computer != null and b.quantum_computer.has_method("is_open_here") 			and bool(b.quantum_computer.is_open_here())
+
+
+## When the player last did `action` (ms ticks), from the quest projection's
+## action history (a substring: gates record as "gate_inject:hadamard");
+## -1 if not in it.
+static func _last_action_ms(action: String) -> int:
+	var qm = UIP._quest_manager()
+	var sp = qm.get("_state_projection") if qm != null else null
+	if sp == null or not ("_action_history" in sp):
+		return -1
+	var hist: Array = sp._action_history
+	for i in range(hist.size() - 1, -1, -1):
+		var row = hist[i]
+		if row is Dictionary and str(row.get("action", "")).find(action) >= 0:
+			return int(row.get("time_msec", -1))
+	return -1
+
+
+static func _gray(pred: Dictionary, q: Dictionary) -> Dictionary:
+	# Purity is read where you stand, and closed country is pure by law
+	# (Tr ρ² ≡ 1: dx5 stood in Lanternfall superposing at purity 1.0). Gray
+	# in open country: here, else the beat's own biome, else any open slot.
+	var biome := ""
+	var want: Array = [UIP._active_biome_name()]
+	for p in q.get("state_predicates", []):
+		if p is Dictionary and str(p.get("biome", "")) != "":
+			want.append(str(p.get("biome", "")))
+	var ofr = Engine.get_main_loop().root.get_node_or_null("/root/ObservationFrame") if Engine.get_main_loop() is SceneTree else null
+	if ofr != null and ofr.has_method("get_unlocked_biomes"):
+		for b in ofr.get_unlocked_biomes():
+			want.append(str(b))
+	for n in want:
+		if _biome_open(str(n)):
+			biome = str(n)
+			break
+	if biome == "":
+		return {}
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var now := Time.get_ticks_msec()
+	var last := _last_action_ms("hadamard")
+	if last >= 0 and now - last < GRAY_EVERY_MS:
+		return _wait("the Bath is graying %s — wait" % biome_label(biome), q, "gray")
+	var col := -1
+	for c in range(BERRY_ROWS):
+		if _is_revealed(biome, c):
+			col = c
+			break
+	if col < 0:
+		return {}
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("let the Bath gray it")
+	parts.append(["Superpose", "E"])
+	return _chord(parts, q, "gray")
+
+
 ## Operator compass (What Turns): R turns the focused plot's convention.
 ## Turn Every Needle counts three turns; The Fence Remembers wants the loop
 ## card read (E) first, then a turn. Night 2 census: neither had a walk, so

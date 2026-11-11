@@ -2911,6 +2911,9 @@
    "wilson_survived_flip": [
     "fence"
    ],
+   "purity_at_most": [
+    "gray"
+   ],
    "bridge_braids_gte": [
     "braid"
    ],

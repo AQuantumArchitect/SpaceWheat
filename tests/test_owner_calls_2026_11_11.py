@@ -132,3 +132,26 @@ def test_literalist_text_fixes():
     spec = _read("Core/Campaign/campaign.json")
     assert "Claim the weave and it leaves you a 🍼" in spec
     assert "Accept here, take one of their contracts from the Market" in spec
+
+
+def test_loom_post_game_soft_locks():
+    # The Fusion: one fusion spends the bridge, and the centred soft gate
+    # scored "fuse ≥ 1" at 0.5 — it could never fire (dx3).
+    qm = _read("Core/Quests/QuestManager.gd")
+    count_types = qm.split("const COUNT_GATE_TYPES", 1)[1].split("\n]", 1)[0]
+    for t in ("bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte"):
+        assert '"%s"' % t in count_types
+    assert "QuestMath.count_gate(float(farm.bridge_register.fused_total)" in qm
+    # A gate word begun before a save resumes after it (braid_order, lm).
+    proj = _read("Core/Quests/QuestStateProjectionService.gd")
+    assert "for wkey in _gate_words:" in proj
+    # The pair gate never names Gate with fewer than two marks.
+    pg = _read("Core/Campaign/Guide.gd").split("static func _pair_gate(", 1)[1].split("\nstatic func ", 1)[0]
+    assert "if have.size() + parts.size() < 2:" in pg
+    # The leftover-handshake line names Claim only for a ready beat (dx3).
+    uip = _read("UI/Core/UIProgression.gd")
+    assert 'if str(best.get("status", "")) == "ready":\n\t\t\treturn _claim_walk_line(best)' in uip
+    # purity_at_most has a walk, which grays in open country.
+    assert _campaign()["guide"]["walks"]["purity_at_most"] == ["gray"]
+    gray = _read("Core/Campaign/Guide.gd").split("static func _gray(", 1)[1].split("\nstatic func ", 1)[0]
+    assert "_biome_open(" in gray and '_last_action_ms("hadamard")' in gray

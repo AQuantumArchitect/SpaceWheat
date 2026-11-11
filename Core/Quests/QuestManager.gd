@@ -602,8 +602,12 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 ## Integer-count predicate types — evaluated with QuestMath.count_gate so they fire
 ## exactly AT the authored count ("≥ 3" means 3, not 3 + width·atanh). Displays and
 ## physics must quote the same number.
+# Integer counts fire AT the authored N. The bridge and loop counts used the
+# centred soft_gate, so "fuse 1 bridge" scored 0.5 after the one fusion a
+# bridge allows — The Fusion could never fire (dx3, 2026-11-11).
 const COUNT_GATE_TYPES: Array[String] = [
 	"berry_consumed_count_gte", "signature_size_gte", "atom_count_gte", "atom_diversity_gte",
+	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 ]
 
 
@@ -834,19 +838,19 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			# What Connects: lifetime Majorana spans raised (farm-wide BridgeRegister).
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.built_total),
+			return QuestMath.count_gate(float(farm.bridge_register.built_total),
 					maxf(1.0, float(pred.get("value", 1))), 0.75)
 		"bridge_braids_gte":
 			# Lifetime braid operations — the Clifford alphabet, drilled.
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.braids_total),
+			return QuestMath.count_gate(float(farm.bridge_register.braids_total),
 					maxf(1.0, float(pred.get("value", 1))), 1.0)
 		"bridge_fused_gte":
 			# Lifetime fusions — bridges read, collapsed, and spent.
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.fused_total),
+			return QuestMath.count_gate(float(farm.bridge_register.fused_total),
 					maxf(1.0, float(pred.get("value", 1))), 0.75)
 		"biome_frozen_loops_gte":
 			# Closed Berry walks banked in the NAMED biome's record (a loop record
@@ -858,7 +862,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if loop_biome == null or loop_biome.get("quantum_computer") == null \
 					or loop_biome.quantum_computer.berry_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
+			return QuestMath.count_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
 					maxf(1.0, float(pred.get("count", 1))), 0.75)
 		"biome_loops_linked":
 			# Two frozen loops in the NAMED biome whose mutual winding is nonzero —
@@ -884,7 +888,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var gf = gauge_biome.quantum_computer.get_gauge_field()
 			if gf == null:
 				return 0.0
-			return QuestMath.soft_gate(float(gf.betti_1()), maxf(1.0, float(pred.get("count", 1))), 0.75)
+			return QuestMath.count_gate(float(gf.betti_1()), maxf(1.0, float(pred.get("count", 1))), 0.75)
 		"biome_loop_closed_upstairs":
 			# A stitched Berry walk in the NAMED biome whose S³ lift genuinely
 			# closes (Ω ≡ 0 mod 4π — walk the loop again; the loose ends meet).
