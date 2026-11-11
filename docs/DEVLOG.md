@@ -10,6 +10,24 @@ playtest. No release tag and no itch push until Luke signs off in the
 
 ---
 
+## 2026-11-11 (evening) — handed to a human: issue #67
+
+- Opened [#67](https://github.com/AQuantumArchitect/SpaceWheat/issues/67) (`ready-for-human-playtest`) at 0f13eee8 (0.3.0-alpha, PR #63 head;
+  CI green). It has run steps for the Windows and Web-Slim builds, evidence, a
+  5-session plan and the known issues.
+- Timing from a new game with the strict follower:
+  - Rig lane: the main ending between press ~360 and ~478 (8–11 min).
+  - Player lane (`RIG_DISABLE_LOOKAHEAD=0`): about 530 presses and 25 min,
+    including about 50 ripening waits.
+  - Extrapolated for a human: main campaign 4–7 h, each post-game 2–3 h.
+- The CI `windows` artifact launches headless and exits 0. A local export
+  can't run on this host, which has no export templates.
+- `strict_follow.py --patience N` added for player-lane runs: ripening there
+  takes 1–4 min in places.
+- Not yet done: one continuous run from a new game through a post-game ending.
+
+---
+
 ## 2026-11-11 — hive session (branch `overnight/2026-11-09-hive`, PR #63)
 
 **Where it stands**
