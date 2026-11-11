@@ -160,11 +160,21 @@ market/contracts in `Core/Markets/MarketLattice.gd`.
   same "closed-state degeneracy" family as several retired predicates; see §8.)
 
 ### 4.6 Who mutates state / the C++ twin
-The GDScript `QuantumComputer.evolve()` is ground truth. The native
-`MultiBiomeLookaheadEngine` (`native/src/`) is a **derived predictor**: it batches
-all biomes × lookahead steps across one bridge crossing and returns evolved ρ,
-Bloch metrics, purity, and mutual information. It trusts the builders' H/L; a gate
-injection invalidates its buffer so it recomputes.
+ρ lives on each biome's `QuantumComputer`. The native `MultiBiomeLookaheadEngine`
+(`native/src/`) is the only integrator: it batches all biomes × ~13 phrames across
+one bridge crossing and returns evolved ρ, Bloch metrics, purity and mutual
+information, which `BiomeEvolutionBatcher` plays back into ρ one phrame at a time.
+It trusts the builders' H/L (a physics-signature check re-registers it when they
+change).
+
+Everything else that writes ρ (a strike, a gate, a Spark jolt, a standing
+contract's tick, a load, a rig driver) stamps `QuantumComputer.state_epoch`. When
+the epoch has moved past the one the buffered frames were forecast from, the
+batcher evolves the live ρ that phrame instead of replaying a stale frame, and
+forecasts again from there. No caller invalidates the lookahead by hand; the input
+layer holds no buffer code (`tests/test_lookahead_follows_writes.py`). The rig
+defaults to lookahead off, which steps ρ directly each tick at the tick's dt, not
+the packet's: the two lanes run at different sim speeds.
 
 ---
 

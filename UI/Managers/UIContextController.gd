@@ -446,18 +446,39 @@ func _project_action_info(action_info: Dictionary) -> Dictionary:
 	}
 
 
-## Verbs that are pure Lindblad drive — meaningless in the closed (unitary) system.
-## In closed/shipping mode they render disabled with a 🔒 open-quantum tag (DLC teaser)
-## instead of looking live and returning an inert no-op. Mirrors the runtime guard in
-## QuantumInstrument._closed_system_blocked.
+## Verbs that are pure Lindblad drive — meaningless where the regime is closed
+## (unitary). On closed ground they render disabled with a 🔒 open-quantum tag
+## instead of looking live and returning an inert no-op; the handlers refuse the
+## same ground (LindbladHandler checks is_open_here per biome).
 const CLOSED_BLOCKED_ACTIONS := [
 	"spark_north", "spark_south", "drain", "pump", "lindblad_pump", "lindblad_drain",
 ]
 
 
+## Openness is a place: the regime of the ground the verbs would act on — the
+## selected plot's biome, else the active biome, else the world switch.
+func _ground_is_open() -> bool:
+	var farm = _get_farm()
+	var biome = null
+	if farm and farm.grid:
+		var plot_grid = _get_plot_grid()
+		if plot_grid and plot_grid.has_method("get_selected_plots"):
+			var selected = plot_grid.get_selected_plots()
+			if not selected.is_empty():
+				biome = farm.grid.get_biome_for_plot(selected[0])
+		if biome == null:
+			var abm = get_node_or_null("/root/ActiveBiomeManager")
+			if abm and abm.has_method("get_active_biome"):
+				biome = farm.grid.get_biome(str(abm.get_active_biome()))
+	if biome != null and biome.get("quantum_computer") != null \
+			and biome.quantum_computer.has_method("is_open_here"):
+		return biome.quantum_computer.is_open_here()
+	return BalanceConfig.dissipative_enabled()
+
+
 func _apply_runtime_state(actions: Dictionary) -> void:
 	var runtime_availability = _resolve_runtime_availability()
-	var closed_mode := not BalanceConfig.dissipative_enabled()
+	var closed_mode := not _ground_is_open()
 	for action_key in ACTION_KEYS:
 		if not actions.has(action_key):
 			continue

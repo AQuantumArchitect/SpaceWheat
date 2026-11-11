@@ -2024,10 +2024,7 @@ func set_observation_stride(biome_name: String, stride: int) -> Dictionary:
 		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
 	var clamped = clampi(stride, GranularityController.MIN_STRIDE, GranularityController.MAX_STRIDE)
 	var old_stride = _biome_stride(biome)
-	biome.observation_stride = clamped
-	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
-	if batcher:
-		batcher.reset_stride_carry(biome_name)
+	biome.observation_stride = clamped   # the setter tells the batcher
 	var result = {"ok": true, "biome": biome_name, "old_stride": old_stride, "new_stride": clamped, "locked": clamped == 0}
 	action_performed.emit("set_observation_stride", result)
 	return result
@@ -2040,10 +2037,7 @@ func set_resolution(biome_name: String, dt: float) -> Dictionary:
 		return {"ok": false, "error": "unknown_biome", "biome": biome_name}
 	var clamped = clampf(dt, GranularityController.MIN_DT, GranularityController.MAX_DT)
 	var old_dt = _biome_dt(biome)
-	biome.max_evolution_dt = clamped
-	var batcher = farm.biome_evolution_batcher if farm and "biome_evolution_batcher" in farm else null
-	if batcher:
-		batcher.reset_stride_carry(biome_name)
+	biome.max_evolution_dt = clamped   # the setter tells the batcher (frames + carry)
 	var result = {"ok": true, "biome": biome_name, "old_dt": old_dt, "new_dt": clamped}
 	action_performed.emit("set_resolution", result)
 	return result
