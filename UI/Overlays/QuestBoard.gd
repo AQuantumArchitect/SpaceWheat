@@ -1390,7 +1390,12 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 		var prog := float(quest.get("progress", quest.get("predicate_score", 0.0)))
 		var filled := int(round(clampf(prog, 0.0, 1.0) * 10.0))
 		var bar := Label.new()
-		bar.text = "    [%s%s] %d%%" % ["█".repeat(filled), "░".repeat(10 - filled), int(round(prog * 100.0))]
+		# A delivery's bar is what you hold against the ask, not the lesson's
+		# progress — the banner read "0%" over a row reading "100%" (literalist,
+		# wave 32). Say which it is.
+		var in_hand := str(quest.get("resource", "")).strip_edges() != "" and int(quest.get("quantity", 0)) > 0
+		bar.text = "    [%s%s] %d%%%s" % ["█".repeat(filled), "░".repeat(10 - filled), int(round(prog * 100.0)),
+				" in hand" if in_hand else ""]
 		bar.add_theme_font_size_override("font_size", 13)
 		bar.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		vbox.add_child(bar)
@@ -1609,7 +1614,7 @@ func _rescue_open(emoji: String) -> bool:
 		if emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price():
 			return true
 		return _vital_stock(emoji) <= STAPLE_CRITICAL
-	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
+	# 🌱 🔥 🔨 🪓 🌊 🦅 🪔 stand only while a live quest asks for them: not
 	# before (no stockpiling ahead of the story), not after (the door closes).
 	if emoji in QUEST_GATED_RESCUES:
 		return UIProgression.quest_requests_resource(emoji)
@@ -2228,7 +2233,7 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
-const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]
 const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.

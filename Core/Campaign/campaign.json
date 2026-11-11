@@ -46,7 +46,7 @@
   }
  },
  "resources": {
-  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first. Paying (owner ruling 2026-10-29): 👥 and 🍞 are bought with 🌾, 🧺 with 👥; every other resource with 🍞 only. Visibility (QuestBoard._rescue_open): a staple's rescue stands only while it is critical (2 or fewer held); 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them.",
+  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: standing contracts that ALWAYS sit on that biome's board while the biome is loaded — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first. Paying (owner ruling 2026-10-29): 👥 and 🍞 are bought with 🌾, 🧺 with 👥; every other resource with 🍞 only. Visibility (QuestBoard._rescue_open): a staple's rescue stands only while it is critical (2 or fewer held); 🌱 🔥 🔨 🪓 🌊 🦅 🪔 stand only while a live quest asks for them.",
   "👥": {
    "low_water": 3,
    "spent_by": "strike",
@@ -177,6 +177,24 @@
     }
    ]
   },
+  "🪔": {
+   "low_water": 13,
+   "spent_by": "plant 🌉/🪔",
+   "plots": [
+    "Lanternfall",
+    "ZenoLatch"
+   ],
+   "trades": [
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🍞": 10
+     },
+     "get": 3
+    }
+   ]
+  },
   "🔥": {
    "low_water": 2,
    "spent_by": "superpose (Druid E)",
@@ -255,7 +273,7 @@
          "tutorial_teaches": "contracts",
          "faction": "Millwright's Union",
          "biome": "TheDemos",
-         "body": "The Millwright's Union is buying wheat. Take one of their contracts from the Market, deliver it on Commitments, then come back here to Charge and close the lesson. Kept contracts are how a small country eats — and how factions learn your name.",
+         "body": "The Millwright's Union is buying wheat. Accept here, take one of their contracts from the Market, deliver it on Commitments, then claim the lesson on Charge. Kept contracts are how a small country eats — and how factions learn your name.",
          "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
          "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
          "signed": true,
@@ -325,7 +343,7 @@
          "tutorial_teaches": "entanglement",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
+         "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. Claim the weave and it leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
          "tutorial_hint": "Mark two plots in the same biome, then weave them into a Bell pair.",
          "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
          "state_predicates": [
@@ -2121,7 +2139,7 @@
          ],
          "offer": {
           "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
-          "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis."
+          "hint": "In the Shrine of Ashes: Druid [0], Superpose [E] the urn plot off its 💀 pole. Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis."
          },
          "chart": "ShrineOfAshes",
          "on_open": {
@@ -2318,7 +2336,7 @@
          ],
          "offer": {
           "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-          "hint": "Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order, in one sitting — the other order makes something else entirely."
+          "hint": "Slow the Forest first: − (⏪) until its clock stops, so the pair holds still; = lets it run again. Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order — the other order makes something else entirely."
          },
          "on_open": {
           "standing": {
@@ -2889,6 +2907,20 @@
    ],
    "spinor_read": [
     "spinor"
+   ],
+   "wilson_survived_flip": [
+    "fence"
+   ],
+   "bridge_braids_gte": [
+    "braid"
+   ],
+   "bridge_fused_gte": [
+    "fuse"
+   ],
+   "biome_frozen_loops_gte": [
+    "travel",
+    "hat:icon",
+    "berry"
    ],
    "mutual_information_at_least": [
     "entangle"

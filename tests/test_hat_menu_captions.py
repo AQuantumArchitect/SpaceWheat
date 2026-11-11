@@ -54,7 +54,7 @@ def test_hat_and_menu_chips_carry_a_caption_box() -> None:
     assert 'spec.get("caption"' in row
     assert 'name = "CaptionBox"' in row
     hats = _read("UI/Widgets/ToolSelectionRow.gd")
-    assert '"caption": label_name' in hats
+    assert '"caption": "[%s] %s" % [hat_key, label_name]' in hats
     menus = _read("UI/Widgets/MenuSelectionRow.gd")
     assert '"caption": caption' in menus
     registry = _read("UI/Core/MenuRegistry.gd")

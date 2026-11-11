@@ -1742,7 +1742,7 @@
     },
     "arc_quest": {
       "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-      "hint": "Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order, in one sitting — the other order makes something else entirely.",
+      "hint": "Slow the Forest first: − (⏪) until its clock stops, so the pair holds still; = lets it run again. Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order — the other order makes something else entirely.",
       "state_predicates": [
         {
           "type": "gate_order",
@@ -2180,7 +2180,7 @@
     },
     "arc_quest": {
       "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
-      "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
+      "hint": "In the Shrine of Ashes: Druid [0], Superpose [E] the urn plot off its 💀 pole. Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
       "state_predicates": [
         {
           "type": "biome_evolving",

@@ -170,7 +170,7 @@ func _run() -> void:
 			if int(econ.get_resource(e0)) <= 2 or fee_short:
 				want_trades.append(t0)
 			continue
-		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]:
+		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]:
 			if UIProgression.quest_requests_resource(e0):
 				want_trades.append(t0)
 			continue

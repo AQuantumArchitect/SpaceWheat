@@ -29,7 +29,7 @@
       "tutorial_teaches": "contracts",
       "faction": "Millwright's Union",
       "biome": "TheDemos",
-      "body": "The Millwright's Union is buying wheat. Take one of their contracts from the Market, deliver it on Commitments, then come back here to Charge and close the lesson. Kept contracts are how a small country eats — and how factions learn your name.",
+      "body": "The Millwright's Union is buying wheat. Accept here, take one of their contracts from the Market, deliver it on Commitments, then claim the lesson on Charge. Kept contracts are how a small country eats — and how factions learn your name.",
       "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
       "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
       "signed": true,
@@ -99,7 +99,7 @@
       "tutorial_teaches": "entanglement",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
+      "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. Claim the weave and it leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
       "tutorial_hint": "Mark two plots in the same biome, then weave them into a Bell pair.",
       "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
       "state_predicates": [

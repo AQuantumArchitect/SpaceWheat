@@ -27,11 +27,22 @@ static func resolve_f(ctx) -> Dictionary:
 	var UIProgression = load("res://UI/Core/UIProgression.gd")
 	if UIProgression != null and UIProgression.ace_f_keeps_fast_fwd():
 		return {}
+	# Struck but unbound: the strikes are banked and Q gathers them first
+	# (owner call 2026-11-11, gather-first). ace_f_would_explore already says
+	# so; offering Explore here showed "Explore [F]" on the chip while the
+	# route toast owned F (earnest, wave 36).
+	if UIProgression != null and UIProgression._plot_measured(int(UIProgression._focused_col())):
+		return {}
 	return {
 		"action": "explore",
 		"label": "Explore",
 		"emoji": "🧭",
 		"hint": "Explore — mount an expedition to this plot (costs 🍞). Binding the register is what makes it strikeable.",
+		# The Q chip names "⇧ Mass Gather"; this one only named the reap, and
+		# its −1🍼 read as Explore's price (literalist, wave 32). Shift+F
+		# mass-explores, Ctrl+Shift+F reaps — name both, cost beside the reap.
+		"shift_mod": "⇧",
+		"shift_label": "Mass Explore · Ctrl+⇧ Reap Season",
 	}
 
 

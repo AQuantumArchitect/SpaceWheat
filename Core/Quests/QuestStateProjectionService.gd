@@ -296,14 +296,25 @@ func evaluate_predicate(predicate: Dictionary) -> float:
 			var word: Array = predicate.get("gates", [])
 			if not (word is Array) or word.is_empty():
 				return 0.0
-			var step := 0
+			# The history is session-only, so a save between the Hadamard and the
+			# CNOT lost the half already spelled (kp5: banked at 50%, reloaded at
+			# 0). The furthest step reached is a lesson receipt, which saves.
+			var word_parts := PackedStringArray()
+			for g in word:
+				word_parts.append(str(g).strip_edges().to_lower())
+			var rkey := "gate_order:" + ",".join(word_parts)
+			var step := int(lesson_receipts.get(rkey, 0))
+			var seen := 0
 			for row in _action_history:
-				if step >= word.size():
+				if seen >= word.size():
 					break
 				var action_name := str(row.get("action", "")).to_lower()
-				if action_name.find(str(word[step]).strip_edges().to_lower()) >= 0:
-					step += 1
-			return float(step) / float(word.size())
+				if action_name.find(str(word[seen]).strip_edges().to_lower()) >= 0:
+					seen += 1
+			if seen > step:
+				step = seen
+				lesson_receipts[rkey] = step
+			return float(mini(step, word.size())) / float(word.size())
 		"frozen_loops_gte":
 			# The loop farmer: closed Berry walks banked in the active biome's
 			# record (BerryPhaseRegister freezes a loop when the walk returns to

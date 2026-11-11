@@ -423,6 +423,24 @@
         }
       ]
     },
+    "🪔": {
+      "low_water": 13,
+      "spent_by": "plant 🌉/🪔",
+      "plots": [
+        "Lanternfall",
+        "ZenoLatch"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 10
+          },
+          "get": 3
+        }
+      ]
+    },
     "🔥": {
       "low_water": 2,
       "spent_by": "superpose (Druid E)",
@@ -657,6 +675,20 @@
       ],
       "spinor_read": [
         "spinor"
+      ],
+      "wilson_survived_flip": [
+        "fence"
+      ],
+      "bridge_braids_gte": [
+        "braid"
+      ],
+      "bridge_fused_gte": [
+        "fuse"
+      ],
+      "biome_frozen_loops_gte": [
+        "travel",
+        "hat:icon",
+        "berry"
       ],
       "mutual_information_at_least": [
         "entangle"

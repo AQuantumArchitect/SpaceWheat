@@ -2525,7 +2525,7 @@ func _selected_charge_ready() -> bool:
 func _build_charge_body() -> void:
 	var rows: Array = _charge_rows()
 	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("nothing signed yet — open doors wait on %s [%s]" % [
+		_body_box.add_child(_make_muted_label("nothing on Charge right now — open doors wait on %s [%s]" % [
 				SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS], 12))
 		return
 	var page_count: int = maxi(1, int(ceil(float(rows.size()) / float(MAX_VISIBLE_ITEMS))))
@@ -2605,6 +2605,23 @@ func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) 
 			ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			ask_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(ask_lbl)
+		# Where each end condition stands now (owner call 2026-11-11): the
+		# % badge alone left Stay Yourself at 0% with nothing to watch.
+		if not ready:
+			var qm_live = _arc_quest_manager()
+			for p in q.get("state_predicates", []):
+				if not (p is Dictionary):
+					continue
+				var now_str := PredicateGloss.live(p, qm_live)
+				if now_str == "":
+					continue
+				var now_lbl := Label.new()
+				now_lbl.name = "ChargeNow"
+				now_lbl.text = "• " + now_str
+				now_lbl.add_theme_font_size_override("font_size", 11)
+				now_lbl.add_theme_color_override("font_color", Color(0.6, 0.75, 0.85, 0.95))
+				now_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(now_lbl)
 	return row
 
 

@@ -478,6 +478,12 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _entangle(q)
 		"spinor":
 			return _spinor(q)
+		"fence":
+			return _compass(q, true)
+		"braid":
+			return _bridge_verb(q, "braid")
+		"fuse":
+			return _bridge_verb(q, "fuse")
 		"reap":
 			return _reap(arg, q)
 		"measure":
@@ -1185,6 +1191,8 @@ static func _gate(pred: Dictionary, q: Dictionary) -> Dictionary:
 		return _reap(str(_km().get("reap_home", "TheDemos")), q)
 	if gate == "strike_known":
 		return _strike_known(q)
+	if gate == "gauge_flip":
+		return _compass(q, false)
 	if gate != "inject_icon" and gate != "plant":
 		return {}
 	# The predicate's own biome wins: lantern_wakes asks for a plant IN
@@ -1516,6 +1524,97 @@ static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Be
 ## traveler, then the mirror's Compare. Wave 20: no walk existed, so the
 ## strict follower fell through to an unrelated gather. Icon hat; key 2 is
 ## the mirror (R Stay Home, E Compare), key 1 the Icon mode (F Track).
+## Operator compass (What Turns): R turns the focused plot's convention.
+## Turn Every Needle counts three turns; The Fence Remembers wants the loop
+## card read (E) first, then a turn. Night 2 census: neither had a walk, so
+## the banner fell through to other beats (sk32: Shrine ⇄ Village).
+static func _compass(q: Dictionary, read_first: bool) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var col := _live_col()
+	if col < 0 or not _is_revealed(biome, col):
+		col = -1
+		for c in range(BERRY_ROWS):
+			if _is_revealed(biome, c):
+				col = c
+				break
+	if col < 0:
+		return {}
+	# Only the hat: _hat insists on the first mode, and this walk lives in
+	# the second ("compass [2]" ⇄ "Operator first mode [1]", as sk22).
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_OPERATOR:
+		var h := _hat("operator", q)
+		if not h.is_empty():
+			return h
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_OPERATOR)) != "compass":
+		parts.append(["compass", "2"])
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	if read_first and not _loop_card_read(biome):
+		parts.append(["Loops", "E"])
+		return _chord(parts, q, "compass read")
+	parts.append(["Turn", "R"])
+	return _chord(parts, q, "compass turn")
+
+
+static func _loop_card_read(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or not b.quantum_computer.has_method("get_gauge_field"):
+		return false
+	var gf = b.quantum_computer.get_gauge_field()
+	return gf != null and bool(gf.inspected)
+
+
+## Spark bridge (What Connects): braid or fuse a span you have raised. The
+## verbs act on the bridge anchored where you stand, so the walk is: go to a
+## shore, Spark 🌉 mode, F braids / Q fuses (confirm F). Braids alternate
+## shores — S at one end, √X at the other — so the word has both letters.
+static func _bridge_verb(q: Dictionary, verb: String) -> Dictionary:
+	var farm = UIP._active_farm()
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {}
+	var spans: Array = farm.bridge_register.bridges()
+	if spans.is_empty():
+		return {}
+	if verb == "fuse" and UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		return _chord([["confirm " + (lbl if lbl != "" else "Fuse"), "F"]], q, "fuse confirm")
+	var here := UIP._active_biome_name()
+	var bridge: Dictionary = {}
+	for b in spans:
+		if b is Dictionary and (str(b.get("biome_a", "")) == here or str(b.get("biome_b", "")) == here):
+			bridge = b
+			break
+	var shore := here
+	if bridge.is_empty():
+		bridge = spans[0]
+		shore = str(bridge.get("biome_a", ""))
+	elif verb == "braid":
+		var at_a := str(bridge.get("biome_a", "")) == here
+		var mine := int(bridge.get("braids_a" if at_a else "braids_b", 0))
+		var theirs := int(bridge.get("braids_b" if at_a else "braids_a", 0))
+		if mine > theirs:
+			shore = str(bridge.get("biome_b" if at_a else "biome_a", here))
+	var t := _travel(shore, q)
+	if not t.is_empty():
+		return t
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_SPARK:
+		var h := _hat("spark", q)
+		if not h.is_empty():
+			return h
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)) != "bridge":
+		parts.append(["🌉 bridge", "2"])
+	if verb == "braid":
+		parts.append(["Braid", "F"])
+		return _chord(parts, q, "braid")
+	parts.append(["Fuse", "Q"])
+	parts.append(["confirm", "F"])
+	return _chord(parts, q, "fuse")
+
+
 static func _spinor(q: Dictionary) -> Dictionary:
 	var biome := UIP._active_biome_name()
 	var inst = UIP._instrument()
@@ -1581,6 +1680,10 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 		return {}
 	var nxt := str(gates[done]).strip_edges().to_lower()
 	var biome := UIP._active_biome_name()
+	if done == 0:
+		var hold := _hold_clock(q)
+		if not hold.is_empty():
+			return hold
 	if nxt == "hadamard":
 		var hd := _hat("druid", q)
 		if not hd.is_empty():
@@ -1610,10 +1713,27 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 	return _pair_gate("", q, label)
 
 
+## Lock the biome's clock before a gate word or a weave (owner call
+## 2026-11-11): the Forest's plots turn between presses (0.51 → 0.77 → 0.50
+## in kp5), so the pair the gates were built on is gone before the MI reads
+## it. "−" halves the clock; at ×1 one more press locks it, "=" lets it run.
+static func _hold_clock(q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
+	if b == null or int(GranularityController.get_current_stride([b])) <= 0:
+		return {}
+	return _chord(_close_first() + ["hold the pair still", ["slower clock", "-"]], q, "clock lock")
+
+
 ## Entangle a pair past the MI bar: a Bell weave on G and H. (A strike does
 ## not collapse under the strike-bank model, so there is no pole prep a
 ## player can do; kp6 spent 👥 on strikes that left the plots drifting.)
 static func _entangle(q: Dictionary) -> Dictionary:
+	var hold := _hold_clock(q)
+	if not hold.is_empty():
+		return hold
 	var ho := _hat("operator", q)
 	if not ho.is_empty():
 		return ho
@@ -1770,6 +1890,10 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	var held = _frozen(col, biome)
 	if held != null and str(held.measured_outcome) == emoji:
 		return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
+	if held == null:
+		var lift := _lift_off_pole(biome, col, emoji, q)
+		if not lift.is_empty():
+			return lift
 	# Needs a fresh probe and none is free: fetch one before the trip, or the
 	# fetch and the trip pull opposite ways.
 	if held == null and not farm.terminal_pool.is_register_bound(col, biome):
@@ -1959,6 +2083,25 @@ static func _cull(q: Dictionary) -> Dictionary:
 		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
 		if lbl.begins_with("Cull"):
 			return _chord(["biome slots full", ["confirm " + lbl, "F"]], q, "cull confirm")
+	# The choice is the player's (owner call 2026-11-11): away from every
+	# cullable biome, offer them all by their travel keys; standing in one,
+	# that one is the pick (the farm's own rule prefers where you stand), and
+	# the others stay named as the alternative.
+	var farm = UIP._active_farm()
+	var options: Array = farm.cullable_biomes() if farm != null and farm.has_method("cullable_biomes") else []
+	var abm := UIP._active_biome_manager()
+	var here := UIP._active_biome_name()
+	if not options.is_empty() and abm != null:
+		var keyed: Array = []
+		for n in options:
+			var slot := int(abm.get_slot_for_biome(str(n)))
+			if slot >= 0 and str(n) != here:
+				keyed.append([biome_label(str(n)), str(abm.get_slot_key(slot)).to_upper()])
+		if not options.has(here):
+			if not keyed.is_empty():
+				return _chord(_close_first() + ["biome slots full — pick one to let go"] + keyed.slice(0, 3), q, "cull choose")
+		else:
+			want = here
 	var t := _travel(want, q)
 	if not t.is_empty():
 		return t
@@ -2072,6 +2215,54 @@ static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first() + ["tip it from %s toward %s, then strike (%d%%)" % [other, res, int(round(p * 100.0))]]
 	parts.append(["Spin +", "R"] if north_is else ["Spin −", "Q"])
 	return _chord(parts, q, "tip")
+
+
+## A plot pinned on the far pole (the Shrine's urn at 100% 💀) never moves
+## for strikes or small spins: dissipation pulls a nudge straight back.
+## Druid Superpose lifts it to the equator in one press, past the basin's
+## tipping point, and the urn fills itself (urn11, 2026-11-11: ⚱ 0% → 100%,
+## held with hands off). Try it once per plot a while; if the pole pulls it
+## straight back, leave the plot to the strike walk.
+const LIFT_PINNED_P := 0.05
+const LIFT_RETRY_MS := 20000
+static var _lifts := {}
+
+
+static func _lift_off_pole(biome: String, col: int, res: String, q: Dictionary) -> Dictionary:
+	# Banked strikes don't block it: Superpose acts on ρ, which a strike
+	# leaves alone. (Skipping measured plots only where you stand sent the
+	# follower Shrine ⇄ Village: the Village walked it to the Shrine, the
+	# Shrine skipped the lift and walked it back for 🧺.)
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var axis := _axis_glyphs(biome, col)
+	if axis.size() != 2 or (str(axis[0]) != res and str(axis[1]) != res):
+		return {}
+	var p := _north_pct(biome, col)
+	if str(axis[0]) != res:
+		p = 1.0 - p
+	if p < 0.0 or p >= LIFT_PINNED_P:
+		return {}
+	var lkey := "%s|%d|%s" % [biome, col, res]
+	var now := Time.get_ticks_msec()
+	if _lifts.has(lkey) and now - int(_lifts[lkey]) < LIFT_RETRY_MS * 6 \
+			and now - int(_lifts[lkey]) > LIFT_RETRY_MS:
+		return {}  # superposed already and the pole took it back
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	if not _lifts.has(lkey) or now - int(_lifts[lkey]) >= LIFT_RETRY_MS * 6:
+		_lifts[lkey] = now
+	var other := str(axis[1]) if str(axis[0]) == res else str(axis[0])
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("lift it off the %s pole toward %s" % [other, res])
+	parts.append(["Superpose", "E"])
+	return _chord(parts, q, "lift")
 
 
 ## [north, south] glyphs a revealed plot wears; [] when unknown.
