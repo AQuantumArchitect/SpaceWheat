@@ -164,8 +164,11 @@ market/contracts in `Core/Markets/MarketLattice.gd`.
 (`native/src/`) is the only integrator: it batches all biomes × ~13 phrames across
 one bridge crossing and returns evolved ρ, Bloch metrics, purity and mutual
 information, which `BiomeEvolutionBatcher` plays back into ρ one phrame at a time.
-It trusts the builders' H/L (a physics-signature check re-registers it when they
-change).
+It keeps its own copy of the builders' H/L: every write to `hamiltonian` or
+`lindblad_operators` stamps `QuantumComputer.operator_epoch`, and the batcher
+re-registers a biome whose epoch moved (holding it still, frames dropped, until
+the engine is free to take the new operators). A physics-signature check is the
+backstop.
 
 Everything else that writes ρ (a strike, a gate, a Spark jolt, a standing
 contract's tick, a load, a rig driver) stamps `QuantumComputer.state_epoch`. When

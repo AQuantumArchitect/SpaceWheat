@@ -418,17 +418,14 @@ func _on_resource_registered(emoji: String, is_producible: bool, is_consumable: 
 
 func _on_coupling_updated(emoji_a: String, emoji_b: String, strength: float) -> void:
 	coupling_updated.emit(emoji_a, emoji_b, strength)
-	# H mutated in place (no dim change). The C++ lookahead engine holds a stale
-	# copy of H — force re-register on next refill so visible physics matches.
 	_mark_lookahead_dirty()
 
 
+## H or L changed: both ambient scalars are stale (the gap is a pure function of
+## H). The native engine's copy needs nothing from here — writing H or L moves
+## QuantumComputer.operator_epoch and the batcher re-registers the biome itself.
 func _mark_lookahead_dirty() -> void:
-	# H mutated → both ambient scalars are stale (gap is a pure function of H).
 	_ambient_scalars_dirty = true
-	var batcher = _active_batcher()
-	if batcher != null and batcher.has_method("mark_for_reregister"):
-		batcher.mark_for_reregister(get_biome_type())
 
 
 ## The running farm's evolution batcher, or null before boot / in bare tests.
@@ -955,9 +952,8 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		if viz_cache:
 			viz_cache.clear_metadata()
 		_seed_viz_metadata()
-		# ... and flush the C++ twin: its H/L copy AND dimension are stale
-		# after a qubit was added. Without this the mutation only surfaced
-		# through the refill-time drift net, which the direct lane never ran.
+		# The C++ twin's H/L copy and dimension are stale now; the rebuild moved
+		# operator_epoch, so the batcher re-registers it on its next tick.
 		_mark_lookahead_dirty()
 	return result
 

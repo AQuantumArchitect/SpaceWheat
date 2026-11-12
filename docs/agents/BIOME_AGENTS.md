@@ -252,10 +252,11 @@ know which one you're touching.
   `evolve()` was deleted 2026-07-06). Holds its OWN copy of H + L, registered
   via `BiomeEvolutionBatcher._register_native_biome`. Computes ~13-phrame
   lookahead in the background; results are played back into `density_matrix`
-  by `BiomeEvolutionBatcher._apply_buffered_step`. Any in-place mutation of H or
-  L should call `BiomeEvolutionBatcher.mark_for_reregister(name)`; the batcher
-  also re-registers when the live `physics_signature` drifts from the one it
-  registered.
+  by `BiomeEvolutionBatcher._apply_buffered_step`. Assigning H or L stamps
+  `QuantumComputer.operator_epoch` and the batcher re-registers the biome on
+  its next tick; an in-place edit calls `qc.mark_operators_written()`. The
+  batcher also re-registers when the live `physics_signature` drifts from the
+  one it registered.
 - `FactionDensityMatrix` (`QuantumMythosEngine` C++) — separate 12-qubit
   emoji-basis engine. Independent H + L. Drives factions / market lattice /
   story flags. **Read-only from biomes** — does not write back.
@@ -281,9 +282,10 @@ method, or calls `mark_state_written()` after an in-place write
 - Never edit `faction.hamiltonian` / `faction.self_energies` expecting biome
   H to change. Those feed `FactionDensityMatrix` only.
 - Edit icons.json to change H. Edit `biome.atom_components` to change L.
-- After any in-place H mutation (e.g. `inject_coupling`), confirm
-  `BiomeEvolutionBatcher.mark_for_reregister` is called — otherwise the C++
-  twin will keep emitting old physics.
+- An in-place H or L mutation (e.g. `inject_coupling`) must call
+  `qc.mark_operators_written()` (QuantumComputer's own editors do) — otherwise
+  the C++ twin keeps emitting the old physics
+  (`tests/test_lookahead_follows_writes.py` pins it).
 
 ---
 

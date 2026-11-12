@@ -1,13 +1,17 @@
 extends SceneTree
 
-## rho_write_epoch_check.gd — every way to write ρ stamps QuantumComputer.state_epoch.
+## rho_write_epoch_check.gd — every way to write ρ stamps QuantumComputer.state_epoch,
+## and every way to write H or L stamps QuantumComputer.operator_epoch.
 ##
-## The lookahead batcher drops a forecast when the epoch moves past the one its
+## The lookahead batcher drops a forecast when state_epoch moves past the one its
 ## frames came from, so a write that forgot to stamp would be overwritten by the
-## next buffered frame (the 2026-11-10 strike bug, in general form). One line per
-## writer:
+## next buffered frame (the 2026-11-10 strike bug, in general form). It
+## re-registers the native engine's copy of H and L when operator_epoch moves, so
+## an operator write that forgot to stamp would leave the engine evolving the old
+## physics. One line per writer:
 ##
 ##   EPOCH <writer> ok|MISSING
+##   OPEPOCH <writer> ok|MISSING
 ##
 ##   godot --headless --script tests/rho_write_epoch_check.gd
 ##
@@ -41,4 +45,18 @@ func _init() -> void:
 		var before: int = qc.state_epoch
 		w[1].call()
 		print("EPOCH %s %s" % [w[0], "ok" if qc.state_epoch > before else "MISSING"])
+
+	var dim: int = qc.register_map.dim()
+	var op_writers := [
+		["assign hamiltonian", func(): qc.hamiltonian = ComplexMatrix.zeros(dim)],
+		["add_coupling (H in place)", func(): qc.add_coupling(0, 1, 0.5)],
+		["assign lindblad_operators", func(): qc.lindblad_operators = [ComplexMatrix.zeros(dim)]],
+		["set_lindblad_operators", func(): qc.set_lindblad_operators([])],
+		["mark_operators_written", func(): qc.mark_operators_written()],
+		["clear", func(): qc.clear()],
+	]
+	for w in op_writers:
+		var before: int = qc.operator_epoch
+		w[1].call()
+		print("OPEPOCH %s %s" % [w[0], "ok" if qc.operator_epoch > before else "MISSING"])
 	quit(0)

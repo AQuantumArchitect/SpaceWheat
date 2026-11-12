@@ -338,6 +338,10 @@ var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
 ## so drift between the live builders and the engine's copy can be DETECTED (signature
 ## mismatch) rather than relying on a caller remembering to mark_for_reregister.
 var _biome_registered_signature: Dictionary = {}  # biome_name -> String
+## The QuantumComputer.operator_epoch each engine copy was (re)registered at. A
+## biome whose epoch has moved since has new physics the engine doesn't have:
+## its frames are dropped and it holds until the engine re-registers.
+var _registered_operator_epoch: Dictionary = {}  # biome_name -> int
 
 # Signal emitted when a biome has its 10-step lookahead buffers primed and is ready
 signal biome_ready(biome_name: String)
@@ -517,6 +521,7 @@ func _teardown_runtime_state() -> void:
 	biome_dirty.clear()
 	biome_pending_reregister.clear()
 	_biome_registered_signature.clear()
+	_registered_operator_epoch.clear()
 
 	biome_buffer_states.clear()
 	biome_fib_indices.clear()
@@ -810,6 +815,7 @@ func _erase_biome_runtime_state(biome_name: String) -> void:
 	_forecast_epoch.erase(biome_name)
 	_live_streak.erase(biome_name)
 	biome_pending_reregister.erase(biome_name)
+	_registered_operator_epoch.erase(biome_name)
 	biome_buffer_states.erase(biome_name)
 	biome_fib_indices.erase(biome_name)
 	biome_emergency_refill.erase(biome_name)
@@ -849,6 +855,7 @@ func _register_native_biome(biome) -> int:
 	_biome_engine_dims[biome_name] = dim
 	# Record the physics fingerprint this engine copy was built from (drift anchor).
 	_biome_registered_signature[biome_name] = str(qc.physics_signature)
+	_registered_operator_epoch[biome_name] = int(qc.operator_epoch)
 	_sync_biome_structure_payload(biome, biome_id)
 
 	# Wire the coherent generator switch into the C++ engine (two-axis isolation). The
@@ -1568,6 +1575,11 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 		biome_pending_reregister[biome_name] = true
 		return status
 
+	if biome_pending_reregister.get(biome_name, false):
+		# The engine's H/L copy is stale: a packet would forecast the old physics.
+		status.reason = "pending_reregister"
+		return status
+
 	status.valid = true
 	status.reason = "ok"
 	biome_last_good_rho[biome_name] = rho_packed
@@ -1577,6 +1589,7 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 func _process_pending_reregisters() -> void:
 	if lookahead_engine == null:
 		return
+	_flag_operator_changes()
 	if not _active_packet_request.is_empty() or not _packet_queue.is_empty():
 		return
 
@@ -1592,6 +1605,26 @@ func _process_pending_reregisters() -> void:
 	for biome_name in pending_names:
 		if biome_pending_reregister.get(biome_name, false):
 			_reregister_biome_by_name(biome_name)
+
+
+## A biome whose H or L was written since its engine copy was registered
+## (QuantumComputer.operator_epoch) has physics the engine doesn't. Flag it for
+## re-register and drop its frames now: until the engine is free to take the
+## new operators the biome holds (frozen frames, no packets, no live steps), so
+## no frame forecast with the old physics plays. Runs every tick in both lanes,
+## before the re-register waits on an in-flight packet.
+func _flag_operator_changes() -> void:
+	for biome in biomes:
+		if not _is_valid_biome(biome) or biome.quantum_computer == null:
+			continue
+		var biome_name: String = _get_biome_name(biome)
+		if not _registered_operator_epoch.has(biome_name) or biome_pending_reregister.get(biome_name, false):
+			continue
+		if int(biome.quantum_computer.operator_epoch) == int(_registered_operator_epoch[biome_name]):
+			continue
+		biome_pending_reregister[biome_name] = true
+		if lookahead_enabled:
+			invalidate_biome_buffer(biome_name)
 
 
 ## Flag any registered biome whose LIVE physics signature no longer matches the one its
@@ -1642,6 +1675,7 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 		if lookahead_engine.reregister_biome(old_id, dim, H_packed, lindblad_triplets, num_qubits):
 			_biome_engine_dims[biome_name] = dim
 			_biome_registered_signature[biome_name] = str(qc.physics_signature)
+			_registered_operator_epoch[biome_name] = int(qc.operator_epoch)
 			_sync_biome_structure_payload(biome, old_id)
 			if lookahead_engine.has_method("set_biome_coherent"):
 				lookahead_engine.set_biome_coherent(old_id, BalanceConfig.coherent_enabled())
@@ -2085,10 +2119,9 @@ func _queue_hybrid_packet():
 
 
 ## Force the C++ lookahead engine to re-register this biome on the next refill,
-## picking up the current GDScript H + L. Call after any in-place mutation of
-## `qc.hamiltonian` or `qc.lindblad_operators` that does NOT change dim — those
-## mutations are otherwise invisible to the C++ twin (which only auto-detects
-## dim mismatches at BiomeEvolutionBatcher.gd:629).
+## picking up the current GDScript H + L. Nothing outside the batcher needs it:
+## writing H or L moves QuantumComputer.operator_epoch and _flag_operator_changes
+## re-registers the biome itself (an in-place edit calls mark_operators_written()).
 func mark_for_reregister(biome_name: String) -> void:
 	if biome_name == "":
 		return
@@ -2164,11 +2197,13 @@ func _evolve_live_phrame(biome, steps: int) -> void:
 		lookahead_engine.has_method("is_lookahead_job_running") and lookahead_engine.is_lookahead_job_running())
 	# The native engine refuses a single-biome step while an async packet is
 	# computing; then this phrame holds the written ρ, and the refill packet
-	# (seeded from it) carries on.
+	# (seeded from it) carries on. A biome waiting to re-register holds too: the
+	# engine still has its old physics.
+	var can_step: bool = engine_free and not biome_pending_reregister.get(biome_name, false)
 	live_phrames_total += 1
-	if not engine_free:
+	if not can_step:
 		live_phrames_held += 1
-	if engine_free and engine_id >= 0 and dim > 0 and qc.density_matrix != null \
+	if can_step and engine_id >= 0 and dim > 0 and qc.density_matrix != null \
 			and int(_biome_engine_dims.get(biome_name, -1)) == dim:
 		var rho: PackedFloat64Array = qc.density_matrix._to_packed()
 		if rho.size() >= dim * dim * 2 and not DegenerateRho.is_degenerate(rho, dim):
