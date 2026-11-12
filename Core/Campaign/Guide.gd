@@ -1858,11 +1858,14 @@ static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
 		if not hold.is_empty():
 			return hold
 	if nxt == "hadamard":
+		# Reveal before the hat: _reveal puts the Ace hat on, so a Druid-hat
+		# check first took it straight back off ("Druid hat [0]" ⇄ "explore it
+		# first → Ace hat [8]", orchestrator wave 3, dgb_end in Lanternfall).
+		if not _is_revealed(biome, 0) and not _tracked(0):
+			return _reveal(0, q, [0, 1])
 		var hd := _hat("druid", q)
 		if not hd.is_empty():
 			return hd
-		if not _is_revealed(biome, 0) and not _tracked(0):
-			return _reveal(0, q, [0, 1])
 		var parts: Array = _close_first()
 		if _live_col() != 0:
 			parts.append_array(_pick_plot(0))

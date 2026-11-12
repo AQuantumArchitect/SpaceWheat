@@ -2136,10 +2136,14 @@ static func ace_f_keeps_fast_fwd() -> bool:
 	if _coast_field_biome(q) == "ShrineOfAshes" and here == "ShrineOfAshes":
 		return true
 	# The Bridge Holds: planted 🌉 is unbound fog. Explore steals F;
-	# Fast-Fwd never dephases so Claim never READY.
-	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested" and here == "Lanternfall":
+	# Fast-Fwd never dephases so Claim never READY. A plot that was never
+	# revealed is not that fog: the banner says "explore it first" and F
+	# must Explore (orchestrator wave 3, to_pg2_end: six dark Lanternfall
+	# plots, F fast-forwarded silently for 300 presses).
+	var dark := not Guide._is_revealed(here, _focused_col())
+	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested" and here == "Lanternfall" and not dark:
 		return true
-	if _coast_field_biome(q) == "Lanternfall" and here == "Lanternfall":
+	if _coast_field_biome(q) == "Lanternfall" and here == "Lanternfall" and not dark:
 		return true
 	return false
 

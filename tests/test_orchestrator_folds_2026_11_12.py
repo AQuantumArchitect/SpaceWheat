@@ -49,3 +49,19 @@ def test_a_fade_waits_for_the_bath_instead_of_spinning():
     fade = _fn(guide, "_fade")
     assert '"purity_at_most"' in fade and "_coherence_watermark" in fade
     assert "hands off, wait" in fade
+
+
+def test_ace_f_explores_a_dark_lanternfall_plot():
+    # The Bridge Holds pins F to Fast-Fwd so a planted 🌉 isn't explored away,
+    # but six never-revealed Lanternfall plots then had no way to be seen: the
+    # banner said "explore it first → Explore [F]" for 300 presses (to_pg2_end).
+    uip = _read("UI/Core/UIProgression.gd")
+    keep = uip.split("static func ace_f_keeps_fast_fwd(", 1)[1].split("\nstatic func ", 1)[0]
+    assert "var dark := not Guide._is_revealed(here, _focused_col())" in keep
+    assert keep.count('here == "Lanternfall" and not dark') == 2
+
+
+def test_gate_word_reveals_before_it_asks_for_the_druid():
+    gw = _fn(_read("Core/Campaign/Guide.gd"), "_gate_word")
+    had = gw.split('if nxt == "hadamard":', 1)[1]
+    assert had.index("_reveal(0, q, [0, 1])") < had.index('_hat("druid", q)')
