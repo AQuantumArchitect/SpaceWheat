@@ -394,6 +394,48 @@ func get_marginal_density_matrix(_comp, reg_id: int) -> ComplexMatrix:
 	var target_bit = 1 << shift
 	var mask_other = (dim - 1) ^ target_bit
 
+	# Partial trace straight off the packed store: ρ_ab = Σ_k ρ[k|a, k|b] over
+	# the other bits k — O(dim) reads. The dim² Complex-allocating loop below
+	# cost ~10 ms a call at dim 64; the quest observer reads every qubit at the
+	# 10 Hz physics tick, and the late game sank to 1 FPS (2026-11-12, hive).
+	if int(density_matrix.n) == dim:
+		var p: PackedFloat64Array = density_matrix._to_packed()
+		var a00 := 0.0
+		var a11 := 0.0
+		var a00i := 0.0
+		var a11i := 0.0
+		var a01r := 0.0
+		var a01i := 0.0
+		var a10r := 0.0
+		var a10i := 0.0
+		for k in range(dim):
+			if k & target_bit:
+				continue
+			var k1: int = k | target_bit
+			var d0: int = (k * dim + k) * 2
+			var d1: int = (k1 * dim + k1) * 2
+			a00 += p[d0]
+			a00i += p[d0 + 1]
+			a11 += p[d1]
+			a11i += p[d1 + 1]
+			var o: int = (k * dim + k1) * 2
+			a01r += p[o]
+			a01i += p[o + 1]
+			var u: int = (k1 * dim + k) * 2
+			a10r += p[u]
+			a10i += p[u + 1]
+		var q: PackedFloat64Array = result._to_packed()
+		q[0] = a00
+		q[1] = a00i
+		q[2] = a01r
+		q[3] = a01i
+		q[4] = a10r
+		q[5] = a10i
+		q[6] = a11
+		q[7] = a11i
+		result._from_packed(q, 2)
+		return result
+
 	for i in range(dim):
 		var i_other = i & mask_other
 		var i_bit = (i >> shift) & 1
