@@ -1617,6 +1617,17 @@ static func _biome_open(biome: String) -> bool:
 	return b != null and b.quantum_computer != null and b.quantum_computer.has_method("is_open_here") 			and bool(b.quantum_computer.is_open_here())
 
 
+## Open AND carrying a dissipator. Opening Lanternfall (the_chain_tested)
+## builds no operator — every term in its atoms targets a glyph off its
+## register (🗑 🚩 🏚 🌫), so they stay primed — and its purity holds at 1.0.
+## The walk waited "the Bath is graying Lanternfall" for 33 min (orchestrator
+## wave 2, to_strict7_end). Gray only where something can gray.
+static func _biome_has_bath(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null and biome != "" else null
+	return b != null and b.quantum_computer != null 			and not (b.quantum_computer.lindblad_operators as Array).is_empty()
+
+
 ## When the player last did `action` (ms ticks), from the quest projection's
 ## action history (a substring: gates record as "gate_inject:hadamard");
 ## -1 if not in it.
@@ -1653,7 +1664,7 @@ static func _gray(pred: Dictionary, q: Dictionary) -> Dictionary:
 	var best_s := -1.0
 	for n in want:
 		var nm := str(n)
-		if not _biome_open(nm):
+		if not _biome_open(nm) or not _biome_has_bath(nm):
 			continue
 		var s_norm := _entropy_norm(nm)
 		if s_norm > best_s + 1e-6:
@@ -1993,11 +2004,48 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	return _chord(_close_first() + _pick_plot(col) + [["Superpose", "E"]], q, "superpose")
 
 
+## A coherence_fell that rides with purity_at_most is a fade (Watch It Fade),
+## not a quieting: the Bath drains the color, and Druid spins only stir it
+## back (orchestrator wave 2, to_dist_2: Spin −/+ across G/H/J/L for 40
+## presses, 0 flags; hands-off in Gilded Rot the coherence fell 0.20 → 0.17
+## in two minutes). Gray where something grays, superpose once if the
+## high-water mark is short, then keep hands off.
+static func _fade(q: Dictionary) -> Dictionary:
+	var pg := {}
+	var from := 0.3
+	for p in q.get("state_predicates", []):
+		if not (p is Dictionary):
+			continue
+		if str(p.get("type", "")) == "purity_at_most":
+			pg = p
+		elif str(p.get("type", "")) == "coherence_fell":
+			from = float(p.get("from", 0.3))
+	if pg.is_empty():
+		return {}
+	var g := _gray(pg, q)
+	if g.is_empty():
+		return {}
+	var here := UIP._active_biome_name()
+	if not (_biome_open(here) and _biome_has_bath(here)):
+		return g  # travel there first
+	var qm = UIP._quest_manager()
+	var sp = qm.get("_state_projection") if qm != null else null
+	var mark := 0.0
+	if sp != null and "_coherence_watermark" in sp:
+		mark = float(sp._coherence_watermark.get(here, 0.0))
+	if mark < from:
+		return g  # hold it coherent first: the gray walk superposes
+	return _wait("the Bath is draining %s's color — hands off, wait" % biome_label(here), q, "fade")
+
+
 ## Quiet a biome's surface (coherence_fell): the Druid spins the plot that
 ## sits most on its side toward its nearer pole (Spin + up, Spin − down).
 ## Still the Pond used to read the retired dynamics channel, -1 forever: no
 ## key could finish it (2026-11-09).
 static func _still(q: Dictionary) -> Dictionary:
+	var fade := _fade(q)
+	if not fade.is_empty():
+		return fade
 	var biome := UIP._active_biome_name()
 	var col := -1
 	var side := 2.0
