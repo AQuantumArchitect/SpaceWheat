@@ -15,6 +15,10 @@ extends SceneTree
 ##           ReelRunner, anything that skips QuantumInstrumentInput)
 ##   gate    an X gate through GateInjector.inject_gate (p → 1 − p)
 ##   raw     an X gate straight on the QuantumComputer, no helper at all
+##   operators  Village's H assigned zero, no rebuild, no helper: a closed biome
+##           with H = 0 doesn't move, so the trace (max drift of any register's
+##           p_north since the write) stays 0 — unless the native engine kept
+##           the old H and its frames keep turning ρ
 ##   pump    a standing pump contract in one open-regime biome, the world still
 ##           closed (What Fades before the door), ticked by Farm every physics
 ##           frame, rate 20 so it outruns any H: the north marginal goes to ~1
@@ -143,6 +147,25 @@ func _run() -> void:
 	village.quantum_computer.apply_pauli_x(1)
 	await _trace("raw", lookahead, village, {"register_id": 1}, 1.0 - before, before)
 
+	# operators: the generator changes, not ρ. Nothing tells the batcher.
+	var vqc = village.quantum_computer
+	var held := _all_p_north(village)
+	var op_epoch_before: int = int(vqc.get("operator_epoch")) if "operator_epoch" in vqc else -1
+	vqc.hamiltonian = ComplexMatrix.zeros(int(vqc.register_map.dim()))
+	var drift: Array = [[0, _max_drift(village, held)]]
+	for f in range(1, 61):
+		await process_frame
+		if f in [1, 2, 3, 5, 10, 20, 30, 45, 60]:
+			drift.append([f, _max_drift(village, held)])
+	var batcher = farm.biome_evolution_batcher
+	print("STRIKE_TRACE " + JSON.stringify({"path": "operators", "lookahead": lookahead,
+		"biome": "Village", "register": -1, "expect": 0.0, "before": -1.0,
+		"open": vqc.is_open_here(), "lindblad_count": vqc.lindblad_operators.size(),
+		"operator_epoch": [op_epoch_before, int(vqc.get("operator_epoch")) if "operator_epoch" in vqc else -1],
+		"registered_epoch": int(batcher.get("_registered_operator_epoch").get("Village", -1))
+			if "_registered_operator_epoch" in batcher else -1,
+		"trace": drift}))
+
 	# pump: a standing contract ticked by Farm every physics frame. Only this
 	# biome's regime is open; the world switch stays closed (openness is a place).
 	var fqc = forest.quantum_computer
@@ -183,6 +206,14 @@ func _p_north(biome, q: int) -> float:
 	if biome == null:
 		return -1.0
 	return float(biome.quantum_computer.get_marginal_density_matrix(null, q).get_element(0, 0).re)
+
+
+func _max_drift(biome, ref: Array) -> float:
+	var now := _all_p_north(biome)
+	var m := 0.0
+	for q in range(mini(now.size(), ref.size())):
+		m = maxf(m, absf(float(now[q]) - float(ref[q])))
+	return m
 
 
 func _all_p_north(biome) -> Array:
