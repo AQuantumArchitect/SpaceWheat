@@ -2265,7 +2265,9 @@ static func _cull(q: Dictionary) -> Dictionary:
 			if not keyed.is_empty():
 				# One segment joined by "or": as chord steps the options read as
 				# a sequence ("Zeno Latch [O] → Shrine Of Ashes [P]", kd run).
-				var choose := _chord(_close_first() + ["biome slots full — pick one to let go: " + " or ".join(PackedStringArray(keyed.slice(0, 3)))], q, "cull choose")
+				# Say what letting go costs (orchestrator earn6 culled the Spring
+				# blind): remove_biome liquidates it, lock_biome re-pools it.
+				var choose := _chord(_close_first() + ["biome slots full — pick one to let go (its stock is paid out, and you can find it again): " + " or ".join(PackedStringArray(keyed.slice(0, 3)))], q, "cull choose")
 				(choose["keys"] as Array).append_array(keyed_keys.slice(0, 3))
 				return choose
 		else:

@@ -747,6 +747,12 @@ func _handle_submenu_action(action_key: String) -> void:
 		if action_data.has("can_afford") and not bool(action_data.get("can_afford", true)):
 			var cost_s := str(action_data.get("cost_display", "")).strip_edges()
 			why = cost_s if cost_s != "" else "can't afford"
+			# Name where the short resource comes from (orchestrator earn4: "✗
+			# 💨/🔨 — −🌱×5" holding 1🌱, and nothing said sprouts are gathered
+			# in the forest). The campaign resources table is the one source.
+			var src := _short_resource_sources(action_data.get("cost", {}))
+			if src != "":
+				why += " — " + src
 		_toast_player("✗ %s — %s" % [str(action_data.get("label", action_key)), why])
 		return  # Stay in submenu
 
@@ -2398,6 +2404,35 @@ func _has_focused_plot() -> bool:
 
 
 ## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
+## "gather 🌱 in Starter Forest or Woodlot, or buy it at the Village market"
+## for each resource in `cost` the wallet cannot cover.
+func _short_resource_sources(cost) -> String:
+	if not (cost is Dictionary) or cost.is_empty():
+		return ""
+	var econ = farm.get("economy") if farm else null
+	var parts := PackedStringArray()
+	for e in cost:
+		if econ != null and BaseSubmenu.check_affordability({e: cost[e]}, econ):
+			continue
+		var info: Dictionary = CampaignRuntime.resource(str(e))
+		var lands := PackedStringArray()
+		for b in info.get("plots", []):
+			lands.append(Guide.biome_label(str(b)))
+		var markets := PackedStringArray()
+		for tr in info.get("trades", []):
+			var tb := str(tr.get("biome", ""))
+			if tb != "" and not markets.has(Guide.biome_label(tb)):
+				markets.append(Guide.biome_label(tb))
+		var bits := PackedStringArray()
+		if not lands.is_empty():
+			bits.append("gather %s in %s" % [str(e), " or ".join(lands)])
+		if not markets.is_empty():
+			bits.append("buy it at the %s market" % " or ".join(markets))
+		if not bits.is_empty():
+			parts.append(", or ".join(bits))
+	return "; ".join(parts)
+
+
 func _cost_shortfall_words(action_name: String) -> String:
 	var pf: Dictionary = ActionCostRuntime.preflight_action(farm, action_name)
 	if bool(pf.get("ok", true)):
