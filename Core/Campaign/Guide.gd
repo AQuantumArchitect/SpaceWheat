@@ -259,6 +259,9 @@ static func next_step() -> Dictionary:
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return _tutorial_step()
 	var ranked := ranked_beats()
+	var stall := _clock_stalled(ranked[0] if not ranked.is_empty() else {})
+	if not stall.is_empty():
+		return stall
 	if ranked.is_empty():
 		return _auto_beat_step()
 	# The best beat first; a beat the guide has no step for (its way in is
@@ -268,6 +271,37 @@ static func next_step() -> Dictionary:
 		if not step.is_empty():
 			return step
 	return {}
+
+
+## The clock must not outrun the machine. At ×32 the three 0.02-step
+## countries spin ~160 substeps a tick each; the game fell to 1 FPS, the
+## banner froze on a stale line and a follower read it as blank (orchestrator
+## wave 3, dgf_end, idle host). The Guide stops asking for a faster clock
+## below CLOCK_MIN_FPS, and after CLOCK_STALL_MS under CLOCK_STALL_FPS it
+## asks for a slower one before anything else.
+const CLOCK_MIN_FPS := 12.0
+const CLOCK_STALL_FPS := 4.0
+const CLOCK_STALL_MS := 10000
+static var _stall_since := -1
+
+static func _clock_room() -> bool:
+	return Engine.get_frames_per_second() >= CLOCK_MIN_FPS
+
+
+static func _clock_stalled(q: Dictionary) -> Dictionary:
+	var now := Time.get_ticks_msec()
+	if Engine.get_frames_per_second() >= CLOCK_STALL_FPS:
+		_stall_since = -1
+		return {}
+	if _stall_since < 0:
+		_stall_since = now
+	if now - _stall_since < CLOCK_STALL_MS:
+		return {}
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
+	if b == null or int(GranularityController.get_current_stride([b])) <= 1:
+		return {}
+	return _chord(_close_first() + ["the clock runs faster than this machine keeps up", ["slower clock", "-"]], q, "clock stall")
 
 
 static func _beat_step(q: Dictionary) -> Dictionary:
@@ -748,7 +782,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	if UIP._sim_paused():
 		return _chord(_close_first() + [["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
 	var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)]))
-	if stride < int(_km().get("clock_max_stride", 32)):
+	if stride < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(_close_first() + ["loops ripening", ["faster clock", _verb("faster")]], q, "clock")
 	var nudge := _nudge(q)
 	if not nudge.is_empty():
@@ -1826,7 +1860,7 @@ static func _spinor(q: Dictionary) -> Dictionary:
 			return _chord(parts + [["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
 		var farm = UIP._active_farm()
 		var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)])) if farm != null else 0
-		if stride < int(_km().get("clock_max_stride", 32)):
+		if stride < int(_km().get("clock_max_stride", 32)) and _clock_room():
 			return _chord(parts + ["the traveler is ripening (don't Incorporate)", ["faster clock", _verb("faster")]], q, "clock")
 		return _wait("the traveler is ripening — wait, don't Incorporate", q, "ripen")
 	if mode != "mirror":
@@ -2081,7 +2115,7 @@ static func _evolve(biome: String, q: Dictionary) -> Dictionary:
 		return t
 	var farm = UIP._active_farm()
 	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
-	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(["let it evolve", ["faster clock", _verb("faster")]], q, "clock")
 	return _wait("let it evolve — wait", q, "evolve")
 
@@ -2562,7 +2596,7 @@ static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -
 		return _chord(parts, q, "take in loop")
 	if UIP._sim_paused():
 		return _chord(_close_first() + [label, ["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
-	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(_close_first() + [label, ["faster clock", _verb("faster")]], q, "clock")
 	return _wait(label + " — wait for it to ripen, then Incorporate [R]", q, "tracked")
 

@@ -65,3 +65,12 @@ def test_gate_word_reveals_before_it_asks_for_the_druid():
     gw = _fn(_read("Core/Campaign/Guide.gd"), "_gate_word")
     had = gw.split('if nxt == "hadamard":', 1)[1]
     assert had.index("_reveal(0, q, [0, 1])") < had.index('_hat("druid", q)')
+
+
+def test_the_clock_never_outruns_the_machine():
+    # ×32 on three 0.02-step countries: 1 FPS, a frozen banner (dgf_end).
+    guide = _read("Core/Campaign/Guide.gd")
+    assert guide.count("and _clock_room():") == 4  # every "faster clock" site
+    assert "_clock_stalled(" in _fn(guide, "next_step")
+    stall = _fn(guide, "_clock_stalled")
+    assert '["slower clock", "-"]' in stall and "CLOCK_STALL_MS" in stall
