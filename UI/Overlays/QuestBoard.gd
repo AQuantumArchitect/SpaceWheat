@@ -2522,6 +2522,15 @@ func _abandon_selected() -> void:
 	_refresh_verb_chips()
 
 
+## Closing the board cancels an armed abandon. ESC left it armed: the "⚠
+## abandon … any other key cancels" toast stayed up and the board reopened on
+## "Confirm Abandon" (orchestrator wave 6, to_dist_5). Not silent: the
+## standing toast must be replaced by the truth.
+func _on_deactivated() -> void:
+	_disarm_abandon()
+	super._on_deactivated()
+
+
 func _disarm_abandon(silent: bool = false) -> void:
 	if _abandon_arm_qid < 0:
 		return

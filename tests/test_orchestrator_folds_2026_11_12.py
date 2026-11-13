@@ -74,3 +74,11 @@ def test_the_clock_never_outruns_the_machine():
     assert "_clock_stalled(" in _fn(guide, "next_step")
     stall = _fn(guide, "_clock_stalled")
     assert '["slower clock", "-"]' in stall and "CLOCK_STALL_MS" in stall
+
+
+def test_closing_the_board_cancels_an_armed_abandon():
+    # ESC left "⚠ abandon … any other key cancels" armed; the board reopened on
+    # Confirm Abandon (wave 6, to_dist_5).
+    qb = _read("UI/Overlays/QuestBoard.gd")
+    hook = qb.split("func _on_deactivated() -> void:", 1)[1].split("\nfunc ", 1)[0]
+    assert "_disarm_abandon()" in hook and "super._on_deactivated()" in hook
