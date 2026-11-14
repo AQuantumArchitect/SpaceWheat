@@ -82,3 +82,9 @@ def test_closing_the_board_cancels_an_armed_abandon():
     qb = _read("UI/Overlays/QuestBoard.gd")
     hook = qb.split("func _on_deactivated() -> void:", 1)[1].split("\nfunc ", 1)[0]
     assert "_disarm_abandon()" in hook and "super._on_deactivated()" in hook
+
+
+def test_the_refresh_line_says_why():
+    guide = _read("Core/Campaign/Guide.gd")
+    assert "\"no keepable %s contract\" %" not in guide
+    assert "offers here ask far more than you hold" in guide

@@ -934,7 +934,11 @@ static func _deliver_to(faction: String, q: Dictionary, home_override: String = 
 	if str(_counted_refresh.get(faction, "")) != sig:
 		_refreshes[faction] = int(_refreshes.get(faction, 0)) + 1
 		_counted_refresh[faction] = sig
-	return _chord(["no keepable %s contract" % faction, ["Refresh", _verb("refresh")]], q, "refresh")
+	# Say which: an offer that asks far more than the wallet still sits on the
+	# screen, and "no keepable contract" read as a lie beside it (wave 7
+	# literalist: "Millwright's Union 👥 × 263 … [R] Accept" listed).
+	var why := "%s's offers here ask far more than you hold" % faction if best >= 0 			else "no %s contract in this deal" % faction
+	return _chord([why, ["Refresh", _verb("refresh")]], q, "refresh")
 
 
 ## The page presses that bring row `idx` into view on the paged surface the
