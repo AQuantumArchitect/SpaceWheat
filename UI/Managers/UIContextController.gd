@@ -186,9 +186,11 @@ func _apply_pointer_bleed_guard() -> void:
 	# CHIPS must not win clicks either. GUI picking ignores z_index: without
 	# this, the tool/biome chip strips (later in the tree) silently stole
 	# clicks aimed at modal content drawn above them (playtest 2: quest-board
-	# tabs unclickable by mouse). The menu row (ZXCVBNM ring) and bottom QERF
-	# chips stay live — ring navigation is never swallowed, and QERF chips
-	# route overlay-first, acting as the modal's own verb buttons.
+	# tabs unclickable by mouse). The menu row (ZXCVBNM ring) is guarded too
+	# (#98: clicking a menu chip through the Job Board toggled overlays from
+	# behind) — an open overlay closes by its own control, Esc, or its toggle
+	# key. Only the bottom QERF chips stay live: they route overlay-first,
+	# acting as the modal's own verb buttons.
 	#
 	# Must gate on size() > 1, matching PlayerShell._any_menu_open() exactly --
 	# NOT is_empty(). PlayBase (OverlayStackManager's permanent, never-popped
@@ -206,7 +208,8 @@ func _apply_pointer_bleed_guard() -> void:
 	# The mode chips share the hat band, so they need the same guard — without
 	# it a click aimed at an open overlay could land on a sub-mode chip instead.
 	for row in [action_bar_manager.get_tool_row(),
-			action_bar_manager.get_mode_row()]:
+			action_bar_manager.get_mode_row(),
+			action_bar_manager.get_menu_row()]:
 		if row and row.has_method("set_pointer_enabled"):
 			row.set_pointer_enabled(not menu_open)
 
