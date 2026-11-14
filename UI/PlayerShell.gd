@@ -87,6 +87,13 @@ func _input(event: InputEvent) -> void:
 	# Side-effect peek: E pauses, F resumes. No set_input_as_handled,
 	# no return — fall through to normal dispatch so tools/menus still
 	# receive their primary E/F verb.
+	if event.keycode == KEY_ESCAPE and (overlay_stack == null or overlay_stack.is_empty()):
+		var open_banner = _objective_banner()
+		if open_banner != null and open_banner.is_expanded():
+			toggle_objective_more()
+			_mark_input_handled()
+			return
+
 	if event.keycode == KEY_E:
 		# Re-pressing E while already paused on the bare field is silent —
 		# blind round-1 testers read it as "stuck in pause". Re-show the way
@@ -101,6 +108,16 @@ func _input(event: InputEvent) -> void:
 		var e_spec: Dictionary = ToolConfig.get_action(ToolConfig.get_current_frame(), "E")
 		var hat_e_is_verb: bool = not e_spec.is_empty() \
 				and str(e_spec.get("action", "")).strip_edges() != ""
+		# The gold banner's "[E] more about this": on the bare field E opens
+		# the detail (pausing); E again closes it and plays on.
+		var banner = _objective_banner()
+		if banner != null and (overlay_stack == null or overlay_stack.is_empty()) \
+				and not qii_owns_ef and not hat_e_is_verb:
+			if banner.is_expanded():
+				toggle_objective_more()
+				return
+			if banner.has_more():
+				toggle_objective_more()
 		if paused and (overlay_stack == null or overlay_stack.is_empty()) \
 				and not qii_owns_ef and not hat_e_is_verb:
 			show_hint("⏸ time paused — F plays on", 2)
@@ -418,8 +435,31 @@ func _topmost_toast() -> HintToast:
 	return node if node is HintToast else null
 
 
+func _objective_banner():
+	var layer := get_node_or_null("OverlayLayer")
+	return layer.get_node_or_null("ActFilament") if layer != null else null
+
+
+## The gold banner's "[E] more about this": E (or a tap on the small line)
+## pauses and opens the detail; again closes it and plays on. Info only — it
+## never accepts or completes anything (only R accepts).
+func toggle_objective_more() -> void:
+	var banner = _objective_banner()
+	if banner == null:
+		return
+	if banner.is_expanded():
+		_set_global_paused(false)  # resuming collapses the card
+		banner.collapse_more()
+	elif banner.expand_more():
+		_set_global_paused(true)
+
+
 func _set_global_paused(value: bool) -> void:
 	# Set the global sim-pause flag. Idempotent. Read by Farm._physics_process.
+	if not value:
+		var banner = _objective_banner()
+		if banner != null:
+			banner.collapse_more()
 	if paused == value:
 		return
 	paused = value
@@ -850,7 +890,7 @@ func _ready() -> void:
 	# edge lands just above the banner's top edge, not overlapping it.
 	var toast_bottom_reserved: float = 2.0 * layout_manager.get_action_row_height() + 16.0 \
 		if layout_manager and layout_manager.has_method("get_action_row_height") else 158.0
-	var act_filament_top: float = -toast_bottom_reserved - ActFilament.BANNER_HEIGHT
+	var act_filament_top: float = -toast_bottom_reserved - ActFilament.BANNER_HEIGHT - ActFilament.HINT_EXTRA
 	# Right-aligned to the same 20px margin the banner uses, and the same width
 	# — the banner IS a toast now (UIStyleFactory.create_toast_style), so the
 	# column reads as one stack of cards rather than two shapes side by side.
