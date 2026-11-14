@@ -1925,7 +1925,8 @@ func _mass_explore() -> void:
 		if nq > 0:
 			positions = positions.filter(func(p): return int(p.x) < nq)
 	if positions.is_empty():
-		_toast_player("Mass Explore: every plot here is already explored.")
+		# Everything here is already explored: nothing to do, nothing to say.
+		_verbose.info("input", "•", "Mass Explore: every plot here is already explored")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
 
@@ -2754,7 +2755,10 @@ func _execute_cleanup_action(action_name: String) -> Dictionary:
 func _log_action_result(action_name: String, log_symbol: String, action_label: String, result: Dictionary) -> void:
 	var symbol = log_symbol if log_symbol != "" else action_name
 	var label = action_label if action_label != "" else action_name
-	if result.get("success", false):
+	if bool(result.get("noop", false)):
+		# Already in the state the verb would produce: the old sentence is for the log only.
+		_verbose.info("input", "•", "%s no-op (%s): %s" % [label, result.get("already", ""), result.get("detail", "")])
+	elif result.get("success", false):
 		_verbose.info("input", symbol, "%s succeeded: %s" % [label, result])
 	else:
 		var message = result.get("message", "unknown")

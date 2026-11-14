@@ -87,24 +87,15 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 				"blocked": true
 			}
 		if terminal_pool.is_register_bound(resolved_register, biome_name):
-			return {
-				"success": false,
-				"error": "already_bound",
-				"message": "Register %d in %s is already explored." % [resolved_register, biome_name],
-				"blocked": true
-			}
+			return _noop("already_bound",
+				"Register %d in %s is already explored." % [resolved_register, biome_name])
 		# lantern_door: Strike frees is_bound. Explore rebound the same axis
 		# and wiped the 🦅 snapshot. Q harvests; F does not.
 		if terminal_pool.has_method("get_measured_terminal_for_register"):
 			var frozen = terminal_pool.get_measured_terminal_for_register(
 				resolved_register, biome_name)
 			if frozen != null:
-				return {
-					"success": false,
-					"error": "already_measured",
-					"message": "Already measured — Q harvests it.",
-					"blocked": true
-				}
+				return _noop("already_measured", "Already measured — Q harvests it.")
 
 	# 3. Preflight cost (after availability gates)
 	var explore_cost_gate = _preflight_action(economy, "explore")
@@ -178,6 +169,15 @@ static func _first_unbound_register(biome, terminal_pool) -> int:
 ## MEASURE ACTION - Sample + projective collapse (no drain)
 ## ============================================================================
 
+## A verb whose target is already in the state it would produce is a silent
+## no-op, not a refusal: success, nothing changed, no toast (owner ruling
+## 2026-11-14 — the player is catching up: mass actions, double taps). `already`
+## names the state and `detail` keeps the old sentence for the verbose log;
+## deliberately no `message`, so nothing reaches the player.
+static func _noop(already: String, detail: String) -> Dictionary:
+	return {"success": true, "noop": true, "already": already, "detail": detail}
+
+
 static func action_measure(terminal, biome, economy = null, farm = null) -> Dictionary:
 	# 0. Null checks - terminal and biome must exist
 	if not terminal:
@@ -210,12 +210,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		# Check measured BEFORE bound: a measured terminal releases its register
 		# (is_bound→false), so the bound check would otherwise mislabel it "not bound".
 		if terminal.is_measured:
-			return {
-				"success": false,
-				"error": "already_measured",
-				"message": "Already measured — Q harvests it.",
-				"blocked": true
-			}
+			return _noop("already_measured", "Already measured — Q harvests it.")
 		if not terminal.is_bound:
 			return {
 				"success": false,
