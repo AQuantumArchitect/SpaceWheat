@@ -617,7 +617,7 @@
          ],
          "offer": {
           "body": "The Spiral Breaks — strike a glowing plot, the word you just learned, then take a second word from the land.",
-          "hint": "Ace [8]: strike a glowing plot, a word you know. It pays ×6. Then Icon [5]: track a fresh plot, ripen, [R].",
+          "hint": "Esc back to the farm, [T] to the Demos, Ace [8], and [R] strikes a glowing plot, a word you know. It pays ×6. Then Icon [5]: track a fresh plot, ripen, [R].",
           "math_note": "One strike_known gate AND StarterForest berry_consumed_count ≥ 2. strike_known is a measure on a register whose axis is in the player's vocabulary (ProbeActions.word_known — the same check that lights the known-word glow; ProbeActions.action_measure → QuantumInstrument records strike_known). The strike objective is the lead: the Guide walks it first, to the newest incorporated word on the biome (Guide.known_word_col). The payout is the vocabulary tier (ProbeActions.vocabulary_tier): ×6 for a known word (×2 shared emoji × ×3 icon), ×2 for a shared emoji, ×1 otherwise; the vocabulary is the Demos' own axes plus the incorporated ledger."
          },
          "done": "Because you KNOW it — because you walked its loop and kept the shape — every harvest of that word pays more than the strike cost. Six times more. The spiral of spending to look breaks here. Incorporated words pay; taught words plant."

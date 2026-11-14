@@ -88,6 +88,21 @@ def test_spiral_breaks_requires_the_strike_it_teaches():
     assert 'if gate == "strike_known":' in guide and "static func _strike_known(" in guide
 
 
+
+def test_spiral_breaks_hint_spells_the_strike_route():
+    """#102: the strike is an Ace verb on the farm, not an Icon [5] verb. The
+    hint walks Esc → the Forest's biome key → Ace [8] → [R]. The Forest is where
+    the incorporated words live; demos_normal seats TheDemos/Village/StarterForest
+    on T/Y/U, and the Demos pair is known but not incorporated on a fresh save."""
+    hint = _beats()["spiral_breaks"]["offer"]["hint"]
+    strike = hint.split("Then", 1)[1]
+    assert "Icon [5]" not in strike
+    for step in ("Esc", "[U] to the Forest", "Ace [8]", "[R] strikes"):
+        assert step in strike, step
+    tres = src("Scenarios/demos_normal.tres")
+    assert 'unlocked_biomes = Array[String](["TheDemos", "Village", "StarterForest"])' in tres
+    assert "incorporated_icons" not in tres
+
 def test_mass_explore_ignores_marks_from_another_country():
     qii = src("UI/Core/QuantumInstrumentInput.gd").split("func _mass_explore(")[1].split("\nfunc ")[0]
     assert "_selection_here()" in qii
