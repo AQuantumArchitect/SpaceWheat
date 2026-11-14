@@ -1043,6 +1043,11 @@ func _physics_process(delta: float) -> void:
 
 	# Authored nonlinear channels (the basins' hearts)
 	_process_gated_channels(delta)
+
+	# Market locks hold for seconds of PLAY: this tick is skipped while paused,
+	# so a paused world holds every lock where it is.
+	if market_lattice != null:
+		market_lattice.tick_locks(delta)
 	FrameCostLedger.add_us("viz_farm_physics_rest", Time.get_ticks_usec() - rest_us)
 
 

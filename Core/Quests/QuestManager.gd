@@ -1742,6 +1742,17 @@ func accept_quest(quest_data: Dictionary) -> bool:
 	# Update status
 	quest_data["status"] = "active"
 	quest_data["accepted_at"] = Time.get_ticks_msec()
+	# A live market offer is held now: the dict carries the quote it was
+	# accepted at (the locked one, if locked), the lattice stops requoting it,
+	# and its lock slot frees.
+	quest_data.erase("locked")
+	quest_data.erase("lock_seconds_left")
+	quest_data.erase("live_ask")
+	quest_data.erase("quote_moved")
+	if quest_data.has("market_offer_id"):
+		var lat = _get_farm_market_lattice()
+		if lat != null and lat.has_method("mark_held"):
+			lat.mark_held(int(quest_data["market_offer_id"]))
 
 	# Store
 	active_quests[quest_id] = quest_data
@@ -1908,7 +1919,10 @@ func complete_quest(quest_id: int) -> bool:
 		last_complete_error = "no market lattice"
 		return false
 
-	var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name)
+	# Settle on the contract's own biome — its ρ and its regime — not on the
+	# first biome that happens to hold the emoji.
+	var settle_biome := str(quest.get("biome_name", quest.get("biome", "")))
+	var exer: Dictionary = lat.synthesize_and_exercise(required_emoji, faction_name, settle_biome)
 	if not exer.get("ok", false):
 		push_error("QuestManager: market lattice exercise failed for quest %d: %s" % [
 			quest_id,

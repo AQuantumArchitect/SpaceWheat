@@ -75,7 +75,13 @@ The `resources` table lists every resource a story step spends. For each
 resource it gives:
 
 - `plots`: biomes whose registers yield it.
-- `trades`: standing contracts that always sit on that biome's board.
+- `trades`: table-priced contracts on that biome's board. Unlike market
+  offers, their price never moves and they can't be locked.
+  - A trade is on the board only while the player is short (owner ruling
+    2026-10-29, `QuestBoard._rescue_open`):
+    - 👥 🍞 🧺 while you hold 2 or fewer;
+    - 🌱 🔥 🔨 🪓 🌊 🦅 while a live quest asks for them;
+    - anything else while below its `low_water`.
   - The market is how south poles are earned: 🪓 at the Woodlot, 🌊 at the
     Spring, 🔨 and 🧺 in the Village.
   - Every resource also has a Village trade that a broke player can afford.

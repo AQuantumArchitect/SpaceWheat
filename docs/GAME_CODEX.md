@@ -319,6 +319,18 @@ harvests, not on Reap.
 marginals; a biome must have a live `QuantumComputer` (and a neighborhood anchor
 faction) to make offers. **Resources come from the market; icons come from
 incorporation** — do not confuse the two economies.
+- **Prices are live.** `MarketLattice.quote()` is the one price function:
+  (−kT·log p_live + kT·|log p_live − log p_prior|) × the issuer's standing factor.
+  The board's 1 s heartbeat requotes every open offer, so asks move with ρ while
+  the board is open.
+- **Lock** (F on Market) freezes an offer's quote without accepting it. It is
+  free, 3 at once, and lasts 60 s of play (`Farm._physics_process` runs the clock,
+  so pausing stops it). Locks survive a re-deal and a save (GameState v8
+  `market_state`). **Accept** (R) takes the quote on the row; delivery settles
+  on the contract's own biome, collapsing it per that biome's regime.
+- Campaign supply trades are table-priced and never requote. Merchant channels
+  are still separate (charged once at signing); folding them into the same
+  contract record is the next step.
 
 **Ambient life:** six faction *socialites* speak by **measuring** a biome they are
 native to and emitting the outcome emojis. Cadence and biome-choice are now driven
