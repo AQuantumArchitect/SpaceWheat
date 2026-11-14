@@ -318,7 +318,8 @@ inline std::vector<double> mutual_information_all(const CMatrix& rho, int num_qu
         return mi_values;
     }
     // Guard against reading outside rho (the original read out of bounds here).
-    if (num_qubits >= 31 || rho.rows() < (1 << num_qubits) || rho.cols() < (1 << num_qubits)) {
+    if (num_qubits >= 31 || rho.rows() < (static_cast<Eigen::Index>(1) << num_qubits) ||
+        rho.cols() < (static_cast<Eigen::Index>(1) << num_qubits)) {
         return mi_values;
     }
 
@@ -416,7 +417,8 @@ public:
         if (num_qubits < 2) {
             return mi_values;
         }
-        if (num_qubits >= 31 || rho.rows() < (1 << num_qubits) || rho.cols() < (1 << num_qubits)) {
+        if (num_qubits >= 31 || rho.rows() < (static_cast<Eigen::Index>(1) << num_qubits) ||
+        rho.cols() < (static_cast<Eigen::Index>(1) << num_qubits)) {
             return mi_values;
         }
 
@@ -498,7 +500,8 @@ inline std::vector<double> bloch_metrics(const CMatrix& rho, int num_qubits) {
     if (num_qubits <= 0) {
         return out;
     }
-    if (num_qubits >= 31 || rho.rows() < (1 << num_qubits) || rho.cols() < (1 << num_qubits)) {
+    if (num_qubits >= 31 || rho.rows() < (static_cast<Eigen::Index>(1) << num_qubits) ||
+        rho.cols() < (static_cast<Eigen::Index>(1) << num_qubits)) {
         return out;
     }
     out.assign(static_cast<std::size_t>(num_qubits) * kBlochStride, 0.0);
