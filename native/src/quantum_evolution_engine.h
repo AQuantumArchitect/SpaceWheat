@@ -42,9 +42,10 @@ public:
     int get_lindblad_count() const;
     bool is_finalized() const;
 
-    // Evolve ρ forward by dt, capping each internal substep at max_dt. The substep
-    // size is otherwise chosen analytically from the purity constraint Tr(ρ'²) ≤ 1,
-    // so fast dynamics shrink it and near-steady-state dynamics let it grow to max_dt.
+    // Evolve ρ forward by dt. A closed biome (coherent, no Lindblad operators) takes
+    // one exact step U(dt)ρU†, whatever dt. Otherwise classical RK4: each substep's h
+    // comes from the relative change it would make (0.1·‖ρ‖/‖L(ρ)‖), capped at max_dt
+    // and floored at dt/16, so at most 16 substeps per call.
     // This is the ONE integrator — evolve_step() below is this call with max_dt = dt.
     PackedFloat64Array evolve(const PackedFloat64Array& rho_data, float dt, float max_dt);
 

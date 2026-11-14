@@ -33,6 +33,16 @@ void MultiBiomeLookaheadEngine::_bind_methods() {
                          &MultiBiomeLookaheadEngine::set_biome_metadata);
     ClassDB::bind_method(D_METHOD("set_biome_couplings", "biome_id", "couplings"),
                          &MultiBiomeLookaheadEngine::set_biome_couplings);
+    ClassDB::bind_method(D_METHOD("set_biome_max_dt", "biome_id", "max_dt"),
+                         &MultiBiomeLookaheadEngine::set_biome_max_dt);
+    ClassDB::bind_method(D_METHOD("get_biome_max_dt", "biome_id"),
+                         &MultiBiomeLookaheadEngine::get_biome_max_dt);
+    ClassDB::bind_method(D_METHOD("set_max_threads", "threads"),
+                         &MultiBiomeLookaheadEngine::set_max_threads);
+    ClassDB::bind_method(D_METHOD("get_max_threads"),
+                         &MultiBiomeLookaheadEngine::get_max_threads);
+    ClassDB::bind_method(D_METHOD("get_last_thread_count"),
+                         &MultiBiomeLookaheadEngine::get_last_thread_count);
     ClassDB::bind_method(D_METHOD("set_biome_coherent", "biome_id", "on"),
                          &MultiBiomeLookaheadEngine::set_biome_coherent);
     ClassDB::bind_method(D_METHOD("clear_biomes"),
@@ -255,6 +265,7 @@ void MultiBiomeLookaheadEngine::clear_biomes() {
     m_lnns.clear();
     m_node_positions.clear();
     m_biome_centers.clear();
+    m_biome_max_dt.clear();
 }
 
 int MultiBiomeLookaheadEngine::get_biome_count() const {
@@ -283,6 +294,55 @@ void MultiBiomeLookaheadEngine::set_biome_couplings(int biome_id, const Dictiona
         return;
     }
     m_couplings[biome_id] = couplings;
+}
+
+void MultiBiomeLookaheadEngine::set_biome_max_dt(int biome_id, double max_dt) {
+    if (_job_blocks("set_biome_max_dt")) {
+        return;
+    }
+    if (biome_id < 0 || biome_id >= static_cast<int>(m_engines.size())) {
+        return;
+    }
+    if (static_cast<int>(m_biome_max_dt.size()) < static_cast<int>(m_engines.size())) {
+        m_biome_max_dt.resize(m_engines.size(), 0.0);
+    }
+    m_biome_max_dt[biome_id] = max_dt;
+}
+
+double MultiBiomeLookaheadEngine::get_biome_max_dt(int biome_id) const {
+    if (biome_id < 0 || biome_id >= static_cast<int>(m_biome_max_dt.size())) {
+        return 0.0;
+    }
+    return m_biome_max_dt[biome_id];
+}
+
+void MultiBiomeLookaheadEngine::set_max_threads(int threads) {
+    m_max_threads.store(threads < 0 ? 0 : threads);
+}
+
+int MultiBiomeLookaheadEngine::get_max_threads() const {
+    return m_max_threads.load();
+}
+
+int MultiBiomeLookaheadEngine::get_last_thread_count() const {
+    return m_last_thread_count.load();
+}
+
+int MultiBiomeLookaheadEngine::_threads_for(int work_items) const {
+#ifdef SPACEWHEAT_WEB_BUILD
+    (void)work_items;
+    return 1;
+#else
+    if (work_items <= 1) {
+        return 1;
+    }
+    int cap = m_max_threads.load();
+    if (cap <= 0) {
+        const int hw = static_cast<int>(std::thread::hardware_concurrency());
+        cap = hw > 1 ? hw - 1 : 1;  // leave a core for the main thread
+    }
+    return std::max(1, std::min(cap, work_items));
+#endif
 }
 
 void MultiBiomeLookaheadEngine::set_biome_coherent(int biome_id, bool on) {
@@ -552,13 +612,11 @@ Dictionary MultiBiomeLookaheadEngine::_evolve_all_lookahead_impl(
         num_biomes = registered_biome_count;
     }
 
+    // Warn about mismatched slots here, on the calling (main) thread; then step
+    // every biome through the shared, possibly parallel, path.
+    std::vector<PackedFloat64Array> checked_rhos(num_biomes);
     for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
         PackedFloat64Array rho_packed = biome_rhos[biome_id];
-
-        // DIMENSION GUARD: the rho slot ↔ engine mapping is by index, so a caller that
-        // builds the rho array in a different order than registration would hand an engine
-        // a wrong-sized ρ → overread (and garbage bloch/MI downstream). Skip + warn rather
-        // than trust the index coupling. (The engine also guards internally.)
         if (!rho_packed.is_empty()) {
             const Ref<QuantumEvolutionEngine>& guard_eng = m_engines[biome_id];
             int guard_dim = guard_eng.is_valid() ? guard_eng->get_dimension() : 0;
@@ -568,26 +626,20 @@ Dictionary MultiBiomeLookaheadEngine::_evolve_all_lookahead_impl(
                     "MultiBiomeLookaheadEngine: ρ for biome_id ", biome_id, " size ",
                     rho_packed.size(), " != expected ", guard_expected, " (engine dim ",
                     guard_dim, ") — skipping (rho/engine order mismatch?).");
-                rho_packed = PackedFloat64Array();  // treat as skip (empty)
+                rho_packed = PackedFloat64Array();
             }
         }
+        checked_rhos[biome_id] = rho_packed;
+    }
+    std::vector<BiomeStepResult> raw = _evolve_all_lookahead_raw(
+        checked_rhos, steps, dt, max_dt, true, nullptr, nullptr, true);
 
-        bool is_zero = rho_packed.is_empty();
-        if (!is_zero) {
-            bool all_zeros = true;
-            for (int64_t i = 0; i < rho_packed.size(); i++) {
-                if (rho_packed[i] != 0.0) {
-                    all_zeros = false;
-                    break;
-                }
-            }
-            is_zero = all_zeros;
-        }
+    for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
+        PackedFloat64Array rho_packed = checked_rhos[biome_id];
 
-        BiomeStepResult biome_result;
-        if (!is_zero) {
-            biome_result = _evolve_biome_steps(biome_id, rho_packed, steps, dt, max_dt);
-        }
+        // DIMENSION GUARD: already applied (and warned) above.
+        (void)rho_packed;
+        const BiomeStepResult& biome_result = raw[biome_id];
 
         Array biome_steps;
         for (const auto& step_rho : biome_result.steps) {
@@ -793,6 +845,14 @@ MultiBiomeLookaheadEngine::_evolve_all_lookahead_raw(
     std::vector<BiomeStepResult> raw_results;
     raw_results.resize(num_biomes);
 
+    // Pass 1: which biomes have a state to evolve. Pass 2 steps them — on
+    // several threads when there are several (biomes share nothing: each has
+    // its own engine, LNN, result slot and position scratch; the force engine
+    // only reads its constants). Results don't depend on the thread count.
+    std::vector<int> work;
+    std::vector<PackedFloat64Array> work_rho(num_biomes);
+    work.reserve(num_biomes);
+
     for (int biome_id = 0; biome_id < num_biomes; biome_id++) {
         PackedFloat64Array rho_packed = biome_rhos[biome_id];
 
@@ -823,19 +883,83 @@ MultiBiomeLookaheadEngine::_evolve_all_lookahead_raw(
         }
 
         if (!is_zero) {
-            PackedVector2Array* pos_ptr = nullptr;
-            const Vector2* cen_ptr = nullptr;
-            if (positions_io != nullptr && biome_id < static_cast<int>(positions_io->size())) {
-                pos_ptr = &(*positions_io)[biome_id];
-            }
-            if (centers_io != nullptr && biome_id < static_cast<int>(centers_io->size())) {
-                cen_ptr = &(*centers_io)[biome_id];
-            }
-            raw_results[biome_id] = _evolve_biome_steps(
-                biome_id, rho_packed, steps, dt, max_dt, true, build_icon_maps,
-                pos_ptr, cen_ptr, commit_live);
+            work.push_back(biome_id);
+            work_rho[biome_id] = rho_packed;
         }
     }
+
+    // Largest first, so the long jobs start early and the threads finish together.
+    std::stable_sort(work.begin(), work.end(), [this](int a, int b) {
+        const int da = m_engines[a].is_valid() ? m_engines[a]->get_dimension() : 0;
+        const int db = m_engines[b].is_valid() ? m_engines[b]->get_dimension() : 0;
+        return da > db;
+    });
+
+    auto run_one = [&](int biome_id) {
+        PackedVector2Array* pos_ptr = nullptr;
+        const Vector2* cen_ptr = nullptr;
+        if (positions_io != nullptr && biome_id < static_cast<int>(positions_io->size())) {
+            pos_ptr = &(*positions_io)[biome_id];
+        }
+        if (centers_io != nullptr && biome_id < static_cast<int>(centers_io->size())) {
+            cen_ptr = &(*centers_io)[biome_id];
+        }
+        // Every biome shares dt (the shared clock); each caps its substeps at
+        // its own resolution when one was set, else at the call's max_dt.
+        float cap = max_dt;
+        if (biome_id < static_cast<int>(m_biome_max_dt.size()) && m_biome_max_dt[biome_id] > 0.0) {
+            cap = static_cast<float>(m_biome_max_dt[biome_id]);
+        }
+        raw_results[biome_id] = _evolve_biome_steps(
+            biome_id, work_rho[biome_id], steps, dt, cap, true, build_icon_maps,
+            pos_ptr, cen_ptr, commit_live);
+    };
+
+    // Only as many threads as the work can use: with dim³ as each biome's cost,
+    // a call can't finish before its largest biome does, so total / largest
+    // bounds the useful parallelism. Eight equal biomes get eight; one big biome
+    // beside two small ones (the demo world) steps on one, skipping the spawn.
+    const int n_work = static_cast<int>(work.size());
+    double total_cost = 0.0;
+    double largest_cost = 0.0;
+    for (int k = 0; k < n_work; k++) {
+        const int d = m_engines[work[k]].is_valid() ? m_engines[work[k]]->get_dimension() : 0;
+        const double cost = static_cast<double>(d) * d * d;
+        total_cost += cost;
+        largest_cost = std::max(largest_cost, cost);
+    }
+    const int useful = largest_cost > 0.0
+        ? std::max(1, static_cast<int>(total_cost / largest_cost)) : 1;
+    const int threads = std::min(_threads_for(n_work), useful);
+    m_last_thread_count.store(threads);
+    if (threads <= 1) {
+        for (int k = 0; k < n_work; k++) {
+            run_one(work[k]);
+        }
+    }
+#ifndef SPACEWHEAT_WEB_BUILD
+    else {
+        std::atomic<int> next{0};
+        auto worker = [&]() {
+            for (;;) {
+                const int k = next.fetch_add(1);
+                if (k >= n_work) {
+                    break;
+                }
+                run_one(work[k]);
+            }
+        };
+        std::vector<std::thread> pool;
+        pool.reserve(threads - 1);
+        for (int t = 1; t < threads; t++) {
+            pool.emplace_back(worker);
+        }
+        worker();
+        for (auto& th : pool) {
+            th.join();
+        }
+    }
+#endif
 
     return raw_results;
 }
@@ -1117,9 +1241,10 @@ MultiBiomeLookaheadEngine::_evolve_biome_steps(
         current_rho = evolved_rho;
 
         // CPU-gentle pacing: sleep between steps to spread load
-        if (m_pacing_delay_ms > 0) {
+        const int pacing_ms = m_pacing_delay_ms.load();
+        if (pacing_ms > 0) {
 #ifndef SPACEWHEAT_WEB_BUILD
-            std::this_thread::sleep_for(std::chrono::milliseconds(m_pacing_delay_ms));
+            std::this_thread::sleep_for(std::chrono::milliseconds(pacing_ms));
 #endif
         }
     }

@@ -12,6 +12,7 @@
 #include "liquid_neural_net.h"
 #include "force_graph_engine.h"
 #include <vector>
+#include <atomic>
 #include <memory>
 #include <chrono>
 
@@ -112,6 +113,28 @@ public:
     // ========================================================================
     // RUNTIME FLAGS (headless optimizations)
     // ========================================================================
+
+    /**
+     * Per-biome resolution: the largest integrator substep this biome allows.
+     * Every biome in a call shares the call's dt (the shared clock); this cap
+     * is the biome's own, so one finely resolved biome no longer makes every
+     * open biome in the packet substep finely. <= 0 = use the call's max_dt.
+     * Applies to the batched calls (evolve_all_lookahead, submit_lookahead_job);
+     * evolve_single_biome takes its cap explicitly. Refused while a job runs.
+     */
+    void set_biome_max_dt(int biome_id, double max_dt);
+    double get_biome_max_dt(int biome_id) const;
+
+    /**
+     * Threads used to step the biomes of one call (each biome is independent).
+     * 0 = automatic (hardware threads − 1, and no more than the work can use:
+     * total dim³ over the largest biome's); 1 = sequential.
+     * Results are identical for any value. Web builds always step sequentially.
+     */
+    void set_max_threads(int threads);
+    int get_max_threads() const;
+    /** Threads the last call actually used (diagnostics). */
+    int get_last_thread_count() const;
 
     void set_enable_mi(bool enabled);
     void set_enable_force(bool enabled);
@@ -236,11 +259,20 @@ private:
     std::vector<Dictionary> m_couplings;
 
     // Pacing: sleep between steps to spread CPU load (0 = disabled)
-    int m_pacing_delay_ms = 1;  // Default: 1ms sleep between steps (gentle)
+    // Atomic: the worker threads read these while a job runs, and their setters
+    // are not refused during one.
+    std::atomic<int> m_pacing_delay_ms{1};  // Default: 1ms sleep between steps (gentle)
 
     // Runtime toggles
-    bool m_enable_mi = true;
-    bool m_enable_force = true;
+    std::atomic<bool> m_enable_mi{true};
+    std::atomic<bool> m_enable_force{true};
+
+    // Per-biome substep cap (index = biome_id; <= 0 → the call's max_dt).
+    std::vector<double> m_biome_max_dt;
+    // Biome-stepping threads per call (0 = automatic).
+    std::atomic<int> m_max_threads{0};
+    std::atomic<int> m_last_thread_count{1};
+    int _threads_for(int work_items) const;
 
     // Phase-shadow LNN (one per biome, nullptr if disabled)
     std::vector<std::unique_ptr<LiquidNeuralNet>> m_lnns;

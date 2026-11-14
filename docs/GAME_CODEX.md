@@ -182,7 +182,10 @@ per phrame, times its `observation_stride` (the `−`/`=` clock), in both lanes:
 the player's lookahead and the rig's direct stepping (lookahead off). Standing
 contracts and gated channels tick on the same clock. A biome's
 `max_evolution_dt` is its resolution: it caps the integrator substep and never
-sets how much time passes. Refills continue the buffer from its last frame. So
+sets how much time passes. Inside one native call each biome caps its
+substeps at its own resolution, and the biomes are stepped on parallel threads,
+bit-identical to one at a time (`SW_NATIVE_THREADS=1` forces one).
+Refills continue the buffer from its last frame. So
 a biome's state depends only on how long it has run, not on which biomes shared
 its packet or which lane ran it: a state can be found again
 (`tests/test_shared_clock.py`; owner ruling 2026-11-13).
