@@ -83,6 +83,9 @@ var quantum_behavior: int = 0
 var season_projections: Array[float] = [0.5, 0.5, 0.5]  # [R, G, B] season intensities
 var season_angular_momentum: float = 0.0  # Frame-to-frame spin accumulation
 var phi_raw: float = 0.0  # Raw phi for force calculations
+var r_bloch: float = 1.0  # Bloch radius |r| (1 = pure); drives the inner disc, not the footprint
+var r_bloch_vis: float = 1.0  # smoothed copy, written by the renderer
+var phi_vis: float = 0.0  # smoothed phase for the ring light, written by the renderer
 
 # Season constants - imported from shared source
 const SEASON_ANGLES = VisualizationConstants.SEASON_ANGLES
@@ -286,20 +289,16 @@ func apply_quantum_snapshot(snap: Dictionary, smooth_radius: bool = false) -> bo
 	energy = purity  # Legacy alias retained for older renderers/tools
 	coherence = coh_magnitude
 
-	# Radius channel = Bloch/subspace radius — an OPEN-system mixedness encoding
-	# (dissipation shrinks the reduced state). In the closed (unitary) system the
-	# contract is "r = 1 forever" (see docs/CLOSED_SYSTEM.md), so bubbles render at
-	# full size; the per-qubit reduced radius still dips under entanglement, but the
-	# closed system has no dissipative mixedness to show, so we don't shrink for it.
-	# (Without this, a missing/entangled r_bloch defaulted toward 0 → MIN_RADIUS →
-	# every bubble tiny once the open-system radius driver was removed — #119.)
-	var target_radius: float
+	# Bloch radius |r| is the open-system mixedness. It no longer resizes the
+	# bubble: footprint (radius) stays at MAX_RADIUS so the rings are static
+	# at |r| = 1, and the renderer draws the inner disc at r_bloch. The closed
+	# (unitary) system is |r| = 1 by contract (docs/CLOSED_SYSTEM.md), so the
+	# disc stays full there (a missing/entangled r_bloch must not shrink it, #119).
 	if _BalanceConfig.is_closed_system():
-		target_radius = MAX_RADIUS
+		r_bloch = 1.0
 	else:
-		var r_bloch = snap.get("r_bloch", 0.0)
-		target_radius = lerpf(MIN_RADIUS, MAX_RADIUS, r_bloch)
-	radius = lerpf(radius, target_radius, 0.15) if smooth_radius else target_radius
+		r_bloch = clampf(float(snap.get("r_bloch", 1.0)), 0.0, 1.0)
+	radius = MAX_RADIUS
 
 	return true
 

@@ -1,7 +1,7 @@
 extends SceneTree
 
-## Headless probe for #119: in the closed system, a bubble must render at full
-## radius (MAX_RADIUS) even when its per-qubit Bloch radius is small/missing.
+## Headless probe (#119, #113): the bubble footprint (rings) is always MAX_RADIUS;
+## the Bloch radius is carried separately (1.0 in the closed system, else |r|).
 ## Run: godot --headless --path . --script tools/probe_bubble_radius.gd
 
 func _init() -> void:
@@ -18,10 +18,12 @@ func _init() -> void:
 	print("MIN_RADIUS=%.1f MAX_RADIUS=%.1f" % [QuantumNode.MIN_RADIUS, QuantumNode.MAX_RADIUS])
 	print("radius after low-r_bloch snapshot = %.2f" % n.radius)
 
-	var pass_closed: bool = closed and is_equal_approx(n.radius, QuantumNode.MAX_RADIUS)
-	if pass_closed:
-		print("PASS: closed system → full-size bubble (radius==MAX_RADIUS) despite r_bloch=0.02")
+	# Footprint (rings) is static at MAX_RADIUS; |r| drives only the inner disc.
+	var want_r: float = 1.0 if closed else 0.02
+	print("r_bloch = %.2f (want %.2f)" % [n.r_bloch, want_r])
+	if is_equal_approx(n.radius, QuantumNode.MAX_RADIUS) and is_equal_approx(n.r_bloch, want_r):
+		print("PASS: rings static at MAX_RADIUS; inner disc follows |r|")
 		quit(0)
 	else:
-		print("FAIL: expected MAX_RADIUS in closed mode, got %.2f" % n.radius)
+		print("FAIL: radius=%.2f r_bloch=%.2f" % [n.radius, n.r_bloch])
 		quit(1)
