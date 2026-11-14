@@ -169,6 +169,7 @@ func connect_to_farm(farm: Node) -> void:
 	# splash to dismiss, so begin immediately — preserving existing headless behavior.
 	if RuntimeEnv.is_headless():
 		maybe_start_tutorial(farm)
+	_heal_tutorial_lane(farm)
 	var story_engine = get_node_or_null("/root/StoryEngine")
 	if story_engine != null and story_engine.has_method("connect_to_farm_and_quests"):
 		story_engine.connect_to_farm_and_quests(farm, self)
@@ -362,6 +363,37 @@ func _load_tutorial_arc() -> void:
 	for i in steps.size():
 		steps[i]["chain_unlocks"] = [steps[i + 1]] if i + 1 < steps.size() else []
 	_tutorial_steps = steps
+
+
+## Load heal (2026-11-09 soft-lock): offers are session state, so a save made
+## while a SIGNED tutorial step waited on the Arc for Accept [R] (The Loom,
+## the Millwright contract) came back with no active step and no offer —
+## tutorial_seen blocks maybe_start_tutorial, so the lane was dead for the
+## rest of the run. Re-offer the step after the highest completed one when
+## the lane holds nothing live. No-op on a fresh game or a mid-step save.
+func _heal_tutorial_lane(farm) -> void:
+	if farm == null or _tutorial_steps.is_empty() or not ("story_flags_fired" in farm):
+		return
+	if not farm.story_flags_fired.has("tutorial_seen"):
+		return
+	for q in active_quests.values():
+		if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+			return
+	for q in story_offers.values():
+		if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+			return
+	var done := {}
+	var top := -1
+	for q in completed_quests:
+		if q is Dictionary and str(q.get("category", "")) == "TUTORIAL":
+			done[str(q.get("tutorial_teaches", ""))] = true
+			top = maxi(top, int(q.get("tutorial_step", -1)))
+	if top < 0:
+		return
+	for step in _tutorial_steps:
+		if step is Dictionary and int(step.get("tutorial_step", -99)) == top + 1 				and not done.has(str(step.get("tutorial_teaches", ""))):
+			offer_tutorial_quest(step)
+			return
 
 
 ## Offer the first Act-0 quest on a fresh game. Gated by a persisted marker in story_flags_fired
@@ -570,8 +602,12 @@ func _evaluate_quest_state_predicates(predicates: Array) -> float:
 ## Integer-count predicate types — evaluated with QuestMath.count_gate so they fire
 ## exactly AT the authored count ("≥ 3" means 3, not 3 + width·atanh). Displays and
 ## physics must quote the same number.
+# Integer counts fire AT the authored N. The bridge and loop counts used the
+# centred soft_gate, so "fuse 1 bridge" scored 0.5 after the one fusion a
+# bridge allows — The Fusion could never fire (dx3, 2026-11-11).
 const COUNT_GATE_TYPES: Array[String] = [
 	"berry_consumed_count_gte", "signature_size_gte", "atom_count_gte", "atom_diversity_gte",
+	"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte",
 ]
 
 
@@ -802,19 +838,19 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			# What Connects: lifetime Majorana spans raised (farm-wide BridgeRegister).
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.built_total),
+			return QuestMath.count_gate(float(farm.bridge_register.built_total),
 					maxf(1.0, float(pred.get("value", 1))), 0.75)
 		"bridge_braids_gte":
 			# Lifetime braid operations — the Clifford alphabet, drilled.
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.braids_total),
+			return QuestMath.count_gate(float(farm.bridge_register.braids_total),
 					maxf(1.0, float(pred.get("value", 1))), 1.0)
 		"bridge_fused_gte":
 			# Lifetime fusions — bridges read, collapsed, and spent.
 			if not ("bridge_register" in farm) or farm.bridge_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(farm.bridge_register.fused_total),
+			return QuestMath.count_gate(float(farm.bridge_register.fused_total),
 					maxf(1.0, float(pred.get("value", 1))), 0.75)
 		"biome_frozen_loops_gte":
 			# Closed Berry walks banked in the NAMED biome's record (a loop record
@@ -826,7 +862,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			if loop_biome == null or loop_biome.get("quantum_computer") == null \
 					or loop_biome.quantum_computer.berry_register == null:
 				return 0.0
-			return QuestMath.soft_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
+			return QuestMath.count_gate(float(loop_biome.quantum_computer.berry_register.frozen_loop_count()),
 					maxf(1.0, float(pred.get("count", 1))), 0.75)
 		"biome_loops_linked":
 			# Two frozen loops in the NAMED biome whose mutual winding is nonzero —
@@ -852,7 +888,7 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var gf = gauge_biome.quantum_computer.get_gauge_field()
 			if gf == null:
 				return 0.0
-			return QuestMath.soft_gate(float(gf.betti_1()), maxf(1.0, float(pred.get("count", 1))), 0.75)
+			return QuestMath.count_gate(float(gf.betti_1()), maxf(1.0, float(pred.get("count", 1))), 0.75)
 		"biome_loop_closed_upstairs":
 			# A stitched Berry walk in the NAMED biome whose S³ lift genuinely
 			# closes (Ω ≡ 0 mod 4π — walk the loop again; the loose ends meet).
@@ -2702,6 +2738,25 @@ func restore_from_save_dict(data: Dictionary) -> void:
 			_orphaned_arc_ids.append(rqid)
 	for rqid in _orphaned_arc_ids:
 		retire_quest(rqid, "its flag no longer asks this (campaign reorder)")
+	# Re-key a restored ARC quest's ask from its flag's CURRENT arc_quest, as the
+	# tutorial re-sync above does for steps: an accepted door embeds its authored
+	# predicates verbatim, so a gate the campaign later repaired (Still the
+	# Pond read the retired dynamics channel, -1 forever) stayed unwinnable in
+	# every save that had accepted it. A ready (latched) quest keeps its state.
+	for rqid in active_quests:
+		var rq4: Dictionary = active_quests[rqid]
+		if str(rq4.get("category", "")) != "ARC" or str(rq4.get("status", "")) == "ready":
+			continue
+		var src4 := str(rq4.get("source_flag", ""))
+		if src4 == "":
+			continue
+		var cur4 = _story_flag_by_id(src4).get("arc_quest")
+		if not (cur4 is Dictionary) or (cur4 as Dictionary).is_empty():
+			continue
+		for field in ["state_predicates", "hint", "body", "math_note"]:
+			if (cur4 as Dictionary).has(field):
+				var v4 = cur4[field]
+				rq4[field] = v4.duplicate(true) if (v4 is Dictionary or v4 is Array) else v4
 	# Monotonic: never rewind below ids already handed out this session, or
 	# fresh offers would collide with restored quest ids.
 	next_quest_id = maxi(next_quest_id, int(data.get("next_quest_id", 0)))

@@ -55,3 +55,16 @@ static func resolve_r(ctx: ChipContext) -> Dictionary:
 	var pct: int = clampi(int(round(absf(float(register.get_phase(qid))) / threshold * 100.0)), 0, 99)
 	return {"action": "", "label": "Ripening %d%%" % pct, "disabled": true,
 			"reason": "the loop is still ripening (%d%%) — R incorporates when it reaches 100%%; time ripens it (= speeds the clock)" % pct}
+
+
+## Icon F toggles tracking. On a tracked plot it STOPS the loop ("the loop
+## is lost"), but the chip still read "Track" — keepers 10–12 and a
+## distractible each killed a live loop on a re-check press. Name it.
+static func resolve_f(ctx: ChipContext) -> Dictionary:
+	if ctx == null or not ctx.has_focused_qubit():
+		return {}
+	var register = ctx.get_berry_register()
+	if register == null or not register.is_tracked(ctx.qubit_index):
+		return {}
+	return {"label": "Stop track (loop is lost)", "emoji": "✋",
+			"hint": "This plot is tracking a loop. F stops it and the loop is lost — R incorporates once ripe."}

@@ -11,6 +11,69 @@ from typing import Any, Dict, List, Optional
 
 from milk_hunt_paths import APP_NAME, rig_queue_file, rig_results_file, runner_root, user_dir, xdg_root
 
+# Native Windows (no WSL): no /proc, no pgrep, and os.kill(pid, 0) is NOT a
+# liveness probe there — it calls TerminateProcess(pid, 0) and kills the game.
+# Process inspection goes through psutil (pip install psutil) on that platform.
+_IS_NT = os.name == "nt"
+try:
+    import psutil  # type: ignore
+except ImportError:  # optional on POSIX, required for the native Windows lane
+    psutil = None
+
+
+def _scan_rig_listener_pids() -> List[int]:
+    """PIDs whose command line names rig_listener.gd (pgrep -f equivalent)."""
+    if _IS_NT:
+        if psutil is None:
+            return []
+        out: List[int] = []
+        for p in psutil.process_iter(["pid", "cmdline"]):
+            try:
+                if any("rig_listener.gd" in str(a) for a in (p.info.get("cmdline") or [])):
+                    out.append(int(p.info["pid"]))
+            except (psutil.Error, TypeError):
+                continue
+        return out
+    try:
+        proc = subprocess.run(
+            ["pgrep", "-f", "rig_listener.gd"],
+            capture_output=True, text=True, check=False, timeout=5.0,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return []
+    return [int(x) for x in proc.stdout.split() if x.strip().isdigit()]
+
+
+def _unlink_retry(path: Path, tries: int = 40, pause_s: float = 0.25) -> None:
+    """unlink, tolerating Windows' sharing lock while a just-killed Godot lets
+    go of the lane's files (WinError 32 on `start --fresh` right after `stop`:
+    three sensors hit it on 2026-11-09). POSIX unlinks open files at once."""
+    for i in range(tries):
+        try:
+            path.unlink(missing_ok=True)
+            return
+        except PermissionError:
+            if i == tries - 1:
+                raise
+            time.sleep(pause_s)
+
+
+def _windows_godot_bin(env: Dict[str, str]) -> str:
+    """Native-Windows Godot executable: SW_GODOT_BIN / GODOT_BIN / GODOT4, else an .exe on PATH."""
+    import shutil
+    for key in ("SW_GODOT_BIN", "GODOT_BIN", "GODOT4"):
+        value = str(env.get(key, "")).strip()
+        if value:
+            return value
+    for name in ("godot.exe", "Godot_v4.6.2-stable_win64_console.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    raise RuntimeError(
+        "Godot 4.6.2 not found for the native Windows rig: set GODOT4 to the "
+        "console exe (e.g. Godot_v4.6.2-stable_win64_console.exe)"
+    )
+
 
 def _read_heartbeat(xdg: Optional[Path] = None) -> Optional[float]:
     """Read Godot heartbeat timestamp. Returns unix time or None if stale/missing."""
@@ -44,6 +107,8 @@ def _read_heartbeat_ext(xdg: Optional[Path] = None) -> dict:
 
 
 def _pid_alive(pid: int) -> bool:
+    if _IS_NT:
+        return bool(psutil is not None and psutil.pid_exists(pid))
     try:
         os.kill(pid, 0)
         return True
@@ -52,6 +117,13 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _pid_cmdline(pid: int) -> str:
+    if _IS_NT:
+        if psutil is None:
+            return ""
+        try:
+            return " ".join(psutil.Process(pid).cmdline()).strip().lower()
+        except psutil.Error:
+            return ""
     try:
         raw = Path(f"/proc/{pid}/cmdline").read_bytes()
     except OSError:
@@ -68,6 +140,18 @@ def _pid_env_value(pid: int, *keys: str) -> str:
     stamps XDG_ROOT into the child env (rig_client.py:234) and 🟢.sh re-exports it
     as XDG_DATA_HOME (🍄/🎛️/🟢.sh:18). Returns "" if the process is gone or unset.
     """
+    if _IS_NT:
+        if psutil is None:
+            return ""
+        try:
+            penv = psutil.Process(pid).environ()
+        except psutil.Error:
+            return ""
+        for key in keys:
+            value = str(penv.get(key, "")).strip()
+            if value:
+                return value
+        return ""
     try:
         raw = Path(f"/proc/{pid}/environ").read_bytes()
     except OSError:
@@ -159,11 +243,11 @@ class RigClient:
             except OSError:
                 pass
             self._queue_writer = None
-        self.queue_file.unlink(missing_ok=True)
-        self.results_file.unlink(missing_ok=True)
+        _unlink_retry(self.queue_file)
+        _unlink_retry(self.results_file)
         sentinel = self._bridge_sentinel_path(self.xdg_root)
         if not preserve_live_sentinel or not self._bridge_sentinel_is_ready(self.xdg_root):
-            sentinel.unlink(missing_ok=True)
+            _unlink_retry(sentinel)
         self._results_offset = 0
         self._results_partial = ""
         self._results_by_turn.clear()
@@ -184,19 +268,7 @@ class RigClient:
         # When an explicit XDG root is supplied, avoid global process scans.
         # This keeps concurrent runners from cross-killing each other's listeners.
         if xdg is None:
-            try:
-                proc = subprocess.run(
-                    ["pgrep", "-f", "rig_listener.gd"],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                for line in proc.stdout.splitlines():
-                    line = line.strip()
-                    if line.isdigit():
-                        out.append(int(line))
-            except FileNotFoundError:
-                pass
+            out.extend(_scan_rig_listener_pids())
 
         # Also check for phrame bridge sentinel
         sentinel = RigClient._bridge_sentinel_path(xdg=xdg)
@@ -448,6 +520,36 @@ class RigClient:
             stdout_target = log_handle
 
         cmd = [str(self.start_script)]
+        native_windows = _IS_NT and runtime_target not in {"windows", "win"}
+        if native_windows:
+            # Native Windows: no bash launcher. Reproduce 🟢.sh's environment and
+            # exec godot directly so terminating proc terminates the listener.
+            # Godot on Windows ignores XDG_DATA_HOME and roots user:// at
+            # %APPDATA%/Godot/app_userdata/<app>, so the private lane is APPDATA
+            # (the filesystem is case-insensitive, so it lands on the same
+            # XDG_ROOT/godot/app_userdata/<app> path milk_hunt_paths expects).
+            # Absolute drive path: Python maps "/tmp/x" to C:\tmp\x, Godot cannot.
+            lane_abs = str(Path(self.xdg_root).resolve())
+            env["XDG_ROOT"] = lane_abs
+            env["XDG_DATA_HOME"] = lane_abs
+            env["XDG_CONFIG_HOME"] = lane_abs
+            env["APPDATA"] = lane_abs
+            env.setdefault("APPLICATION_NAME", self.app_name)
+            env["GODOT_USER_DIR"] = str(user_dir(xdg=self.xdg_root, app_name=self.app_name))
+            env["DISABLE_VERBOSE_FILE_LOGGING"] = "1"
+            env.setdefault("RIG_DISABLE_LOOKAHEAD", "1")
+            env.setdefault("RIG_DISABLE_MI", "1")
+            env.setdefault("RIG_DISABLE_FORCE", "1")
+            rig_dir = Path(env["GODOT_USER_DIR"]) / "rig"
+            rig_dir.mkdir(parents=True, exist_ok=True)
+            (rig_dir / "queue.jsonl").write_text("", encoding="utf-8")
+            cmd = [_windows_godot_bin(env), "--audio-driver", env.get("SW_GODOT_AUDIO_DRIVER", "Dummy")]
+            if (display_mode or "headless") == "headless":
+                cmd.append("--headless")
+            rendering_driver = str(env.get("RIG_RENDERING_DRIVER", "")).strip()
+            if rendering_driver:
+                cmd.extend(["--rendering-driver", rendering_driver])
+            cmd.extend(["--path", str(self.project_root), "--script", "🍄/🎛️/rig_listener.gd"])
         if runtime_target in {"windows", "win"}:
             godot_windows_path = str(env.get("GODOT_WINDOWS_PATH", "")).strip()
             if not godot_windows_path:
@@ -741,15 +843,14 @@ class RigClient:
         # (tests rmtree their sandboxes), as is one reparented to init/subreaper
         # (on WSL orphans land on the session leader, not PID 1 — check both).
         try:
-            out = subprocess.run(
-                ["pgrep", "-f", "rig_listener.gd"],
-                capture_output=True, text=True, timeout=5.0,
-            ).stdout.split()
-            for pid in out:
+            for pid in _scan_rig_listener_pids():
                 try:
                     xdg = _pid_env_value(int(pid), "XDG_DATA_HOME")
                     if xdg and not os.path.isdir(xdg):
-                        os.kill(int(pid), signal.SIGKILL)
+                        if _IS_NT:
+                            psutil.Process(int(pid)).kill()
+                        else:
+                            os.kill(int(pid), signal.SIGKILL)
                 except (OSError, ValueError, IndexError):
                     continue
         except Exception:

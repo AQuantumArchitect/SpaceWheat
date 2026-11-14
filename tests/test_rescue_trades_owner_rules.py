@@ -52,7 +52,7 @@ def test_board_visibility_rules():
     assert "return _vital_stock(emoji) <= STAPLE_CRITICAL" in body
     assert "UIProgression.quest_requests_resource(emoji)" in body
     src = QB.read_text(encoding="utf-8")
-    assert 'const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]' in src
+    assert 'const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]' in src
     assert "const STAPLE_CRITICAL: int = 2" in src
 
 

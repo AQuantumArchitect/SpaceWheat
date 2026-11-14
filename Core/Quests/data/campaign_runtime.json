@@ -423,6 +423,24 @@
         }
       ]
     },
+    "🪔": {
+      "low_water": 13,
+      "spent_by": "plant 🌉/🪔",
+      "plots": [
+        "Lanternfall",
+        "ZenoLatch"
+      ],
+      "trades": [
+        {
+          "biome": "Village",
+          "faction": "Hearth Keepers",
+          "give": {
+            "🍞": 10
+          },
+          "get": 3
+        }
+      ]
+    },
     "🔥": {
       "low_water": 2,
       "spent_by": "superpose (Druid E)",
@@ -440,6 +458,17 @@
     }
   },
   "guide": {
+    "fade_after_s": [
+      15,
+      30,
+      45,
+      60,
+      90,
+      120,
+      180,
+      240,
+      300
+    ],
     "keymap": {
       "hats": {
         "spark": "4",
@@ -557,7 +586,7 @@
       "plant_home": "Village",
       "reach": 12,
       "verb_labels": {
-        "E": "Hadamard"
+        "E": "Superpose"
       },
       "clear_marks": "'"
     },
@@ -637,6 +666,35 @@
       ],
       "dynamics_at_most": [
         "measure"
+      ],
+      "coherence_fell": [
+        "still"
+      ],
+      "gate_order": [
+        "gate_word"
+      ],
+      "spinor_read": [
+        "spinor"
+      ],
+      "wilson_survived_flip": [
+        "fence"
+      ],
+      "purity_at_most": [
+        "gray"
+      ],
+      "bridge_braids_gte": [
+        "braid"
+      ],
+      "bridge_fused_gte": [
+        "fuse"
+      ],
+      "biome_frozen_loops_gte": [
+        "travel",
+        "hat:icon",
+        "berry"
+      ],
+      "mutual_information_at_least": [
+        "entangle"
       ],
       "coherence_at_least": [
         "superpose"

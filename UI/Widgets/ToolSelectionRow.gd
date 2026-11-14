@@ -78,7 +78,9 @@ func _rebuild_buttons() -> void:
 			"icon_path": icon_path,
 			"enabled": true,
 			"tooltip": tip,
-			"caption": label_name,
+			# The banner says "Druid hat [0]"; the caption now carries the same
+			# key (literalist, wave 32: hat chips showed no key).
+			"caption": "[%s] %s" % [hat_key, label_name],
 		})
 	build_buttons(button_specs)
 	if not button_selected.is_connected(_on_button_selected):

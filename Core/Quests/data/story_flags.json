@@ -93,7 +93,7 @@
     },
     "arc_quest": {
       "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-      "hint": "[C] opens the board; Market [Y] takes a Millwright delivery.",
+      "hint": "In the Village, board [C] → Market [Y] takes a Millwright delivery.",
       "faction": "Millwright's Union",
       "type": 1,
       "category": "ARC",
@@ -313,7 +313,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
+      "body": "The Timber Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
       "hint": "Arc [X] [I] [R] accept. Then [C] board, [Y] Market, keep deliveries.",
       "faction": "Millwright's Union",
       "type": 1,
@@ -509,7 +509,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
+      "body": "The Water Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
       "hint": "Arc [X] [I] [R] accept. Then keep Hearth Keeper deliveries until READY; claim on the Arc row.",
       "faction": "Hearth Keepers",
       "type": 1,
@@ -590,16 +590,17 @@
     },
     "arc_quest": {
       "body": "Still the Pond — stand in the spring and quiet its surface until it all but stills.",
-      "hint": "In the spring: Operator [9], mode 2, [E] reads the compass 🧭. Strike to deepen the gap; the surface stills near an eigenstate.",
-      "math_note": "Stand in the spring and let it settle near an eigenstate of H. Replaces biome_eigenvalue_gap_gte, which is identically ~1 in a closed system (always true).",
+      "hint": "In the spring, Druid [0]: spin each plot toward its nearer pole until the churn settles.",
+      "math_note": "Stand in the spring and halve its churn: coherence (pure-state scale) from its resting ~0.85 below 0.55 (fires ≈0.55; Druid spins toward the poles reach ≈0.53 in a few presses, gathering a plot ≈0.45). The spring's H keeps stirring, so a full stillness (<0.15) was not reachable by any key — interim gate, see the 2026-11-09 ledger. Was dynamics_at_most, which read the channel retired with BiomeDynamicsTracker (-1 forever, never completable — 2026-11-09). Ready latches, so one still moment is enough.",
       "state_predicates": [
         {
           "type": "active_biome_is",
           "biome": "FreshwaterSpring"
         },
         {
-          "type": "dynamics_at_most",
-          "value": 0.2
+          "type": "coherence_fell",
+          "from": 0.3,
+          "to": 0.55
         }
       ]
     }
@@ -624,15 +625,15 @@
     "arc_quest": {
       "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold.",
       "hint": "Druid [0]: rotate qubits off their poles to superpose energies — the pulse is the energy gap. The compass shows the depths never move.",
-      "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319).",
+      "math_note": "In the spring, coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393). The dynamics ≥ 0.25 half read the retired dynamics channel (-1 forever) and was dropped 2026-11-09.",
       "state_predicates": [
+        {
+          "type": "active_biome_is",
+          "biome": "FreshwaterSpring"
+        },
         {
           "type": "coherence_at_least",
           "value": 0.35
-        },
-        {
-          "type": "dynamics_at_least",
-          "value": 0.25
         }
       ]
     }
@@ -1404,7 +1405,7 @@
     },
     "arc_quest": {
       "body": "Read the Ledger's Monolith — find the Blood Ledger and take two of its words.",
-      "hint": "Need 🦅×21. Captain [7], [R] Chart the Ledger. Then Icon [5]: two Ledger words.",
+      "hint": "Need 🦅×21. Captain [7], [R] Chart the Ledger. Then Icon [5]: track and incorporate two Ledger loops (any Ledger plot counts).",
       "faction": "Carrion Throne",
       "type": "DELIVER",
       "state_predicates": [
@@ -1623,7 +1624,7 @@
       }
     },
     "arc_quest": {
-      "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
+      "body": "The Bridge Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
       "hint": "Arc [X] accept. Lanternfall, Druid [0]: [E] excites 🪔. Claim [C].",
       "faction": "Lamplighters",
       "type": 1,
@@ -1701,7 +1702,7 @@
     },
     "arc_quest": {
       "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: let 📯 settle while 🌉 still burns.",
-      "hint": "Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle.",
+      "hint": "In Lanternfall: Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle.",
       "state_predicates": [
         {
           "type": "biome_state_lte",
@@ -1741,7 +1742,7 @@
     },
     "arc_quest": {
       "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-      "hint": "Druid frame: Hadamard the control. Operator frame: CNOT the pair. In that order — the other order makes something else entirely.",
+      "hint": "Slow the Forest first: − (⏪) until its clock stops, so the pair holds still; = lets it run again. Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order — the other order makes something else entirely.",
       "state_predicates": [
         {
           "type": "gate_order",
@@ -1820,7 +1821,7 @@
     },
     "arc_quest": {
       "body": "The Record Opens — track a forest qubit around a second closed walk and bank both loops in the record.",
-      "hint": "Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry.",
+      "hint": "In the Starter Forest: Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry.",
       "state_predicates": [
         {
           "type": "biome_frozen_loops_gte",
@@ -1853,7 +1854,7 @@
     },
     "arc_quest": {
       "body": "Wind Twice — arrange two recorded loops whose mutual winding reaches 2: one walk that turns twice about the other's axis.",
-      "hint": "Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live.",
+      "hint": "In the Starter Forest: Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live.",
       "state_predicates": [
         {
           "type": "biome_loops_linked",
@@ -2179,7 +2180,7 @@
     },
     "arc_quest": {
       "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
-      "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
+      "hint": "In the Shrine of Ashes: Druid [0], Superpose [E] the urn plot off its 💀 pole. Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis.",
       "state_predicates": [
         {
           "type": "biome_evolving",
@@ -2526,7 +2527,7 @@
     },
     "arc_quest": {
       "body": "Walk It Twice — close a lift upstairs on each of two qubits, until the record accepts the linking question.",
-      "hint": "Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
+      "hint": "In the Starter Forest: Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
       "math_note": "Lift closes iff Ω ≡ 0 (mod 4π). gauss_linking(open lift) = NAN — refusal, not failure; earn the closed curve and the number becomes real.",
       "state_predicates": [
         {

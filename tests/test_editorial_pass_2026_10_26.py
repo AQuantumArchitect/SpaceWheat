@@ -49,6 +49,10 @@ def test_designer_notes_are_not_player_text():
     assert '"physics": str(quest.get("math_note"' not in intro
     board = src("UI/Overlays/QuestBoard.gd").split("func _commitments_inspect_text_for(")[1].split("\nfunc ")[0]
     assert "math_note" not in board
+    # The Arc inspect too (overnight wave 4: a lost-lamb read the Spiral Breaks
+    # gate formula, code paths and all, in the Arc's inspect panel).
+    arc = src("UI/Overlays/ControlsOverlay.gd").split("func _arc_inspect_physics(")[1].split("\nfunc ")[0]
+    assert 'get("math_note"' not in arc
 
 
 def test_no_code_names_in_demos_prose_or_travel_line():

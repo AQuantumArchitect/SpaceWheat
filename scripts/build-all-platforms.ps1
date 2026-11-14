@@ -100,9 +100,12 @@ try {
     Step 'libquantummatrix windows'
     New-Item -ItemType Directory -Force 'bin/windows' | Out-Null
     $dll = 'bin/windows/libquantummatrix.windows.template_release.x86_64.dll'
-    # Flags mirror native/Makefile.windows (the WSL cross build).
+    # Flags mirror native/Makefile.windows (the WSL cross build), plus -static:
+    # WinLibs' POSIX-thread g++ otherwise imports libwinpthread-1.dll, which is not
+    # beside Godot, so the extension fails to load with "Error 126" (first real
+    # Windows build, 2026-11-09). The Linux cross toolchain never needed it.
     Run 'g++' (@('-std=c++17', '-O2') + $includes + @('-DWINDOWS_ENABLED', '-DGDEXTENSION', '-DSPACEWHEAT_WITH_GODOT', '-pthread') +
-               $sources + @('-shared', '-static-libgcc', '-static-libstdc++', './lib/libgodot-cpp.windows.template_release.x86_64.a', '-pthread', '-o', $dll))
+               $sources + @('-shared', '-static', '-static-libgcc', '-static-libstdc++', './lib/libgodot-cpp.windows.template_release.x86_64.a', '-pthread', '-o', $dll))
     if (Get-Command 'strip' -ErrorAction SilentlyContinue) { & strip --strip-unneeded $dll }
     Copy-Item $dll 'bin/windows/libquantummatrix.windows.template_debug.x86_64.dll' -Force
   }

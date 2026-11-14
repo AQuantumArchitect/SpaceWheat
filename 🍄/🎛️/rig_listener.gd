@@ -909,7 +909,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 			if _shell == null or not _shell.has_method("show_hint"):
 				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_shell"}
 			else:
-				_shell.show_hint(str(cmd.get("text", "rig test toast")), int(cmd.get("importance", 2)))
+				_shell.show_hint(str(cmd.get("text", "rig test toast")), int(cmd.get("importance", 2)),
+						"", str(cmd.get("route", "")))
 				result["shown"] = true
 
 		"bubble_state":
@@ -1721,6 +1722,19 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 					result["combined"] = fp_qm.evaluate_flag_score(fp_flag)
 					result["threshold"] = fp_qm.FLAG_FIRE_THRESHOLD
 					result["predicates"] = fp_scored
+
+		"predicate_score":
+			# Read-only: score any predicate dict exactly as quests do, plus the
+			# observer's last observables (referee tool: is this gate reachable?).
+			var ps_qm = _resolve_quest_manager()
+			var ps_pred = cmd.get("pred", {})
+			if ps_qm == null or not (ps_pred is Dictionary):
+				result = {"ok": false, "turn": turn_id, "action": action, "error": "no_quest_manager"}
+			else:
+				result["score"] = ps_qm.evaluate_predicate_score(ps_pred)
+				var ps_sp = ps_qm.get("_state_projection")
+				if ps_sp != null and "_last_observables" in ps_sp:
+					result["observables"] = ps_sp._last_observables.duplicate(true)
 
 		"fire_flag":
 			# Test-only: force-fire a story flag by id through the REAL firing

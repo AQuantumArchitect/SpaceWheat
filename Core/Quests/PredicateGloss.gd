@@ -338,6 +338,104 @@ static func summary(pred: Dictionary, qm = null) -> String:
 ## can never drift from the physics summary() paraphrases. No per-type authoring —
 ## one generic template covers every predicate type in FLAG_PREDICATE_TYPES.
 ## d1-02: rendered on Arc E-inspect (ControlsOverlay) beside summary().
+## Where the end condition stands right now, as a short "now …" reading
+## for the selected Charge row (owner call 2026-11-11: open-ended beats
+## should show the status of their end condition; Stay Yourself sat at 0%
+## with no number to watch). "" when this type has no cheap live reading —
+## the row's % badge still moves.
+static func live(pred: Dictionary, qm = null) -> String:
+	if qm == null:
+		return ""
+	var farm = qm._get_active_farm() if qm.has_method("_get_active_farm") else null
+	var obs: Dictionary = {}
+	var sp = qm.get("_state_projection")
+	if sp != null and "_last_observables" in sp and sp._last_observables is Dictionary:
+		obs = sp._last_observables
+	var t := str(pred.get("type", ""))
+	# (An if, not a match arm: a summary() test splits this file on the last
+	# soul-purity arm.)
+	if t == "soul_purity_gte" and qm.has_method("soul_purity_now"):
+		return "now Tr(ρ²) %.2f, needs %.2f (fully mixed is ~%.2f)" % [float(qm.soul_purity_now()), _fire_target(pred, qm), _soul_floor(farm)]
+	match t:
+		"biome_state_gte", "biome_state_lte":
+			var m := _marginal(farm, str(pred.get("biome", "")), str(pred.get("atom", "")))
+			if m >= 0.0:
+				return "now %s %d%%, needs %s %d%%" % [str(pred.get("atom", "")), int(round(m * 100.0)),
+						"≥" if t == "biome_state_gte" else "≤", int(round(_fire_target(pred, qm) * 100.0))]
+		"purity_at_most", "purity_at_least":
+			if obs.has("purity"):
+				return "now Tr(ρ²) %.2f in %s" % [float(obs.get("purity", 0.0)), str(obs.get("biome", "here"))]
+		"coherence_at_least", "coherence_fell":
+			if obs.has("coherence"):
+				return "now coherence %.2f in %s" % [float(obs.get("coherence", 0.0)), str(obs.get("biome", "here"))]
+		"mutual_information_at_least":
+			var mi := float(obs.get("max_mutual_information", -1.0))
+			if mi >= 0.0:
+				return "now %.2f bits" % mi
+		"bridge_built_gte", "bridge_braids_gte", "bridge_fused_gte":
+			if farm != null and "bridge_register" in farm and farm.bridge_register != null:
+				var field: String = {"bridge_built_gte": "built_total", "bridge_braids_gte": "braids_total",
+						"bridge_fused_gte": "fused_total"}[t]
+				return "now %d of %d" % [int(farm.bridge_register.get(field)), int(pred.get("value", 1))]
+		"biome_frozen_loops_gte", "biome_loops_linked", "biome_loop_closed_upstairs", "biome_linking_valid":
+			var br = _berry_register(farm, str(pred.get("biome", "")))
+			if br != null:
+				var frozen: Array = br.frozen_loops()
+				if t == "biome_frozen_loops_gte":
+					return "now %d banked of %d" % [frozen.size(), int(pred.get("count", 1))]
+				if t == "biome_loops_linked":
+					var w := absi(KnotRegister.max_mutual_winding(frozen)) if frozen.size() >= 2 else 0
+					return "now %d loop%s banked, winding %d" % [frozen.size(), "" if frozen.size() == 1 else "s", w]
+				var closed := KnotRegister.closed_lift_curves(frozen).size()
+				return "now %d closed lift%s of %d" % [closed, "" if closed == 1 else "s",
+						1 if t == "biome_loop_closed_upstairs" else 2]
+		"winding_changed_uncut":
+			if obs.has("winding_values_seen"):
+				return "now %d winding value%s seen (2 needed)" % [int(obs.get("winding_values_seen", 0)),
+						"" if int(obs.get("winding_values_seen", 0)) == 1 else "s"]
+	return ""
+
+
+static func _fire_target(pred: Dictionary, qm) -> float:
+	if qm != null and qm.has_method("predicate_fire_target"):
+		return float(qm.predicate_fire_target(pred))
+	return float(pred.get("value", 0.0))
+
+
+static func _soul_floor(farm) -> float:
+	var n := 0
+	if farm != null and "faction_density" in farm and farm.faction_density != null \
+			and farm.faction_density.has_method("get_size"):
+		n = int(farm.faction_density.get_size())
+	return 1.0 / float(n) if n > 0 else 0.0
+
+
+static func _marginal(farm, biome_name: String, atom: String) -> float:
+	if farm == null or farm.grid == null:
+		return -1.0
+	var b = farm.grid.get_biome(biome_name)
+	if b == null or b.get("quantum_computer") == null or b.quantum_computer.register_map == null:
+		return -1.0
+	var reg = b.quantum_computer.register_map
+	if not reg.coordinates.has(atom) or not ("viz_cache" in b) or b.viz_cache == null:
+		return -1.0
+	var coord: Dictionary = reg.coordinates[atom]
+	var qubit := int(coord.get("qubit", -1))
+	if qubit < 0:
+		return -1.0
+	var snap: Dictionary = b.viz_cache.get_snapshot(qubit)
+	return float(snap.get("p1" if int(coord.get("pole", 0)) == 1 else "p0", 0.0))
+
+
+static func _berry_register(farm, biome_name: String):
+	if farm == null or farm.grid == null:
+		return null
+	var b = farm.grid.get_biome(biome_name)
+	if b == null or b.get("quantum_computer") == null:
+		return null
+	return b.quantum_computer.berry_register
+
+
 static func formula(pred: Dictionary, qm = null) -> String:
 	var t := str(pred.get("type", "?"))
 	# Structural gate-ledger counts author `count`, not `value`. Reading

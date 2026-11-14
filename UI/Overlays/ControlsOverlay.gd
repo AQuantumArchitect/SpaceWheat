@@ -1982,7 +1982,15 @@ func _on_arc_flag_changed(_flag_id: String, _flag: Dictionary) -> void:
 func _build_arc_body() -> void:
 	var rows: Array = _arc_rows()
 	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
+		# Just after Accept the signed step LEAVES the Arc for Charge, so a bare
+		# "the next door hasn't opened" read as "Accept did nothing" (lost-lamb
+		# wall, 2026-11-09). Say where the step went when something is held.
+		var held: int = _charge_rows().size()
+		if held > 0:
+			_body_box.add_child(_make_muted_label("accepted — %d on %s [%s]; the next door opens when it is claimed" % [
+					held, SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD], 12))
+		else:
+			_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
 		return
 	# A/D pages the 6-row window over ALL rows — 57 flags used to compete for
 	# six slots with a muted "… N more not shown" and no way to reach them.
@@ -2377,9 +2385,17 @@ func _arc_inspect_text() -> String:
 func _arc_inspect_physics(entry: Dictionary) -> String:
 	var kind := str(entry.get("kind", ""))
 	if kind == "arc_quest" or kind == "live_tutorial":
+		# Player prose only. math_note is the designer's note on the gate
+		# (IntroVoice: "not written for the player"); it leaked here as "Count
+		# gate on StarterForest berry_consumed_count ≥ 2 AND one strike_known
+		# gate … (ProbeActions.action_measure → …)" (lost-lamb, wave 4).
 		var data: Dictionary = entry.get("data", {})
-		var math_note := str(data.get("math_note", "")).strip_edges()
-		return math_note
+		var lines: Array[String] = []
+		for key in ["body", "hint"]:
+			var t := str(data.get(key, "")).strip_edges()
+			if t != "" and not lines.has(t):
+				lines.append(t)
+		return "\n".join(lines)
 	var flag: Dictionary = entry.get("flag", {})
 	var postcard: Dictionary = IntroVoice.flag_postcard(flag, entry.get("pred_scores", []), _arc_quest_manager())
 	var flag_lines: Array[String] = []
@@ -2451,6 +2467,7 @@ func _accept_selected_arc() -> void:
 		return
 	var rows: Array = _arc_rows()
 	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		RefusalVoice.note("pick a door first — G H J K L ; selects a row, then Accept [R]")
 		return
 	var entry: Dictionary = rows[_arc_selected_idx]
 	if str(entry.get("kind", "")) != "arc_quest":
@@ -2461,7 +2478,11 @@ func _accept_selected_arc() -> void:
 	var data: Dictionary = entry.get("data", {})
 	if qm.has_method("accept_quest") and qm.accept_quest(data):
 		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
+		# …and the next door slid under the cursor, so a second R accepted it
+		# (masher wave 22, keeper sitting 7). Nothing is selected after an accept.
+		_arc_selected_idx = -1
 		_refresh_body()
+		_declare_tab_actions()
 
 func _acknowledge_selected_arc() -> void:
 	var qm = _arc_quest_manager()
@@ -2479,7 +2500,9 @@ func _acknowledge_selected_arc() -> void:
 	if qid >= 0 and qm.has_method("dismiss_story_offer"):
 		qm.dismiss_story_offer(qid)
 	_disarm_arc_confirm()  # the dismissed offer leaves the list; rows shift
+	_arc_selected_idx = -1
 	_refresh_body()
+	_declare_tab_actions()
 
 func _ratio_bar(ratio: float, length: int) -> String:
 	return OverlayChrome.ratio_bar(ratio, length)
@@ -2527,7 +2550,7 @@ func _selected_charge_ready() -> bool:
 func _build_charge_body() -> void:
 	var rows: Array = _charge_rows()
 	if rows.is_empty():
-		_body_box.add_child(_make_muted_label("nothing signed yet — open doors wait on %s [%s]" % [
+		_body_box.add_child(_make_muted_label("nothing on Charge right now — open doors wait on %s [%s]" % [
 				SurfaceRooms.NAME_ARC, SurfaceRooms.KEY_OFFERS], 12))
 		return
 	var page_count: int = maxi(1, int(ceil(float(rows.size()) / float(MAX_VISIBLE_ITEMS))))
@@ -2607,6 +2630,23 @@ func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) 
 			ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 			ask_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(ask_lbl)
+		# Where each end condition stands now (owner call 2026-11-11): the
+		# % badge alone left Stay Yourself at 0% with nothing to watch.
+		if not ready:
+			var qm_live = _arc_quest_manager()
+			for p in q.get("state_predicates", []):
+				if not (p is Dictionary):
+					continue
+				var now_str := PredicateGloss.live(p, qm_live)
+				if now_str == "":
+					continue
+				var now_lbl := Label.new()
+				now_lbl.name = "ChargeNow"
+				now_lbl.text = "• " + now_str
+				now_lbl.add_theme_font_size_override("font_size", 11)
+				now_lbl.add_theme_color_override("font_color", Color(0.6, 0.75, 0.85, 0.95))
+				now_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				vbox.add_child(now_lbl)
 	return row
 
 

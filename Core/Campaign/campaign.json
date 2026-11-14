@@ -46,7 +46,7 @@
   }
  },
  "resources": {
-  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: table-priced contracts on that biome's board (they never requote and can't be locked; the board shows one only while the player is short, see Visibility below) — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first. Paying (owner ruling 2026-10-29): 👥 and 🍞 are bought with 🌾, 🧺 with 👥; every other resource with 🍞 only. Visibility (QuestBoard._rescue_open): a staple's rescue stands only while it is critical (2 or fewer held); 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them.",
+  "_doc": "Every resource a story step spends, and where it comes from. `plots`: biomes whose registers carry it (gather). `trades`: table-priced contracts on that biome's board (they never requote and can't be locked; the board shows one only while the player is short, see Visibility below) — the market is how south poles are earned. A trade in the Village whose `give` a broke player can always raise is the RESCUE: an empty wallet is never a dead end. `low_water`: the objective banner switches to this resource's supply walk before a spend would take the wallet below it. Two more routes exist and stay legitimate strategy: ordinary market contracts (issuer rewards), and descending the fractal atlas (] key) into an INCORPORATED word's child world, whose registers carry that word's resources. The validator does not count those two, so a campaign that passes is playable without them. The three staples of the economy loop — 👥 (strike), 🍞 (explore), 🧺 (gather) — each have a rescue trade priced in 🐇, the forest's commonest harvest, so a player with only forest produce can buy back into the loop; the board sorts staples first. Paying (owner ruling 2026-10-29): 👥 and 🍞 are bought with 🌾, 🧺 with 👥; every other resource with 🍞 only. Visibility (QuestBoard._rescue_open): a staple's rescue stands only while it is critical (2 or fewer held); 🌱 🔥 🔨 🪓 🌊 🦅 🪔 stand only while a live quest asks for them.",
   "👥": {
    "low_water": 3,
    "spent_by": "strike",
@@ -177,6 +177,24 @@
     }
    ]
   },
+  "🪔": {
+   "low_water": 13,
+   "spent_by": "plant 🌉/🪔",
+   "plots": [
+    "Lanternfall",
+    "ZenoLatch"
+   ],
+   "trades": [
+    {
+     "biome": "Village",
+     "faction": "Hearth Keepers",
+     "give": {
+      "🍞": 10
+     },
+     "get": 3
+    }
+   ]
+  },
   "🔥": {
    "low_water": 2,
    "spent_by": "superpose (Druid E)",
@@ -255,7 +273,7 @@
          "tutorial_teaches": "contracts",
          "faction": "Millwright's Union",
          "biome": "TheDemos",
-         "body": "The Millwright's Union is buying wheat. Take one of their contracts from the Market, deliver it on Commitments, then come back here to Charge and close the lesson. Kept contracts are how a small country eats — and how factions learn your name.",
+         "body": "The Millwright's Union is buying wheat. Accept here, take one of their contracts from the Market, deliver it on Commitments, then claim the lesson on Charge. Kept contracts are how a small country eats — and how factions learn your name.",
          "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
          "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
          "signed": true,
@@ -325,8 +343,8 @@
          "tutorial_teaches": "entanglement",
          "faction": "Hearth Keepers",
          "biome": "StarterForest",
-         "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. The weave leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
-         "tutorial_hint": "Mark any two plots, then weave them into a Bell pair.",
+         "body": "A qubit alone is a wheel. Two qubits woven together are a loom — touch one and the other answers, however far apart they drift. Claim the weave and it leaves you a 🍼: an age of effort, ensouled — the only thing that can turn a season.",
+         "tutorial_hint": "Mark two plots in the same biome, then weave them into a Bell pair.",
          "math_note": "Fires the instant the gate ledger records 1 bell gate (a single Bell weave) — a structural count, not a soft gate. Completing this weave hands you 1 🍼 — the reap capstone's cost, paid forward.",
          "state_predicates": [
           {
@@ -465,7 +483,7 @@
          ],
          "offer": {
           "body": "Apprentice to the Mill — keep Millwright contracts until the Union counts you reliable, and they will teach you the windmill (💨/🔨).",
-          "hint": "[C] opens the board; Market [Y] takes a Millwright delivery.",
+          "hint": "In the Village, board [C] → Market [Y] takes a Millwright delivery.",
           "faction": "Millwright's Union",
           "type": 1,
           "category": "ARC",
@@ -677,7 +695,7 @@
           }
          ],
          "offer": {
-          "body": "The Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
+          "body": "The Timber Teaching — keep the Union's timber contracts moving and they will teach you timber itself (🪵/🪓).",
           "hint": "Arc [X] [I] [R] accept. Then [C] board, [Y] Market, keep deliveries.",
           "faction": "Millwright's Union",
           "type": 1,
@@ -853,7 +871,7 @@
           }
          ],
          "offer": {
-          "body": "The Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
+          "body": "The Water Teaching — keep carrying water for the Hearth Keepers, and they will teach you water itself (💧/🌊).",
           "hint": "Arc [X] [I] [R] accept. Then keep Hearth Keeper deliveries until READY; claim on the Arc row.",
           "faction": "Hearth Keepers",
           "type": 1,
@@ -915,14 +933,15 @@
            "biome": "FreshwaterSpring"
           },
           {
-           "type": "dynamics_at_most",
-           "value": 0.2
+           "type": "coherence_fell",
+           "from": 0.3,
+           "to": 0.55
           }
          ],
          "offer": {
           "body": "Still the Pond — stand in the spring and quiet its surface until it all but stills.",
-          "hint": "In the spring: Operator [9], mode 2, [E] reads the compass 🧭. Strike to deepen the gap; the surface stills near an eigenstate.",
-          "math_note": "Stand in the spring and let it settle near an eigenstate of H. Replaces biome_eigenvalue_gap_gte, which is identically ~1 in a closed system (always true)."
+          "hint": "In the spring, Druid [0]: spin each plot toward its nearer pole until the churn settles.",
+          "math_note": "Stand in the spring and halve its churn: coherence (pure-state scale) from its resting ~0.85 below 0.55 (fires ≈0.55; Druid spins toward the poles reach ≈0.53 in a few presses, gathering a plot ≈0.45). The spring's H keeps stirring, so a full stillness (<0.15) was not reachable by any key — interim gate, see the 2026-11-09 ledger. Was dynamics_at_most, which read the channel retired with BiomeDynamicsTracker (-1 forever, never completable — 2026-11-09). Ready latches, so one still moment is enough."
          },
          "on_open": {
           "standing": {
@@ -941,18 +960,18 @@
          ],
          "objective": [
           {
-           "type": "coherence_at_least",
-           "value": 0.35
+           "type": "active_biome_is",
+           "biome": "FreshwaterSpring"
           },
           {
-           "type": "dynamics_at_least",
-           "value": 0.25
+           "type": "coherence_at_least",
+           "value": 0.35
           }
          ],
          "offer": {
           "body": "Make It Breathe — put coherence back on the spring and let the surface run while the depths hold.",
           "hint": "Druid [0]: rotate qubits off their poles to superpose energies — the pulse is the energy gap. The compass shows the depths never move.",
-          "math_note": "Two thresholds must both clear (smooth_and): coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393) AND dynamics ≥ 0.25 (soft gate, width 0.08, fires ≈0.319)."
+          "math_note": "In the spring, coherence ≥ 0.35 (soft gate, width 0.05, fires ≈0.393). The dynamics ≥ 0.25 half read the retired dynamics channel (-1 forever) and was dropped 2026-11-09."
          }
         }
        ]
@@ -1630,7 +1649,7 @@
          ],
          "offer": {
           "body": "Read the Ledger's Monolith — find the Blood Ledger and take two of its words.",
-          "hint": "Need 🦅×21. Captain [7], [R] Chart the Ledger. Then Icon [5]: two Ledger words.",
+          "hint": "Need 🦅×21. Captain [7], [R] Chart the Ledger. Then Icon [5]: track and incorporate two Ledger loops (any Ledger plot counts).",
           "faction": "Carrion Throne",
           "type": "DELIVER",
           "teaches": [
@@ -1837,7 +1856,7 @@
           }
          ],
          "offer": {
-          "body": "The Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
+          "body": "The Bridge Teaching — hold the beacon once more, deliberately, and the Lamplighters will teach you the bridge (🌉/🪔).",
           "hint": "Arc [X] accept. Lanternfall, Druid [0]: [E] excites 🪔. Claim [C].",
           "faction": "Lamplighters",
           "type": 1,
@@ -1906,7 +1925,7 @@
          ],
          "offer": {
           "body": "The Middle Cannot Hold — let the horn go dark and keep the bridge burning: let 📯 settle while 🌉 still burns.",
-          "hint": "Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle."
+          "hint": "In Lanternfall: Druid [0] on the horn's plot: [E] excites 📯 — then stop and watch the bulk disperse it. The chain keeps its ends, not its middle."
          },
          "on_open": {
           "standing": {
@@ -2120,7 +2139,7 @@
          ],
          "offer": {
           "body": "Fill the Urn — push the shrine's urn ⚱ past its threshold and let the basin take over: hold ⚱ above 50% after your hands leave it.",
-          "hint": "Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis."
+          "hint": "In the Shrine of Ashes: Druid [0], Superpose [E] the urn plot off its 💀 pole. Ash calls to ash — past the tipping point the urn fills itself (the gated channel feeds on its own population). Feel the moment the world stops needing you: that is hysteresis."
          },
          "chart": "ShrineOfAshes",
          "on_open": {
@@ -2317,7 +2336,7 @@
          ],
          "offer": {
           "body": "Two Chores, One Thread — superpose then couple: Hadamard first, CNOT second, and push the pair's mutual information past 1 bit.",
-          "hint": "Druid frame: Hadamard the control. Operator frame: CNOT the pair. In that order — the other order makes something else entirely."
+          "hint": "Slow the Forest first: − (⏪) until its clock stops, so the pair holds still; = lets it run again. Druid [0]: Superpose (Hadamard) the control. Operator [9]: mark two plots, CNOT the pair. In that order — the other order makes something else entirely."
          },
          "on_open": {
           "standing": {
@@ -2376,7 +2395,7 @@
          ],
          "offer": {
           "body": "The Record Opens — track a forest qubit around a second closed walk and bank both loops in the record.",
-          "hint": "Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry."
+          "hint": "In the Starter Forest: Icon frame F tracks; time and the day/night Hamiltonian drive the walk. A loop freezes when it returns near its seed having enclosed real solid angle. E-inspect shows the record the moment it holds an entry."
          },
          "on_open": {
           "standing": {
@@ -2402,7 +2421,7 @@
          ],
          "offer": {
           "body": "Wind Twice — arrange two recorded loops whose mutual winding reaches 2: one walk that turns twice about the other's axis.",
-          "hint": "Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live."
+          "hint": "In the Starter Forest: Drive one loop tight around the pole with Druid rotations, then walk the second qubit's loop around a different axis. The knot card (E-inspect) reads the pair's winding live."
          },
          "on_open": {
           "standing": {
@@ -2659,7 +2678,7 @@
          ],
          "offer": {
           "body": "Walk It Twice — close a lift upstairs on each of two qubits, until the record accepts the linking question.",
-          "hint": "Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
+          "hint": "In the Starter Forest: Icon hat (5): track a qubit and let it walk its ripe loop TWICE without stopping (Ω = 4π closes the lift; the record stitches consecutive banked loops itself). Then do it again on a second qubit. The knot card's experimental line stops refusing the moment both lifts truly close.",
           "math_note": "Lift closes iff Ω ≡ 0 (mod 4π). gauss_linking(open lift) = NAN — refusal, not failure; earn the closed curve and the number becomes real."
          },
          "on_open": {
@@ -2680,6 +2699,8 @@
  ],
  "guide": {
   "_doc": "How each kind of objective is DONE, as data. Core/Campaign/Guide.gd turns the live beat plus the game and UI state into the next press; the banner, spotlight and guide toasts all read it. Keys are spelled only in `keymap`. Each `walks` entry is the ordered steps for one objective predicate type; a step is done when its check holds, and the first step not done is the one shown. Docs: docs/design/GUIDANCE_FROM_THE_SPEC.md.",
+  "fade_after_s": [15, 30, 45, 60, 90, 120, 180, 240, 300],
+  "_fade_note": "GuideFade: seconds without progress before the banner speaks, indexed by the share of story flags fired (first entry at the start, last at the end). The tutorial always speaks; headless seats default to always (SW_GUIDE_MODE=fade|always|off overrides).",
   "keymap": {
    "hats": {
     "spark": "4",
@@ -2797,7 +2818,7 @@
    "plant_home": "Village",
    "reach": 12,
    "verb_labels": {
-    "E": "Hadamard"
+    "E": "Superpose"
    },
    "clear_marks": "'"
   },
@@ -2877,6 +2898,35 @@
    ],
    "dynamics_at_most": [
     "measure"
+   ],
+   "coherence_fell": [
+    "still"
+   ],
+   "gate_order": [
+    "gate_word"
+   ],
+   "spinor_read": [
+    "spinor"
+   ],
+   "wilson_survived_flip": [
+    "fence"
+   ],
+   "purity_at_most": [
+    "gray"
+   ],
+   "bridge_braids_gte": [
+    "braid"
+   ],
+   "bridge_fused_gte": [
+    "fuse"
+   ],
+   "biome_frozen_loops_gte": [
+    "travel",
+    "hat:icon",
+    "berry"
+   ],
+   "mutual_information_at_least": [
+    "entangle"
    ],
    "coherence_at_least": [
     "superpose"

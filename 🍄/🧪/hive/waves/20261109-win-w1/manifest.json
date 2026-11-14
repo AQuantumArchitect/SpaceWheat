@@ -1,0 +1,25 @@
+{
+  "stamp": "20261109-win-w1",
+  "chapter": "act0_fresh",
+  "checkpoint": "",
+  "model": "claude-haiku-5-5",
+  "host": "grok-build",
+  "jobs": 1,
+  "repo": "C:\\Users\\lukes\\Documents\\SpaceWheat",
+  "legs": [
+    {
+      "persona": "earnest",
+      "seat": "w_win-w1_earn",
+      "chapter": "act0_fresh",
+      "checkpoint": "",
+      "max_presses": 25,
+      "log": "C:\\Users\\lukes\\Documents\\SpaceWheat\\\ud83c\udf44\\\ud83e\uddea\\hive\\waves\\20261109-win-w1\\earnest.md"
+    }
+  ],
+  "note": "Parent launches legs sequentially (prompts/GROK.md). This script writes packs; it does not spawn Godot.",
+  "sunshine": {
+    "ready": false,
+    "prefer_web": false,
+    "dark": true
+  }
+}

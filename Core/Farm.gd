@@ -1929,6 +1929,30 @@ func named_cull_target() -> Dictionary:
 	return {"ok": false, "message": "no cullable biome in a slot"}
 
 
+## Every slotted biome the cull rule allows, dry ones first (the order
+## named_cull_target prefers). The banner offers these as a choice instead of
+## naming one (owner call 2026-11-11: a banner-follower culled Freshwater
+## Spring without choosing it).
+func cullable_biomes() -> Array[String]:
+	var out: Array[String] = []
+	var wet: Array[String] = []
+	var observation_frame = get_node_or_null("/root/ObservationFrame")
+	if not observation_frame:
+		return out
+	for b in observation_frame.get_unlocked_biomes():
+		var n := str(b)
+		if n == "" or out.has(n) or wet.has(n):
+			continue
+		if not bool(_cull_gate_for(n, observation_frame).get("ok", false)):
+			continue
+		if _biome_is_wet(n):
+			wet.append(n)
+		else:
+			out.append(n)
+	out.append_array(wet)
+	return out
+
+
 func _biome_is_wet(biome_name: String) -> bool:
 	var biome = _get_loaded_biome_ref(biome_name)
 	if biome == null or biome.quantum_computer == null:

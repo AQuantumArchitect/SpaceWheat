@@ -255,6 +255,19 @@ static func _calculate_coherence(density_matrix) -> float:
 
 	var total = 0.0
 
+	# Packed store when there is one: the get_element loop allocates a Complex
+	# per entry (dim² of them, ~80 ms at dim 64) on the quest observer's tick.
+	if mat.has_method("_to_packed") and int(mat.n) == dim:
+		var p: PackedFloat64Array = mat._to_packed()
+		for i in range(dim):
+			var row: int = i * dim
+			for j in range(dim):
+				if i != j:
+					var o: int = (row + j) * 2
+					total += p[o] * p[o] + p[o + 1] * p[o + 1]
+		var max_c = float(dim * (dim - 1))
+		return clamp(total / max_c, 0.0, 1.0) if max_c > 0 else 0.0
+
 	for i in range(dim):
 		for j in range(dim):
 			if i != j:

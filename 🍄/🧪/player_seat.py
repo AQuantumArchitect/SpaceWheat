@@ -25,7 +25,7 @@ lane's seat_state.json.
 Usage:
   player_seat.py start <seat>            boot a fresh game (headed, welcome ON)
   player_seat.py look <seat>             everything the player can currently read
-  player_seat.py press <seat> <key> [--shift]
+  player_seat.py press <seat> <key> [--shift] [--ctrl]
   player_seat.py tap <seat> <gx> <gy>    tap the bubble/plot at grid pos
   player_seat.py wait <seat> <seconds>   real time passes (no skip)
   player_seat.py forecast <seat> [secs]  what will the Witness believe in N s
@@ -97,6 +97,12 @@ def _seat_is_live(seat: str) -> bool:
     pid = int(st.get("pid", 0))
     if pid <= 0:
         return False
+    if os.name == "nt":  # os.kill(pid, 0) on Windows TERMINATES the process
+        try:
+            import psutil
+            return psutil.pid_exists(pid)
+        except ImportError:
+            return False
     try:
         os.kill(pid, 0)
         return True
@@ -233,7 +239,7 @@ def cmd_look(seat: str, graph: bool = True) -> dict:
     return out
 
 
-def cmd_press(seat: str, key: str, shift: bool) -> dict:
+def cmd_press(seat: str, key: str, shift: bool, ctrl: bool = False) -> dict:
     if key.lower() not in ALLOWED_KEYS:
         return {"ok": False, "error": "not_a_player_key", "key": key}
     st = _load_state(seat)
@@ -241,8 +247,13 @@ def cmd_press(seat: str, key: str, shift: bool) -> dict:
     kw = {"key": key, "settle_frames": 10}
     if shift:
         kw["shift"] = True
+    if ctrl:  # Ctrl chords are player keys too (Ace reap = Ctrl+Shift+F)
+        kw["ctrl"] = True
     r = _turn(seat, st, c, "press_key", **kw)
-    return {"ok": bool(r.get("ok", False)), "pressed": key, "shift": shift}
+    out = {"ok": bool(r.get("ok", False)), "pressed": key, "shift": shift}
+    if ctrl:
+        out["ctrl"] = True
+    return out
 
 
 def cmd_tap(seat: str, _gx: int, _gy: int) -> dict:
@@ -344,7 +355,7 @@ def main() -> int:
         elif cmd == "look":
             out = cmd_look(seat, graph="--no-graph" not in args)
         elif cmd == "press":
-            out = cmd_press(seat, args[2], "--shift" in args)
+            out = cmd_press(seat, args[2], "--shift" in args, "--ctrl" in args)
         elif cmd == "tap":
             out = cmd_tap(seat, int(args[2]), int(args[3]))
         elif cmd == "wait":

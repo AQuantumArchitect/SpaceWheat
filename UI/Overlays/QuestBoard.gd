@@ -362,6 +362,8 @@ func _reset_item_cursor() -> void:
 	_selected_index = 0
 	_item_page = 0
 	_row_confirm_armed = false
+	_pinned_market_id = null
+	_pick_cleared = false
 
 func _on_frame_changed(_new_frame_id: String, _prev_frame_id: String) -> void:
 	_on_frame_changed_local()
@@ -473,6 +475,9 @@ func _on_action_r() -> void:
 	_disarm_abandon()
 	match frame_id:
 		FRAME_MARKET:
+			if _pick_cleared:
+				_toast_feedback("• pick a row first — G H J K L ;")
+				return
 			if str(_selected_market_row().get("kind", "")) == "offer":
 				_accept_selected()
 		FRAME_COMMITMENTS:
@@ -1293,6 +1298,7 @@ func _build_market_body() -> void:
 		hands += "  ·  locks %d/%d [F]" % [lattice.locked_count(), MarketLattice.LOCK_SLOTS]
 	_body_box.add_child(_make_muted_label(hands, 11))
 	var rows: Array = _market_rows()
+	_reanchor_market_selection(rows)
 	if rows.is_empty():
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
@@ -1308,10 +1314,11 @@ func _build_market_body() -> void:
 			var kind := str(entry.get("kind", ""))
 			var data: Dictionary = entry.get("data", {})
 			var made: Control
+			var lit: bool = abs_i == _selected_index and not _pick_cleared
 			if kind == "held":
-				made = _make_commitment_row(data, ITEM_KEYS[i], abs_i == _selected_index)
+				made = _make_commitment_row(data, ITEM_KEYS[i], lit)
 			else:
-				made = _make_offer_row(data, ITEM_KEYS[i], abs_i == _selected_index)
+				made = _make_offer_row(data, ITEM_KEYS[i], lit)
 			made.name = "BoardRow_%d" % i
 			made.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			made.gui_input.connect(_on_row_gui_input.bind(abs_i))
@@ -1623,7 +1630,12 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 		var prog := float(quest.get("progress", quest.get("predicate_score", 0.0)))
 		var filled := int(round(clampf(prog, 0.0, 1.0) * 10.0))
 		var bar := Label.new()
-		bar.text = "    [%s%s] %d%%" % ["█".repeat(filled), "░".repeat(10 - filled), int(round(prog * 100.0))]
+		# A delivery's bar is what you hold against the ask, not the lesson's
+		# progress — the banner read "0%" over a row reading "100%" (literalist,
+		# wave 32). Say which it is.
+		var in_hand := str(quest.get("resource", "")).strip_edges() != "" and int(quest.get("quantity", 0)) > 0
+		bar.text = "    [%s%s] %d%%%s" % ["█".repeat(filled), "░".repeat(10 - filled), int(round(prog * 100.0)),
+				" in hand" if in_hand else ""]
 		bar.add_theme_font_size_override("font_size", 13)
 		bar.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		vbox.add_child(bar)
@@ -2117,8 +2129,14 @@ func _rescue_open(emoji: String) -> bool:
 	# Owner ruling 2026-10-29. A staple's rescue (👥 🍞 🧺) stands on the
 	# Village board while that staple is critical — STAPLE_CRITICAL or fewer.
 	if emoji in STAPLES:
+		# Fee deadlock (wave 19 strict follower, 43 flags): 0 🧺 and 3 👥. 👥 is
+		# gathered (Q costs 🧺), 🧺 is bought with more 👥 than held, and the 👥
+		# rescue stayed shut because 3 > critical. While the gather fee is
+		# unaffordable, a gathered staple can't be gathered — its rescue stands.
+		if emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price():
+			return true
 		return _vital_stock(emoji) <= STAPLE_CRITICAL
-	# 🌱 🔥 🔨 🪓 🌊 🦅 stand only while a live quest asks for them: not
+	# 🌱 🔥 🔨 🪓 🌊 🦅 🪔 stand only while a live quest asks for them: not
 	# before (no stockpiling ahead of the story), not after (the door closes).
 	if emoji in QUEST_GATED_RESCUES:
 		return UIProgression.quest_requests_resource(emoji)
@@ -2749,7 +2767,7 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
-const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]
 const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.
@@ -2765,10 +2783,40 @@ func _staples_first(offers: Array) -> Array:
 	return out
 
 
+## The ring re-sorts live (by what you hold; supply trades move between the
+## urgent and calm groups as staples change), so an index can point at a
+## different offer a moment later: wave 26's distractible pressed L then R and
+## took a 👥×231 contract that was not the row on screen. The pick pins the
+## offer's id; rendering and the verbs re-find it before acting.
+var _pinned_market_id = null
+var _pick_cleared := false
+
+func _pin_market_selection() -> void:
+	_pinned_market_id = null
+	if frame_id != FRAME_MARKET:
+		return
+	var rows: Array = _market_rows()
+	if _selected_index >= 0 and _selected_index < rows.size():
+		var d = rows[_selected_index].get("data", {})
+		if d is Dictionary and d.has("id"):
+			_pinned_market_id = d.get("id")
+
+func _reanchor_market_selection(rows: Array) -> void:
+	if frame_id != FRAME_MARKET or _pinned_market_id == null:
+		return
+	for i in range(rows.size()):
+		var d = rows[i].get("data", {})
+		if d is Dictionary and d.get("id") == _pinned_market_id:
+			if i != _selected_index:
+				_selected_index = i
+				_item_page = clampi(i / MAX_VISIBLE_ITEMS, 0, _item_page_count(rows.size()) - 1)
+			return
+
 func _selected_market_row() -> Dictionary:
 	if frame_id != FRAME_MARKET:
 		return {}
 	var rows: Array = _market_rows()
+	_reanchor_market_selection(rows)
 	if _selected_index < 0 or _selected_index >= rows.size():
 		return {}
 	var row = rows[_selected_index]
@@ -3022,6 +3070,15 @@ func _abandon_selected() -> void:
 	_refresh_verb_chips()
 
 
+## Closing the board cancels an armed abandon. ESC left it armed: the "⚠
+## abandon … any other key cancels" toast stayed up and the board reopened on
+## "Confirm Abandon" (orchestrator wave 6, to_dist_5). Not silent: the
+## standing toast must be replaced by the truth.
+func _on_deactivated() -> void:
+	_disarm_abandon()
+	super._on_deactivated()
+
+
 func _disarm_abandon(silent: bool = false) -> void:
 	if _abandon_arm_qid < 0:
 		return
@@ -3119,7 +3176,21 @@ func _select(idx: int) -> void:
 	# six-key ring — callers on the current page pass page_start + slot.
 	_disarm_abandon()
 	var total := _current_row_count()
+	# An empty slot ("—") is not a row. Clamping sent it to the LAST row —
+	# often on another page — and the next R accepted a contract nobody saw
+	# (wave 26 distractible: L on "—", then R took Hearth Keepers ×231).
+	if idx >= total:
+		_toast_feedback("• no row on that key — G H J K L ; pick a row on this page")
+		# …and nothing stays picked: the old row still took the next R (wave 33
+		# distractible: L on "—", R accepted the earlier Hearth Keepers row).
+		_pick_cleared = true
+		_row_confirm_armed = false
+		_refresh_body()
+		_refresh_verb_chips()
+		return
+	_pick_cleared = false
 	_selected_index = clampi(idx, 0, maxi(0, total - 1))
+	_pin_market_selection()
 	# Keep the cursor and the visible page in agreement.
 	_item_page = clampi(_selected_index / MAX_VISIBLE_ITEMS, 0, _item_page_count(total) - 1)
 	_row_confirm_armed = true

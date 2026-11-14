@@ -230,6 +230,8 @@ func _cancel_pending_confirm() -> void:
 	var cancelled_label := str(_confirm_pending.get("label", "action"))
 	_confirm_pending = {}
 	var shell := _resolve_player_shell()
+	if shell and shell.has_method("dismiss_toasts_with_home"):
+		shell.dismiss_toasts_with_home("cancel_confirm")
 	if shell and shell.has_method("show_hint"):
 		shell.show_hint("[color=#88aabb]%s cancelled[/color]" % cancelled_label, 2)
 
@@ -242,6 +244,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		return
 
 	var key = InputBindingRegistry.get_label_for_keycode(event.keycode)
+	_sync_focus_biome()
 
 	# Any key other than F cancels a pending confirm-chord. Only destructive
 	# verbs (Trim/Cull/Break) arm the chord now; safe verbs fire immediately.
@@ -375,6 +378,9 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 			if not _confirm_pending.is_empty():
 				var pending := _confirm_pending.duplicate()
 				_confirm_pending = {}
+				var cshell := _resolve_player_shell()
+				if cshell and cshell.has_method("dismiss_toasts_with_home"):
+					cshell.dismiss_toasts_with_home("cancel_confirm")
 				if bool(pending.get("shift_batch", false)):
 					_run_shift_batch(
 						str(pending.get("shift_action_name", "")),
@@ -741,6 +747,12 @@ func _handle_submenu_action(action_key: String) -> void:
 		if action_data.has("can_afford") and not bool(action_data.get("can_afford", true)):
 			var cost_s := str(action_data.get("cost_display", "")).strip_edges()
 			why = cost_s if cost_s != "" else "can't afford"
+			# Name where the short resource comes from (orchestrator earn4: "✗
+			# 💨/🔨 — −🌱×5" holding 1🌱, and nothing said sprouts are gathered
+			# in the forest). The campaign resources table is the one source.
+			var src := _short_resource_sources(action_data.get("cost", {}))
+			if src != "":
+				why += " — " + src
 		_toast_player("✗ %s — %s" % [str(action_data.get("label", action_key)), why])
 		return  # Stay in submenu
 
@@ -953,7 +965,9 @@ func _execute_incorporate_icon() -> Dictionary:
 			# already anchors another signature word. Saying "woven into your
 			# signature" here sent hub leg L4d chasing a signature that never
 			# grew (anti-gating law: no false help).
-			_toast_player("✗ %s already anchors one of your words — %s/%s cannot join your signature (berry still counted)" % [inc_n, inc_n, inc_s])
+			# Not a failure: the loop counts for berry goals (wave 19 keeper, wave 20
+			# distractible — both read the old ✗ as a refused step on the Monolith).
+			_toast_player("🧬 loop counted — %s/%s stays out of your signature (%s already anchors one of your words)" % [inc_n, inc_s, inc_n])
 	elif str(result.get("message", "")) != "":
 		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same
@@ -1308,6 +1322,7 @@ func _execute_build_gate(gate_type: String) -> void:
 
 	if positions.size() < 2:
 		_verbose.warn("input", "⚛️", "Need 2+ qubits selected for %s gate" % gate_type)
+		_toast_player("mark two plots first (%d/2 marked)" % positions.size())
 		_append_dispatch_ledger("build_gate", false)
 		action_performed.emit("build_gate", {"success": false, "error": "need_more_qubits"})
 		return
@@ -1326,6 +1341,10 @@ func _execute_build_gate(gate_type: String) -> void:
 		# (reap) or an explicit clear lets it go.
 	else:
 		_verbose.warn("input", "⚛️", "Failed to build %s: %s" % [gate_type, result.get("error", result.get("message", "unknown"))])
+		# A refused weave must SAY so (anti-gating law). Wall 2026-11-09: a
+		# cross-biome Bell pair failed with no toast and the Loom sat at 0%.
+		var why := str(result.get("message", ""))
+		_toast_player(why if why != "" else "the %s gate did not take" % gate_type)
 
 	_append_dispatch_ledger("build_gate", bool(result.get("success", false)))
 	action_performed.emit("build_gate", result)
@@ -1449,9 +1468,14 @@ func _select_plot(plot_idx: int, key: String) -> void:
 	# Get current active biome
 	var biome_name = _active_biome_mgr.get_active_biome()
 	var target_grid_pos = _get_grid_position_for(plot_idx, biome_name)
+	# The recorded selection must be THIS plot too. After a load (or the focus
+	# biome sync) current_plot_idx/current_biome can match while nothing was
+	# picked, so the first G toggled a mark instead of picking — the Guide's
+	# "plot [G]" then repeated for ever (wave 20 strict follower, 47 flags).
 	var was_highlighted = (
 		_instrument.current_plot_idx == plot_idx and
-		_instrument.current_biome == biome_name
+		_instrument.current_biome == biome_name and
+		_instrument.last_selected_position == target_grid_pos
 	)
 
 	# Record the observation in the chain tracker
@@ -1890,12 +1914,45 @@ func _mass_explore() -> void:
 			if str(a[pos]) != here:
 				continue
 			var plot = farm.grid.get_plot(pos)
-			if plot != null and plot.terminal == null:
+			# A held plot still in fog counts too: action_explore re-seats and
+			# reveals it (ds3: G held, fogged, skipped → Past the Hedge 50%).
+			if plot != null and (plot.terminal == null or not farm.is_plot_revealed(pos)):
 				positions.append(pos)
+		# Only columns this biome has registers for. A 1-axis TheDemos has six
+		# plot slots; exploring all six sprayed five "Column N has no register"
+		# refusals over the capstone banner (three wave-1 sensors, 2026-11-09).
+		var nq := _biome_register_count(here)
+		if nq > 0:
+			positions = positions.filter(func(p): return int(p.x) < nq)
 	if positions.is_empty():
 		_toast_player("Mass Explore: every plot here is already explored.")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
+
+
+## The Focus biome follows the biome under the player's feet. A load restores
+## the active biome without walking _apply_biome_switch, so the instrument kept
+## the boot biome (TheDemos): Mass Explore in the Starter Forest explored the
+## Demos ("every plot here is already explored") and Past the Hedge sat at 50%
+## (distractible ds3, 2026-11-09). Cheap, so it runs before every key.
+func _sync_focus_biome() -> void:
+	if _instrument == null or _active_biome_mgr == null or not _active_biome_mgr.has_method("get_active_biome"):
+		return
+	var active := str(_active_biome_mgr.get_active_biome())
+	if active != "" and str(_instrument.current_biome) != active:
+		# Biome only: the cursor stays unpicked until the player picks a plot
+		# (the Guide reads "no pick yet" as its own state).
+		_instrument.current_biome = active
+
+
+## Registers (axes) the named biome's quantum computer holds; 0 when unknown.
+func _biome_register_count(biome_name: String) -> int:
+	if biome_name == "" or not farm or not farm.grid or not farm.grid.has_method("get_biome"):
+		return 0
+	var biome = farm.grid.get_biome(biome_name)
+	if biome == null or biome.quantum_computer == null or biome.quantum_computer.register_map == null:
+		return 0
+	return int(biome.quantum_computer.register_map.num_qubits)
 
 
 ## Public entry point for a bubble tap (mouse/touch) — the tap IS the farming
@@ -2169,6 +2226,13 @@ func _perform_action(action_key: String) -> void:
 					if cur >= 0.0 and after >= 0.0:
 						var arrow := "▼" if after < cur - 0.005 else ("▲" if after > cur + 0.005 else "→")
 						gap_note = "  ·  gap %.2f→%.2f %s" % [cur, after, arrow]
+			elif action_name in ["remove_biome"]:
+				# Keeper sitting 11 stopped rather than cull blind: the confirm
+				# never said what a cull costs. (Farm.remove_biome: flux and mass
+				# pay out as credits, every probe is released, and the biome goes
+				# back to the unexplored pool.)
+				gap_note = "  ·  %s leaves your slots: its probes come home, its flux pays out, and it can be charted again later" \
+						% _get_current_biome_name()
 			shell.show_hint(
 				"[color=#ff9966]⚠ %s[/color]%s  —  press [b]F[/b] to confirm; any other key or tap cancels" \
 				% [action_info.get("label", action_name), gap_note], 3, "", "cancel_confirm")
@@ -2290,6 +2354,9 @@ func _block_reason_for_player(action_name: String) -> String:
 				return short_pop
 			if not _has_focused_plot():
 				return "no plot selected — G H J K L ; picks one"
+			var track_pop := _tracked_elsewhere_hint()
+			if track_pop.begins_with("this plot's loop is still tracked"):
+				return track_pop
 			return "nothing measured to gather here — R strikes first"
 		_:
 			return "not possible on this plot right now"
@@ -2315,6 +2382,12 @@ func _tracked_elsewhere_hint() -> String:
 		return ""
 	var qid: int = int(_instrument.current_plot_idx) if _instrument else -1
 	if qid >= 0 and biome.quantum_computer.berry_register.is_tracked(qid):
+		# Wave 19 keeper: a gathered (unbound) plot whose loop was still tracked
+		# kept Ace F on Fast-Fwd, so it could never be explored again and every
+		# Strike/Gather refused — name the way out (stop tracking or incorporate).
+		var plot = farm.grid.get_plot(_get_grid_position()) if farm and farm.grid else null
+		if plot != null and plot.terminal == null:
+			return "this plot's loop is still tracked, so F fast-forwards instead of exploring — Icon hat (5): R incorporates when ripe, or F stops tracking; then Ace F explores it again"
 		return "this plot is being tracked — switch to Icon hat (5), R incorporates there"
 	return ""
 
@@ -2331,6 +2404,35 @@ func _has_focused_plot() -> bool:
 
 
 ## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
+## "gather 🌱 in Starter Forest or Woodlot, or buy it at the Village market"
+## for each resource in `cost` the wallet cannot cover.
+func _short_resource_sources(cost) -> String:
+	if not (cost is Dictionary) or cost.is_empty():
+		return ""
+	var econ = farm.get("economy") if farm else null
+	var parts := PackedStringArray()
+	for e in cost:
+		if econ != null and BaseSubmenu.check_affordability({e: cost[e]}, econ):
+			continue
+		var info: Dictionary = CampaignRuntime.resource(str(e))
+		var lands := PackedStringArray()
+		for b in info.get("plots", []):
+			lands.append(Guide.biome_label(str(b)))
+		var markets := PackedStringArray()
+		for tr in info.get("trades", []):
+			var tb := str(tr.get("biome", ""))
+			if tb != "" and not markets.has(Guide.biome_label(tb)):
+				markets.append(Guide.biome_label(tb))
+		var bits := PackedStringArray()
+		if not lands.is_empty():
+			bits.append("gather %s in %s" % [str(e), " or ".join(lands)])
+		if not markets.is_empty():
+			bits.append("buy it at the %s market" % " or ".join(markets))
+		if not bits.is_empty():
+			parts.append(", or ".join(bits))
+	return "; ".join(parts)
+
+
 func _cost_shortfall_words(action_name: String) -> String:
 	var pf: Dictionary = ActionCostRuntime.preflight_action(farm, action_name)
 	if bool(pf.get("ok", true)):

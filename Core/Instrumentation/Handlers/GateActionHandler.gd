@@ -261,6 +261,15 @@ static func create_bell_pair(farm, positions: Array[Vector2i]) -> Dictionary:
 	var pos_a = positions[0]
 	var pos_b = positions[1]
 
+	# Refuse BEFORE the Hadamard: a cross-biome pair used to H the first plot,
+	# then fail the CNOT — the weave "did nothing" yet rotated a qubit.
+	var cross := _refuse_cross_biome(farm, positions, "A Bell pair")
+	if not cross.is_empty():
+		return cross
+	var empty := _refuse_no_qubit(farm, positions, "A Bell pair")
+	if not empty.is_empty():
+		return empty
+
 	# Step 1: Apply Hadamard to first qubit
 	var h_result = _apply_single_qubit_gate(farm, pos_a, "H")
 	if not h_result.success:
@@ -297,6 +306,13 @@ static func create_ghz_state(farm, positions: Array[Vector2i]) -> Dictionary:
 			"error": "need_two_positions",
 			"message": "Select 2+ plots for GHZ state"
 		}
+
+	var cross := _refuse_cross_biome(farm, positions, "A GHZ weave")
+	if not cross.is_empty():
+		return cross
+	var empty := _refuse_no_qubit(farm, positions, "A GHZ weave")
+	if not empty.is_empty():
+		return empty
 
 	# Step 1: Apply Hadamard to first qubit
 	var h_result = _apply_single_qubit_gate(farm, positions[0], "H")
@@ -365,6 +381,10 @@ static func cluster(farm, positions: Array[Vector2i]) -> Dictionary:
 			"error": "need_two_positions",
 			"message": "Need at least 2 plots for cluster state"
 		}
+
+	var cross := _refuse_cross_biome(farm, positions, "A cluster weave")
+	if not cross.is_empty():
+		return cross
 
 	# Step 1: Apply Hadamard to ALL qubits (creates |+⟩⊗n)
 	var h_count = 0
@@ -608,6 +628,55 @@ static func _first_failure_message(results: Array, fallback: String) -> String:
 			if msg != "":
 				return msg
 	return fallback
+
+
+## Entangling weaves join qubits of ONE biome (each biome is its own quantum
+## computer). {} when every position resolves to the same biome; otherwise the
+## refusal, naming the biomes the marks actually span, so the player can see
+## why the weave will not take (playtest wall 2026-11-09: marks on TheDemos G +
+## StarterForest G, Bell pressed, nothing said).
+static func _refuse_cross_biome(farm, positions: Array[Vector2i], what: String) -> Dictionary:
+	if not farm:
+		return {}
+	var names: Array[String] = []
+	for pos in positions:
+		var bname := str(_resolve_biome_register(farm, pos).get("biome_name", ""))
+		if bname == "" and farm.grid and farm.grid.has_method("get_plot_biome_assignment"):
+			bname = str(farm.grid.get_plot_biome_assignment(pos))
+		if bname != "" and not names.has(bname):
+			names.append(bname)
+	if names.size() <= 1:
+		return {}
+	return {
+		"success": false,
+		"error": "different_biomes",
+		"biomes": names,
+		"message": "%s weaves plots of one biome — your marks span %s. Clear the marks, then mark two plots in the same biome." % [
+			what, " and ".join(names)],
+	}
+
+
+## Refuse BEFORE the Hadamard when a mark has no qubit under it (a fogged or
+## beyond-the-register plot). The weave used to fail with a bare "Failed to
+## apply Hadamard" — or, with the empty mark second, H the first plot and then
+## fail the CNOT, half-applying the gate (playtest wave 19, distractible).
+static func _refuse_no_qubit(farm, positions: Array[Vector2i], what: String) -> Dictionary:
+	if not farm:
+		return {}
+	for pos in positions:
+		var r := _resolve_biome_register(farm, pos)
+		var biome = r.get("biome", null)
+		if biome and biome.quantum_computer and int(r.get("register_id", -1)) >= 0:
+			continue
+		var keys := "GHJKL;"
+		var key: String = keys.substr(pos.x, 1) if pos.x >= 0 and pos.x < keys.length() else "?"
+		return {
+			"success": false,
+			"error": "no_quantum_state",
+			"position": pos,
+			"message": "%s needs a qubit under every mark. Plot %s has none yet: explore it first, or clear the marks with ' and mark explored plots." % [what, key],
+		}
+	return {}
 
 
 static func _resolve_biome_register(farm, position: Vector2i) -> Dictionary:

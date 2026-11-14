@@ -165,10 +165,12 @@ func _run() -> void:
 	for t0 in CampaignRuntime.trades_for_biome("Village"):
 		var e0 := str(t0.get("emoji", ""))
 		if e0 in ["👥", "🍞", "🧺"]:
-			if int(econ.get_resource(e0)) <= 2:
+			# …and 👥 🍞 also while the gather fee (🧺) is unaffordable (wave 19).
+			var fee_short: bool = e0 != "🧺" and int(econ.get_resource("🧺")) < UIProgression.gather_price()
+			if int(econ.get_resource(e0)) <= 2 or fee_short:
 				want_trades.append(t0)
 			continue
-		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅"]:
+		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]:
 			if UIProgression.quest_requests_resource(e0):
 				want_trades.append(t0)
 			continue

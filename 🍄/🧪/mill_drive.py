@@ -144,7 +144,7 @@ def main():
         before = res().get("🔨", 0)
         for mrnd in range(1, 7):
             press("C"); press("Y", settle=3)         # Market frame
-            press("E", settle=3)                      # refresh pool
+            press("F", settle=3)                      # refresh pool
             for pk in PLOT_KEYS:                       # accept every visible offer
                 press(pk, settle=2); press("R", settle=3)
             press("ESCAPE", settle=3)

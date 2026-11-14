@@ -19,6 +19,7 @@ extends PanelContainer
 ## reads as the one card in that column that never fades.
 
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const _GUIDE_FADE = preload("res://Core/Campaign/GuideFade.gd")
 
 const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 const POLL_S := 0.5
@@ -91,6 +92,10 @@ func _process(delta: float) -> void:
 
 func _refresh() -> void:
 	var obj := UIProgression.objective_text()
+	# Hint fading (GuideFade): past the tutorial the banner waits for the
+	# player to stall before it speaks. Headless seats keep it always on.
+	if obj != "" and not _GUIDE_FADE.speaks(UIProgression._quest_manager(), UIProgression._active_farm()):
+		obj = ""
 	if obj == _text and (obj != "") == visible:
 		return
 	if obj != _text:

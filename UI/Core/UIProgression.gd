@@ -544,7 +544,11 @@ static func objective_text() -> String:
 			return _waiting_arc_line()
 		if _is_berry_ask(best):
 			return _berry_walk_line(best)
-		return _claim_walk_line(best)
+		# Only a ready beat can be claimed: naming Claim on an active one
+		# opened the Board, found nothing, and ESC'd back for ever (dx3,
+		# 2026-11-11: the_chain_tested, "[C] then [R] Claim" ⇄ "close [ESC]").
+		if str(best.get("status", "")) == "ready":
+			return _claim_walk_line(best)
 	# Wave 24 literalist: gathered 🌱 3→21, then chrome-only. Unsigned plant
 	# is STORY — hiding the banner after the gather walk ate Icon [5].
 	# Plant is the live beat whether or not they have signed the Arc.
@@ -2132,10 +2136,14 @@ static func ace_f_keeps_fast_fwd() -> bool:
 	if _coast_field_biome(q) == "ShrineOfAshes" and here == "ShrineOfAshes":
 		return true
 	# The Bridge Holds: planted 🌉 is unbound fog. Explore steals F;
-	# Fast-Fwd never dephases so Claim never READY.
-	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested" and here == "Lanternfall":
+	# Fast-Fwd never dephases so Claim never READY. A plot that was never
+	# revealed is not that fog: the banner says "explore it first" and F
+	# must Explore (orchestrator wave 3, to_pg2_end: six dark Lanternfall
+	# plots, F fast-forwarded silently for 300 presses).
+	var dark := not Guide._is_revealed(here, _focused_col())
+	if str(q.get("source_flag", "")).strip_edges() == "the_chain_tested" and here == "Lanternfall" and not dark:
 		return true
-	if _coast_field_biome(q) == "Lanternfall" and here == "Lanternfall":
+	if _coast_field_biome(q) == "Lanternfall" and here == "Lanternfall" and not dark:
 		return true
 	return false
 
@@ -3241,8 +3249,8 @@ static func teaching_wrong_hat_refusal() -> String:
 		return ""
 	var rest := _teaching_walk_line().replace("▸ ", "").strip_edges()
 	if rest == "" or rest == "ESC closes":
-		return "The Teaching holds the lamp — [0] Druid"
-	return "The Teaching holds the lamp — %s" % rest
+		return "The Bridge Teaching holds the lamp — [0] Druid"
+	return "The Bridge Teaching holds the lamp — %s" % rest
 
 
 static func _slots_full() -> bool:
@@ -3646,7 +3654,9 @@ static func redirect_locked(what: String = "") -> void:
 		var qm_r = _quest_manager()
 		var best_r := _best_objective()
 		route = "charge" if qm_r != null and qm_r.has_method("is_charge_hold") and bool(qm_r.is_charge_hold(best_r)) else "commitments"
-	var line := ("🔒 %s unlocks further down Act 0 — now: %s" % [what, obj]) if what != "" \
+	# Wave 20 distractible: the Spark hat still said "further down Act 0" in Act 4.
+	var when := "further down Act 0" if current_tutorial_step() != NO_TUTORIAL_SENTINEL else "later in the story"
+	var line := ("🔒 %s unlocks %s — now: %s" % [what, when, obj]) if what != "" \
 			else ("🔒 not yet — now: %s" % obj)
 	var shell := _shell()
 	if shell != null and shell.has_method("show_hint"):

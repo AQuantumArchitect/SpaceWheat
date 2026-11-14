@@ -54,6 +54,34 @@ static func _row_key(i: int) -> String:
 	return str(rows[i]) if i >= 0 and i < rows.size() else ""
 
 
+## A chord part that picks row `idx` (absolute) — or just its label, keyless,
+## when that row is ALREADY the selection here. "▸ Millwright's Union 👥×8 [G]
+## → Accept [R]" on a selected row made G a no-op the banner kept naming
+## first: a memoryless player pressed G nine times (lost-lamb, wave 9; also
+## waves 5 and 7).
+static func _row(label: String, idx: int) -> Array:
+	if _row_selected(idx):
+		return [label]
+	return [[label, _row_key(idx % BERRY_ROWS)]]
+
+
+static func _row_selected(idx: int) -> bool:
+	var here := SurfaceGraph.current()
+	if here.begins_with("C/"):
+		var board = UIP._quest_board()
+		return board != null and "_selected_index" in board and int(board.get("_selected_index")) == idx
+	if here.begins_with("X/"):
+		var om = UIP._overlay_manager()
+		var top = om.get_active_overlay() if om != null and bool(om.is_overlay_active()) else null
+		if top == null:
+			return false
+		if here == "X/charge" and "_charge_selected_idx" in top:
+			return int(top.get("_charge_selected_idx")) == idx
+		if "_arc_selected_idx" in top and "_arc_inspect_open" in top:
+			return int(top.get("_arc_selected_idx")) == idx and bool(top.get("_arc_inspect_open"))
+	return false
+
+
 static func _plot_key(col: int) -> String:
 	var plots: Array = _km().get("plots", [])
 	return str(plots[col]) if col >= 0 and col < plots.size() else ""
@@ -79,7 +107,10 @@ static func _chord(parts: Array, beat: Dictionary = {}, why: String = "") -> Dic
 				words.append(("%s [%s]" % [label, key]).strip_edges())
 		else:
 			words.append(str(p))
-	return {"text": "▸ " + ", ".join(words), "keys": keys,
+	# " → " not ", ": a chord is a SEQUENCE. Read as a list, four overnight
+	# sensors (2026-11-09) pressed a later key first — "board [C], Market [Y]"
+	# → Y on the farm, which is the Village tab, not the Market.
+	return {"text": "▸ " + " → ".join(words), "keys": keys,
 			"beat": str(beat.get("source_flag", "")), "why": why}
 
 
@@ -228,6 +259,9 @@ static func next_step() -> Dictionary:
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
 		return _tutorial_step()
 	var ranked := ranked_beats()
+	var stall := _clock_stalled(ranked[0] if not ranked.is_empty() else {})
+	if not stall.is_empty():
+		return stall
 	if ranked.is_empty():
 		return _auto_beat_step()
 	# The best beat first; a beat the guide has no step for (its way in is
@@ -239,6 +273,37 @@ static func next_step() -> Dictionary:
 	return {}
 
 
+## The clock must not outrun the machine. At ×32 the three 0.02-step
+## countries spin ~160 substeps a tick each; the game fell to 1 FPS, the
+## banner froze on a stale line and a follower read it as blank (orchestrator
+## wave 3, dgf_end, idle host). The Guide stops asking for a faster clock
+## below CLOCK_MIN_FPS, and after CLOCK_STALL_MS under CLOCK_STALL_FPS it
+## asks for a slower one before anything else.
+const CLOCK_MIN_FPS := 12.0
+const CLOCK_STALL_FPS := 4.0
+const CLOCK_STALL_MS := 10000
+static var _stall_since := -1
+
+static func _clock_room() -> bool:
+	return Engine.get_frames_per_second() >= CLOCK_MIN_FPS
+
+
+static func _clock_stalled(q: Dictionary) -> Dictionary:
+	var now := Time.get_ticks_msec()
+	if Engine.get_frames_per_second() >= CLOCK_STALL_FPS:
+		_stall_since = -1
+		return {}
+	if _stall_since < 0:
+		_stall_since = now
+	if now - _stall_since < CLOCK_STALL_MS:
+		return {}
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
+	if b == null or int(GranularityController.get_current_stride([b])) <= 1:
+		return {}
+	return _chord(_close_first() + ["the clock runs faster than this machine keeps up", ["slower clock", "-"]], q, "clock stall")
+
+
 static func _beat_step(q: Dictionary) -> Dictionary:
 	if str(q.get("status", "")) == Quest.STATUS_STORY:
 		return _door_accept(q)
@@ -246,7 +311,10 @@ static func _beat_step(q: Dictionary) -> Dictionary:
 		return _door_claim(q)
 	var open := _open_predicates(q)
 	if open.is_empty():
-		return _door_claim(q)  # satisfied; the quest flips to ready on its own tick
+		# Satisfied, but the quest flips to ready on its own tick. Naming
+		# "Claim [R]" before then made R a refusal ("not ready yet") a strict
+		# follower pressed ten times (Find Lanternfall, after Chart; wave 16).
+		return _wait("%s is settling — wait a moment, then claim" % _title(q), q, "settle")
 	return _across(open, q)
 
 
@@ -397,6 +465,20 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 		"travel":
 			return _travel(str(pred.get("biome", "")), q)
 		"hat":
+			# The Icon walks track a plot next; if it is still fog, explore it
+			# first in Ace (the berry step routes that) instead of donning Icon.
+			if arg == "icon":
+				var only: Array = []
+				if str(pred.get("type", "")) == "icon_incorporated":
+					only = _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", "")))
+				if _berry_needs_reveal(only):
+					return {}
+				# Mid-nudge in the Druid: the spin comes first, or "Druid hat [0]"
+				# ⇄ "Icon hat [5]" for ever.
+				if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID:
+					var nd := _nudge(q)
+					if not nd.is_empty():
+						return nd
 			return _hat(arg, q)
 		"berry":
 			return _berry(q)
@@ -407,7 +489,7 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 		"deliver_to":
 			# A lesson keeps its contract on its own board (lesson_offer).
 			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
-			return _deliver_to(str(pred.get("faction", "")), q, lesson_home)
+			return _with_progress(_deliver_to(str(pred.get("faction", "")), q, lesson_home), q, pred)
 		"chart":
 			return _chart(str(pred.get("biome", "")), q)
 		"gate":
@@ -430,12 +512,28 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _plot_verb(arg, q)
 		"pair_gate":
 			return _pair_gate(arg, q)
+		"gate_word":
+			return _gate_word(pred, q)
+		"entangle":
+			return _entangle(q)
+		"spinor":
+			return _spinor(q)
+		"gray":
+			return _gray(pred, q)
+		"fence":
+			return _compass(q, true)
+		"braid":
+			return _bridge_verb(q, "braid")
+		"fuse":
+			return _bridge_verb(q, "fuse")
 		"reap":
 			return _reap(arg, q)
 		"measure":
 			return _strike_once(UIP._active_biome_name(), q)
 		"superpose":
 			return _superpose(q)
+		"still":
+			return _still(q)
 		"evolve":
 			return _evolve(str(pred.get("biome", "")), q)
 		"steer":
@@ -447,9 +545,12 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 
 static func _door_accept(q: Dictionary) -> Dictionary:
 	var idx := _arc_row_index(q)
-	var row: Array = []
-	if idx >= 0:
-		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+	# Not on the Arc: never name a bare "Accept [R]" — it accepts whatever row
+	# is selected. Strict from zero (45 flags) looped "Arc [Y] → Accept [R]" and
+	# signed doors nobody chose (night 2, sfz6).
+	if idx < 0:
+		return {}
+	var row: Array = _page_to(idx) + _row(_title(q), idx)
 	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
 
 
@@ -462,7 +563,7 @@ static func _door_claim(q: Dictionary) -> Dictionary:
 	var idx := _charge_index(q) if signed else _commitment_index(q)
 	var row: Array = []
 	if idx >= 0:
-		row = _page_to(idx) + [[_title(q), _row_key(idx % BERRY_ROWS)]]
+		row = _page_to(idx) + _row(_title(q), idx)
 	var view: Array = [] if signed else _active_view_first()
 	return _chord(_go(node) + view + row + [["Claim", _verb("claim")]], q, "claim")
 
@@ -491,7 +592,7 @@ static func _board_row_chord(surface: String, idx: int, label: String, verb_labe
 		verb_key: String, q: Dictionary, why: String) -> Dictionary:
 	var parts: Array = _go("C/" + surface)
 	if idx >= 0:
-		parts += _page_to(idx) + [[label, _row_key(idx % BERRY_ROWS)]]
+		parts += _page_to(idx) + _row(label, idx)
 	parts.append([verb_label, verb_key])
 	return _chord(parts, q, why)
 
@@ -612,6 +713,34 @@ static func _hat(hat: String, q: Dictionary) -> Dictionary:
 ## Berry ritual on the active biome: incorporate a ripe loop, else track a
 ## qubit that is not tracked yet (any qubit — tracking needs a focused
 ## register column, not an explored plot), else let time ripen the loops.
+## True when _berry's next act would be a reveal (no ripe loop; the plot it
+## would track is still fog). The walks run "hat:icon" before "berry", so in
+## Ace the hat step won ("▸ Icon hat [5]"), then in Icon _berry sent the
+## player back to Ace to explore — a strict banner-follower ping-ponged
+## between hats forever (overnight strict-follower run, 21 flags in).
+static func _berry_needs_reveal(only: Array = []) -> bool:
+	var reg = UIP._berry_register()
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	if reg == null or farm == null or farm.grid == null or farm.grid.get_biome(biome) == null:
+		return false
+	var qc = farm.grid.get_biome(biome).quantum_computer
+	var nq: int = int(qc.register_map.num_qubits) if qc != null and qc.register_map != null else 0
+	var n := mini(nq, BERRY_ROWS)
+	for col in range(n):
+		if (only.is_empty() or col in only) and bool(reg.is_ripe(col)):
+			return false
+	for col in range(n):
+		if not only.is_empty() and not (col in only):
+			continue
+		if bool(reg.is_tracked(col)):
+			continue
+		if qc.has_method("qubit_has_transverse_term") and not qc.qubit_has_transverse_term(col):
+			continue
+		return not _is_revealed(biome, col)
+	return false
+
+
 static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	var reg = UIP._berry_register()
 	var biome := UIP._active_biome_name()
@@ -622,6 +751,7 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	var nq: int = int(qc.register_map.num_qubits) if qc != null and qc.register_map != null else 0
 	var focused := UIP._focused_col()
 	var n := mini(nq, BERRY_ROWS)
+	_t("berry %s nq %d only %s" % [biome, nq, str(only)])
 	for col in range(n):
 		if not only.is_empty() and not (col in only):
 			continue
@@ -652,9 +782,59 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 	if UIP._sim_paused():
 		return _chord(_close_first() + [["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
 	var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)]))
-	if stride < int(_km().get("clock_max_stride", 32)):
+	if stride < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(_close_first() + ["loops ripening", ["faster clock", _verb("faster")]], q, "clock")
+	var nudge := _nudge(q)
+	if not nudge.is_empty():
+		return nudge
 	return _wait("loops ripening — wait", q, "ripen")
+
+
+## A country whose motion has died (Gilded Rot at the shipped speed: its sinks
+## have no outflow, so the plots go still) never ripens a loop on its own: pn3
+## waited 25 min at ×32 with a loop 0.003 rad short of 2π. Moving the qubit by
+## hand walks the loop: one Druid Spin + ripened it at once. Offered only when
+## the clock is maxed, nothing is ripe, and neither a spin nor a new track
+## happened in the last minute (so the walk never thrashes the plot).
+const NUDGE_AFTER_MS := 60000
+
+
+static func _nudge(q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var reg = UIP._berry_register()
+	var biome := UIP._active_biome_name()
+	var farm = UIP._active_farm()
+	if reg == null or farm == null or farm.grid == null or farm.grid.get_biome(biome) == null:
+		return {}
+	var b = farm.grid.get_biome(biome)
+	if int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+		return {}
+	var now := Time.get_ticks_msec()
+	for a in ["rotate", "toggle_berry_track"]:
+		var last := _last_action_ms(a)
+		if last >= 0 and now - last < NUDGE_AFTER_MS:
+			return {}
+	var nq: int = int(b.quantum_computer.register_map.num_qubits) if b.quantum_computer != null and b.quantum_computer.register_map != null else 0
+	var best := -1
+	var best_p := -1.0
+	for col in range(mini(nq, BERRY_ROWS)):
+		if bool(reg.is_ripe(col)):
+			return {}
+		if bool(reg.is_tracked(col)) and _is_revealed(biome, col):
+			var ph := absf(float(reg.get_phase(col)))
+			if ph > best_p:
+				best_p = ph
+				best = col
+	if best < 0:
+		return {}
+	var parts: Array = _close_first() + ["the country has gone still — nudge the loop"]
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_DRUID:
+		parts.append([_hat_name("druid") + " hat", _hat_key("druid")])
+	if _live_col() != best:
+		parts.append_array(_pick_plot(best))
+	parts.append(["Spin +", "R"])
+	return _chord(parts, q, "nudge")
 
 
 ## Standing is earned by keeping a faction's contracts. On that faction's
@@ -663,6 +843,34 @@ static func _berry(q: Dictionary, only: Array = []) -> Dictionary:
 static var _refreshes := {}
 static var _counted_refresh := {}   # faction -> the ring signature last counted
 const REFRESH_CAP := 2
+
+
+## A standing ladder (keep a faction's contracts until they count you
+## reliable) is many identical Market → Accept → Commitments → Deliver laps.
+## Without the why and how-far, three sensors in two waves read the laps as a
+## loop and walled. Prefix the lap with the beat's title and the same score
+## the Charge badge shows: "▸ The Teaching 40% → Market [Y]".
+static func _with_progress(step: Dictionary, q: Dictionary, pred: Dictionary) -> Dictionary:
+	if step.is_empty() or bool(step.get("wait", false)):
+		return step
+	var text := str(step.get("text", ""))
+	if not text.begins_with("▸ "):
+		return step
+	var qm = UIP._quest_manager()
+	if qm == null or not qm.has_method("evaluate_predicate_score"):
+		return step
+	var pct := int(round(clampf(float(qm.evaluate_predicate_score(pred)), 0.0, 1.0) * 100.0))
+	var title := _title(q)
+	if title == "":
+		return step
+	# Two lessons share the title "The Teaching" (Millwright, Hearth Keepers):
+	# a sensor delivered for one while the banner worked the other (wave 10).
+	var faction := str(pred.get("faction", "")).strip_edges()
+	if faction != "":
+		title = "%s (%s)" % [title, faction]
+	var out := step.duplicate()
+	out["text"] = "▸ %s %d%% → %s" % [title, pct, text.substr(2)]
+	return out
 
 
 static func _deliver_to(faction: String, q: Dictionary, home_override: String = "") -> Dictionary:
@@ -714,8 +922,8 @@ static func _deliver_to(faction: String, q: Dictionary, home_override: String = 
 	if best >= 0 and (best_short <= int(_km().get("reach", 12)) or stretch):
 		_refreshes[faction] = 0
 		var d: Dictionary = rows[best].get("data", {})
-		return _chord(_page_to(best) + [["%s %s×%d" % [faction, str(d.get("resource", "")),
-				int(d.get("quantity", 0))], _row_key(best % BERRY_ROWS)], ["Accept", _verb("accept")]],
+		return _chord(_page_to(best) + _row("%s %s×%d" % [faction, str(d.get("resource", "")),
+				int(d.get("quantity", 0))], best) + [["Accept", _verb("accept")]],
 				q, "take contract")
 	# Count each deal once: the ring's offer ids change when Refresh lands.
 	var sig := ""
@@ -726,7 +934,11 @@ static func _deliver_to(faction: String, q: Dictionary, home_override: String = 
 	if str(_counted_refresh.get(faction, "")) != sig:
 		_refreshes[faction] = int(_refreshes.get(faction, 0)) + 1
 		_counted_refresh[faction] = sig
-	return _chord(["no keepable %s contract" % faction, ["Refresh", _verb("refresh")]], q, "refresh")
+	# Say which: an offer that asks far more than the wallet still sits on the
+	# screen, and "no keepable contract" read as a lie beside it (wave 7
+	# literalist: "Millwright's Union 👥 × 263 … [R] Accept" listed).
+	var why := "%s's offers here ask far more than you hold" % faction if best >= 0 			else "no %s contract in this deal" % faction
+	return _chord([why, ["Refresh", _verb("refresh")]], q, "refresh")
 
 
 ## The page presses that bring row `idx` into view on the paged surface the
@@ -768,8 +980,14 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 	var i := _commitment_index(c)
 	if i < 0:
 		return {}
-	var parts: Array = _active_view_first() + _page_to(i) + [["%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
-			int(c.get("quantity", 0))], _row_key(i % BERRY_ROWS)], verb]
+	# Armed already: only the confirm is left. Naming Q again disarmed it
+	# (Q toggles the arm) — strict from zero looped "Abandon [Q] → confirm [F]"
+	# at The Gear-Bench, 20 flags (night 2). Same law as the Trim/Cull confirm.
+	if not tail.is_empty() and "_abandon_arm_qid" in board \
+			and int(board._abandon_arm_qid) >= 0 and int(board._abandon_arm_qid) == int(c.get("id", -2)):
+		return _chord([tail], q, why)
+	var parts: Array = _active_view_first() + _page_to(i) + _row("%s %s×%d" % [str(c.get("faction", "")), str(c.get("resource", "")),
+			int(c.get("quantity", 0))], i) + [verb]
 	if not tail.is_empty():
 		parts.append(tail)
 	return _chord(parts, q, why)
@@ -783,6 +1001,9 @@ static func _market_held_chord(c: Dictionary, _home: String, verb: Array, q: Dic
 static var _misses := {}
 static var _counted := {}   # this measurement was already counted (next_step runs every frame)
 const MISS_CAP := 3
+## Strikes banked on one plot before the Guide stops suggesting another and
+## gathers (a missed pole then counts toward MISS_CAP as before).
+const STRIKE_TRIES := 6
 
 static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Dictionary:
 	_t("gather %s d%d misses%d" % [res, depth, int(_misses.get(res, 0))])
@@ -805,6 +1026,25 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			return sup
 		if where == "":
 			return _wait("no %s on the market ring yet — wait for it to turn" % res, q, "no route " + res)
+	# Fee deadlock: farming `res` ends in a Gather that costs 🧺, and none is
+	# held. When `res` itself is for sale for goods already in the wallet, buy
+	# it. A strict follower sat on "gather 👥 2/6 → Gather [Q]" with 0 🧺 (🧺 is
+	# bought with 👥, 👥 is farmed with 🧺) while 34 🌾 could buy 👥 in the
+	# Village (sf2, 558 presses deep, 2026-11-09).
+	var fee_board = UIP._quest_board()
+	if UIP._wallet("🧺") < 1.0 and res != "🧺" 			and (fee_board == null or not fee_board.has_method("_rescue_open") or fee_board._rescue_open(res)):
+		# Only a trade the board will actually show: a shut rescue sent the
+		# follower Market → ESC → Gather → Market forever (wave 19).
+		for tr in CampaignRuntime.supply_trades(res):
+			if _trade_ruled_out(res, str(tr.get("biome", ""))):
+				continue
+			var tgive: Dictionary = CampaignRuntime.trade_give(tr)
+			var can := not tgive.is_empty()
+			for g in tgive:
+				if UIP._wallet(str(g)) < float(tgive[g]):
+					can = false
+			if can:
+				return _supply_via(tr, res, q, depth)
 	# Decide the route before the trip: a target plot that is tracking a loop
 	# can't be explored (Ace F fast-forwards there), so the trade is the way —
 	# checked here, not on arrival, or the trade's trip and this one cancel.
@@ -828,9 +1068,22 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 				var supf := _supply(fee, q, depth + 1)
 				if not supf.is_empty():
 					return supf
+	# A lap pays 🍞 (explore) and 👥 (strike): buy what's short BEFORE the
+	# trip, or the supply trip and this one pull opposite ways — strict from
+	# zero, 31 flags: "to Village" ⇄ "to Starter Forest" for 1000+ presses
+	# (🍞 0, gather 🦅). Only from the field step itself (depth 0).
+	if depth == 0 and UIP._active_biome_name() != where:
+		for staple in ["🍞", "👥"]:
+			if staple != res and UIP._wallet(staple) < 1.0:
+				var pre := _supply(staple, q, 1)
+				if not pre.is_empty():
+					return pre
 	var t := _travel(where, q)
 	if not t.is_empty():
 		return t
+	var tip := _tip_toward(res, q)
+	if not tip.is_empty():
+		return tip
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
@@ -838,7 +1091,29 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
 	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
 	if col >= 0 and (UIP._plot_measured(col) or frozen != null):
+		# Strike as often as you like; Q gathers the bank (Ace R). When the
+		# bank holds none of `res` yet, another strike on this plot is the
+		# cheap try — a rare pole pays big (−kT·log p). Gathering after every
+		# miss re-explores at the same bad odds: four overnight sensors sat at
+		# "gather 🌱 3/5" for 20+ presses on a 💀-leaning plot, while 5 banked
+		# strikes then one Q paid +51 🌱 (2026-11-09).
+		var term = UIP._plot_terminal(col) if frozen == null else null
+		if term != null and term.is_bound and not bool(term.is_measured) \
+				and term.has_method("banked_totals") and "strikes" in term \
+				and not term.banked_totals().has(res) and term.strikes.size() < STRIKE_TRIES \
+				and UIP._wallet("👥") >= 1.0:
+			# A lap counter: "Strike again" ×5 with nothing visible read as a loop to
+			# every memoryless sensor (lost-lamb w14, w31; masher). Then Q gathers.
+			var lap := "strike %d of %d, then Gather" % [term.strikes.size() + 1, STRIKE_TRIES]
+			return _chord(_close_first() + [label, lap, ["Strike again", _verb("strike")]], q, "strike again")
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
+		# Strike-bank model: a plot holding banked strikes is not "measured",
+		# so measured_outcome is "" and no miss was ever counted — MISS_CAP's
+		# trade fallback could never fire. A strict follower looped Explore →
+		# Strike ×6 → Gather on "gather 🦅 17/21" forever, the bank all 🐇
+		# (misses0 in the Guide trace; burst-masher wave 13). Judge the bank.
+		if term != null and term.has_method("banked_totals") and term.has_method("has_banked") and term.has_banked():
+			got = res if term.banked_totals().has(res) else "miss"
 		if got == res:
 			_misses[res] = 0
 		elif got != "" and not _counted.get(res, false):
@@ -984,7 +1259,7 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 		for g in give:
 			if UIP._wallet(str(g)) < float(give[g]) and depth < 2:
 				return _gather(str(g), int(give[g]), q, depth + 1)
-		return _chord(_page_to(i) + [["trade for %s" % res, _row_key(i % BERRY_ROWS)], ["Accept", _verb("accept")]], q, "supply " + res)
+		return _chord(_page_to(i) + _row("trade for %s" % res, i) + [["Accept", _verb("accept")]], q, "supply " + res)
 	_no_trade_until[res + "|" + home] = Time.get_ticks_msec() + NO_TRADE_MS
 	return {}
 
@@ -1013,9 +1288,15 @@ static func _gate(pred: Dictionary, q: Dictionary) -> Dictionary:
 		return _reap(str(_km().get("reap_home", "TheDemos")), q)
 	if gate == "strike_known":
 		return _strike_known(q)
+	if gate == "gauge_flip":
+		return _compass(q, false)
 	if gate != "inject_icon" and gate != "plant":
 		return {}
-	return _plant(str(_km().get("plant_home", "Village")), "", false, q)
+	# The predicate's own biome wins: lantern_wakes asks for a plant IN
+	# Lanternfall (the gate key is biome-stamped), but this always planted in
+	# the Village — the Trim ⇄ Plant churn that held every strict follower at
+	# 43-48 flags (night 2: trim ☀/🌙, plant ☀/🌙, never counted).
+	return _plant(str(pred.get("biome", _km().get("plant_home", "Village"))), "", false, q)
 
 
 ## Plant a word into `biome`: the one whose poles include `atom` when named,
@@ -1033,9 +1314,25 @@ static func _plant(biome: String, atom: String, fresh: bool, q: Dictionary) -> D
 		for key in ["Q", "E", "R"]:
 			var a = actions.get(key, {})
 			if a is Dictionary and _word_fits(a.get("icon", {}), atom) and bool(a.get("can_afford", true)):
-				return _chord([[str(a.get("label", "word")), key]], q, "pick word")
-		if int(data.get("max_pages", 1)) > 1:
-			return _chord([["more words", "F"]], q, "picker page")
+				# "▸ 🌾/👥 [E]" named a key with no verb; an earnest sensor kept
+				# pressing R (another word) at the picker (wave 9, fresh e2e).
+				return _chord([["plant " + str(a.get("label", "word")), key]], q, "pick word")
+		# One lap of the pages, then close: the picker wraps, so with no fitting
+		# word on any page "more words [F]" repeated for ever (fresh strict from
+		# zero, 45 flags, night 2).
+		var page := int(data.get("page", 0))
+		var pages := int(data.get("max_pages", 1))
+		if pages > 1:
+			if int(_picker_seen.get("start", -1)) < 0 or Time.get_ticks_msec() - int(_picker_seen.get("t", 0)) > 30000:
+				_picker_seen = {"start": page, "t": Time.get_ticks_msec(), "laps": 0}
+			elif page == int(_picker_seen["start"]) and int(_picker_seen.get("moved", 0)) == 1:
+				_picker_seen["laps"] = 1
+			if page != int(_picker_seen["start"]):
+				_picker_seen["moved"] = 1
+			_picker_seen["t"] = Time.get_ticks_msec()
+			if int(_picker_seen.get("laps", 0)) == 0:
+				return _chord([["more words", "F"]], q, "picker page")
+		_picker_seen = {}
 		return _chord(_close_first(), q, "no fitting word here")
 	var target = farm.grid.get_biome(biome) if biome != "" else null
 	if target != null and atom != "" and target.quantum_computer != null \
@@ -1098,13 +1395,31 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 		if int(abm.get_slot_for_biome(str(b))) < 0:
 			continue
 		if not _unknown_cols(str(b)).is_empty():
+			# A fogged word costs an Explore (🍞): buy it before the trip, or
+			# "to Freshwater Spring" ⇄ "to Village" (strict from zero, 33 flags).
+			if str(b) != UIP._active_biome_name() and UIP._wallet("🍞") < 1.0:
+				var pre := _supply("🍞", q, 1)
+				if not pre.is_empty():
+					return pre
 			var t := _travel(str(b), q)
 			if not t.is_empty():
 				return t
+			# A fogged word needs the Ace's explore before the Icon can track
+			# it: putting the Icon hat on first made _berry's reveal ask for the
+			# Ace hat again — "Icon hat [5]" ⇄ "explore it first → Ace hat [8]"
+			# forever (keeper sitting 1 and a strict follower, Master of the Mill).
+			var cols := _unknown_cols(str(b))
+			_t("learn %s cols %s" % [str(b), str(cols)])
+			if _berry_needs_reveal(cols):
+				return _berry(q, cols)
+			if str(ToolConfig.get_current_frame()) == ToolConfig.FRAME_DRUID:
+				var nd := _nudge(q)
+				if not nd.is_empty():
+					return nd
 			var h := _hat("icon", q)
 			if not h.is_empty():
 				return h
-			return _berry(q, _unknown_cols(str(b)))
+			return _berry(q, cols)
 	return {}
 
 
@@ -1265,10 +1580,10 @@ static func _plot_verb(key: String, q: Dictionary) -> Dictionary:
 
 ## Two marked plots, then the gate: Operator hat, SHIFT-mark G and H, R opens
 ## the gate picker, `gate_key` picks the gate.
-static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
+static func _pair_gate(gate_key: String, q: Dictionary, gate_label: String = "Bell pair") -> Dictionary:
 	var inst = UIP._instrument()
 	if UIP._in_gate_submenu():
-		return _chord([["Bell pair", gate_key]], q, "pick gate")
+		return _chord([[gate_label, gate_key]], q, "pick gate")
 	# Exactly two marks, both on THIS biome's ring: marks left from other
 	# lessons (Ace G marks too) make a cross-biome pair that never weaves.
 	var marks: Array = inst.checked_plots if inst != null and "checked_plots" in inst else []
@@ -1283,12 +1598,369 @@ static func _pair_gate(gate_key: String, q: Dictionary) -> Dictionary:
 	var good: bool = marks.size() == 2 and rows.size() == 1 and _marks_here(marks)
 	var parts: Array = []
 	if not good:
-		if not marks.is_empty():
+		# Clear only marks that are WRONG (another biome's, or more than two).
+		# One valid mark here is half the pair: name the other plot. "clear
+		# marks [']" first on a lone good mark made a memoryless player clear
+		# it, re-mark G and loop (lost-lamb, wave 9b: 4 cycles at The Loom).
+		var bad: bool = marks.size() > 2 or rows.size() > 1 or (not marks.is_empty() and not _marks_here(marks))
+		if bad:
 			parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
-		parts.append(["mark", "shift+" + _plot_key(0)])
-		parts.append(["mark", "shift+" + _plot_key(1)])
-	parts.append(["Build gate", "R"])
+			parts.append(["mark", "shift+" + _plot_key(0)])
+			parts.append(["mark", "shift+" + _plot_key(1)])
+		else:
+			var have := {}
+			for m in marks:
+				if m is Vector2i:
+					have[int(m.x)] = true
+			for c in [0, 1, 2, 3, 4, 5]:
+				if have.size() + (parts.size()) >= 2:
+					break
+				# Same test as the reveal check above: a tracked plot counts.
+				# Skipping it left one mark down and "Gate [R]" ⇄ "CNOT [E]"
+				# for ever — the gate needs two (lm, 2026-11-11, 59 flags).
+				if have.has(c) or (not _is_revealed(biome, c) and not _tracked(c)):
+					continue
+				parts.append(["mark", "shift+" + _plot_key(c)])
+			if have.size() + parts.size() < 2:
+				return {}
+	parts.append(["Gate", "R"])  # the chip reads "[R] Gate" (literalist w32: "Build gate" ≠ "Gate")
 	return _chord(parts, q, "pair gate")
+
+
+## The Loop Came Home (spinor_read −1): a stay-home reference, a ripe
+## traveler, then the mirror's Compare. Wave 20: no walk existed, so the
+## strict follower fell through to an unrelated gather. Icon hat; key 2 is
+## the mirror (R Stay Home, E Compare), key 1 the Icon mode (F Track).
+## What Fades (purity_at_most): let the Bath gray the country. A superposed
+## plot in open country loses its phase to the Bath, and Tr(ρ²) falls. One
+## Superpose, then wait: a second press undoes the first (H² = I), so the
+## step superposes at most once a minute per biome. The biome is the beat's
+## own (a sibling predicate names it), else where you stand. dx5, 2026-11-11:
+## The Chain, Tested had no walk and the banner went silent.
+const GRAY_EVERY_MS := 60000
+
+
+static func _entropy_norm(biome: String) -> float:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	var qc = b.quantum_computer if b != null else null
+	if qc == null or not qc.has_method("get_entropy") or not qc.has_method("get_dimension"):
+		return 0.0
+	return clampf(float(qc.get_entropy()) / log(float(maxi(int(qc.get_dimension()), 2))), 0.0, 1.0)
+
+
+static func _biome_open(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null and biome != "" else null
+	return b != null and b.quantum_computer != null and b.quantum_computer.has_method("is_open_here") 			and bool(b.quantum_computer.is_open_here())
+
+
+## Open AND carrying a dissipator. Opening Lanternfall (the_chain_tested)
+## builds no operator — every term in its atoms targets a glyph off its
+## register (🗑 🚩 🏚 🌫), so they stay primed — and its purity holds at 1.0.
+## The walk waited "the Bath is graying Lanternfall" for 33 min (orchestrator
+## wave 2, to_strict7_end). Gray only where something can gray.
+static func _biome_has_bath(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null and biome != "" else null
+	return b != null and b.quantum_computer != null 			and not (b.quantum_computer.lindblad_operators as Array).is_empty()
+
+
+## When the player last did `action` (ms ticks), from the quest projection's
+## action history (a substring: gates record as "gate_inject:hadamard");
+## -1 if not in it.
+static func _last_action_ms(action: String) -> int:
+	var qm = UIP._quest_manager()
+	var sp = qm.get("_state_projection") if qm != null else null
+	if sp == null or not ("_action_history" in sp):
+		return -1
+	var hist: Array = sp._action_history
+	for i in range(hist.size() - 1, -1, -1):
+		var row = hist[i]
+		if row is Dictionary and str(row.get("action", "")).find(action) >= 0:
+			return int(row.get("time_msec", -1))
+	return -1
+
+
+static func _gray(pred: Dictionary, q: Dictionary) -> Dictionary:
+	# Purity is read where you stand, and closed country is pure by law
+	# (Tr ρ² ≡ 1: dx5 stood in Lanternfall superposing at purity 1.0). Gray
+	# in open country: here, else the beat's own biome, else any open slot.
+	var biome := ""
+	var want: Array = [UIP._active_biome_name()]
+	for p in q.get("state_predicates", []):
+		if p is Dictionary and str(p.get("biome", "")) != "":
+			want.append(str(p.get("biome", "")))
+	var ofr = Engine.get_main_loop().root.get_node_or_null("/root/ObservationFrame") if Engine.get_main_loop() is SceneTree else null
+	if ofr != null and ofr.has_method("get_unlocked_biomes"):
+		for b in ofr.get_unlocked_biomes():
+			want.append(str(b))
+	# The most mixed open country grays fastest. The first open one could be
+	# the Shrine, whose basin pulls it back to a pure pole (pr1 waited there).
+	# Ranked by live diagonal entropy (QuantumComputer.get_entropy, the reading
+	# EnergyPricing trusts), normalized; ties keep the order above.
+	var best_s := -1.0
+	for n in want:
+		var nm := str(n)
+		if not _biome_open(nm) or not _biome_has_bath(nm):
+			continue
+		var s_norm := _entropy_norm(nm)
+		if s_norm > best_s + 1e-6:
+			best_s = s_norm
+			biome = nm
+	if biome == "":
+		return {}
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var now := Time.get_ticks_msec()
+	var last := _last_action_ms("hadamard")
+	if last >= 0 and now - last < GRAY_EVERY_MS:
+		return _wait("the Bath is graying %s — wait" % biome_label(biome), q, "gray")
+	var col := -1
+	for c in range(BERRY_ROWS):
+		if _is_revealed(biome, c):
+			col = c
+			break
+	if col < 0:
+		return {}
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("let the Bath gray it")
+	parts.append(["Superpose", "E"])
+	return _chord(parts, q, "gray")
+
+
+## Operator compass (What Turns): R turns the focused plot's convention.
+## Turn Every Needle counts three turns; The Fence Remembers wants the loop
+## card read (E) first, then a turn. Night 2 census: neither had a walk, so
+## the banner fell through to other beats (sk32: Shrine ⇄ Village).
+static func _compass(q: Dictionary, read_first: bool) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var col := _live_col()
+	if col < 0 or not _is_revealed(biome, col):
+		col = -1
+		for c in range(BERRY_ROWS):
+			if _is_revealed(biome, c):
+				col = c
+				break
+	if col < 0:
+		return {}
+	# Only the hat: _hat insists on the first mode, and this walk lives in
+	# the second ("compass [2]" ⇄ "Operator first mode [1]", as sk22).
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_OPERATOR:
+		var h := _hat("operator", q)
+		if not h.is_empty():
+			return h
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_OPERATOR)) != "compass":
+		parts.append(["compass", "2"])
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	if read_first and not _loop_card_read(biome):
+		parts.append(["Loops", "E"])
+		return _chord(parts, q, "compass read")
+	parts.append(["Turn", "R"])
+	return _chord(parts, q, "compass turn")
+
+
+static func _loop_card_read(biome: String) -> bool:
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
+	if b == null or b.quantum_computer == null or not b.quantum_computer.has_method("get_gauge_field"):
+		return false
+	var gf = b.quantum_computer.get_gauge_field()
+	return gf != null and bool(gf.inspected)
+
+
+## Spark bridge (What Connects): braid or fuse a span you have raised. The
+## verbs act on the bridge anchored where you stand, so the walk is: go to a
+## shore, Spark 🌉 mode, F braids / Q fuses (confirm F). Braids alternate
+## shores — S at one end, √X at the other — so the word has both letters.
+static func _bridge_verb(q: Dictionary, verb: String) -> Dictionary:
+	var farm = UIP._active_farm()
+	if farm == null or not ("bridge_register" in farm) or farm.bridge_register == null:
+		return {}
+	var spans: Array = farm.bridge_register.bridges()
+	if spans.is_empty():
+		return {}
+	if verb == "fuse" and UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		return _chord([["confirm " + (lbl if lbl != "" else "Fuse"), "F"]], q, "fuse confirm")
+	var here := UIP._active_biome_name()
+	var bridge: Dictionary = {}
+	for b in spans:
+		if b is Dictionary and (str(b.get("biome_a", "")) == here or str(b.get("biome_b", "")) == here):
+			bridge = b
+			break
+	var shore := here
+	if bridge.is_empty():
+		bridge = spans[0]
+		shore = str(bridge.get("biome_a", ""))
+	elif verb == "braid":
+		var at_a := str(bridge.get("biome_a", "")) == here
+		var mine := int(bridge.get("braids_a" if at_a else "braids_b", 0))
+		var theirs := int(bridge.get("braids_b" if at_a else "braids_a", 0))
+		if mine > theirs:
+			shore = str(bridge.get("biome_b" if at_a else "biome_a", here))
+	var t := _travel(shore, q)
+	if not t.is_empty():
+		return t
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_SPARK:
+		var h := _hat("spark", q)
+		if not h.is_empty():
+			return h
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_SPARK)) != "bridge":
+		parts.append(["🌉 bridge", "2"])
+	if verb == "braid":
+		parts.append(["Braid", "F"])
+		return _chord(parts, q, "braid")
+	parts.append(["Fuse", "Q"])
+	parts.append(["confirm", "F"])
+	return _chord(parts, q, "fuse")
+
+
+static func _spinor(q: Dictionary) -> Dictionary:
+	var biome := UIP._active_biome_name()
+	var inst = UIP._instrument()
+	var ref: Dictionary = inst.get_mirror_reference() if inst != null and inst.has_method("get_mirror_reference") else {}
+	var ref_here: bool = str(ref.get("biome_name", "")) == biome and int(ref.get("register_id", -1)) >= 0
+	var home: int = int(ref.get("register_id", 1)) if ref_here else 1
+	var trav: int = 0 if home != 0 else 1
+	for c in [trav, home]:
+		if not _is_revealed(biome, c) and not _tracked(c):
+			return _reveal(c, q, [trav, home])
+	# Only put the hat on: _hat also insists on the first mode, and this walk
+	# lives in both — "mirror [2]" ⇄ "Icon first mode [1]" forever (sk22).
+	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ICON:
+		var h := _hat("icon", q)
+		if not h.is_empty():
+			return h
+	var mode := str(ToolConfig.get_frame_mode_name(ToolConfig.FRAME_ICON))
+	var parts: Array = _close_first()
+	if not ref_here:
+		if mode != "mirror":
+			parts.append(["mirror", "2"])
+		if _live_col() != home:
+			parts.append_array(_pick_plot(home))
+		parts.append(["Stay Home", "R"])
+		return _chord(parts, q, "spinor home")
+	var reg = UIP._berry_register()
+	if not _tracked(trav):
+		if mode != "inject":
+			parts.append(["Icon mode", "1"])
+		if _live_col() != trav:
+			parts.append_array(_pick_plot(trav))
+		parts.append(["Track the traveler", _verb("track")])
+		return _chord(parts, q, "spinor track")
+	if reg == null or not reg.has_method("is_ripe") or not bool(reg.is_ripe(trav)):
+		if UIP._sim_paused():
+			return _chord(parts + [["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
+		var farm = UIP._active_farm()
+		var stride := int(GranularityController.get_current_stride([farm.grid.get_biome(biome)])) if farm != null else 0
+		if stride < int(_km().get("clock_max_stride", 32)) and _clock_room():
+			return _chord(parts + ["the traveler is ripening (don't Incorporate)", ["faster clock", _verb("faster")]], q, "clock")
+		return _wait("the traveler is ripening — wait, don't Incorporate", q, "ripen")
+	if mode != "mirror":
+		parts.append(["mirror", "2"])
+	if _live_col() != trav:
+		parts.append_array(_pick_plot(trav))
+	parts.append(["Compare", "E"])
+	return _chord(parts, q, "spinor compare")
+
+
+## Spell a gate word in order (gate_order: ["hadamard", "cnot"], the braids).
+## Wave 20 keeper: "Two Chores, One Thread" had no walk, so the banner never
+## named it; the keeper marked one plot and the picker closed. Hadamard =
+## Druid Superpose on the control (plot 0); a two-qubit gate = Operator,
+## mark plots 0 and 1, R opens the picker, then the key the picker shows it on.
+static func _gate_word(pred: Dictionary, q: Dictionary) -> Dictionary:
+	var gates: Array = pred.get("gates", []) if pred.get("gates", []) is Array else []
+	if gates.is_empty():
+		return {}
+	var qm = UIP._quest_manager()
+	var score := float(qm.evaluate_predicate_score(pred)) if qm != null and qm.has_method("evaluate_predicate_score") else 0.0
+	var done := int(round(clampf(score, 0.0, 1.0) * gates.size()))
+	if done >= gates.size():
+		return {}
+	var nxt := str(gates[done]).strip_edges().to_lower()
+	var biome := UIP._active_biome_name()
+	if done == 0:
+		var hold := _hold_clock(q)
+		if not hold.is_empty():
+			return hold
+	if nxt == "hadamard":
+		# Reveal before the hat: _reveal puts the Ace hat on, so a Druid-hat
+		# check first took it straight back off ("Druid hat [0]" ⇄ "explore it
+		# first → Ace hat [8]", orchestrator wave 3, dgb_end in Lanternfall).
+		if not _is_revealed(biome, 0) and not _tracked(0):
+			return _reveal(0, q, [0, 1])
+		var hd := _hat("druid", q)
+		if not hd.is_empty():
+			return hd
+		var parts: Array = _close_first()
+		if _live_col() != 0:
+			parts.append_array(_pick_plot(0))
+		parts.append(["Superpose the control", "E"])
+		return _chord(parts, q, "gate word hadamard")
+	var ho := _hat("operator", q)
+	if not ho.is_empty():
+		return ho
+	var label := nxt.to_upper()
+	if UIP._in_gate_submenu():
+		var inst = UIP._instrument()
+		var data: Dictionary = inst.current_submenu_data if inst != null and "current_submenu_data" in inst else {}
+		var acts: Dictionary = data.get("actions", {}) if data.get("actions", {}) is Dictionary else {}
+		for k in ["Q", "E", "R"]:
+			var a = acts.get(k, {})
+			if a is Dictionary and str(a.get("gate_type", "")) == nxt:
+				return _chord([[label, k]], q, "pick gate")
+		if acts.has("F"):
+			return _chord([["more gates", "F"]], q, "gate page")
+		return {}
+	return _pair_gate("", q, label)
+
+
+## Lock the biome's clock before a gate word or a weave (owner call
+## 2026-11-11): the Forest's plots turn between presses (0.51 → 0.77 → 0.50
+## in kp5), so the pair the gates were built on is gone before the MI reads
+## it. "−" halves the clock; at ×1 one more press locks it, "=" lets it run.
+static func _hold_clock(q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var farm = UIP._active_farm()
+	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
+	if b == null or int(GranularityController.get_current_stride([b])) <= 0:
+		return {}
+	return _chord(_close_first() + ["hold the pair still", ["slower clock", "-"]], q, "clock lock")
+
+
+## Entangle a pair past the MI bar: a Bell weave on G and H. (A strike does
+## not collapse under the strike-bank model, so there is no pole prep a
+## player can do; kp6 spent 👥 on strikes that left the plots drifting.)
+static func _entangle(q: Dictionary) -> Dictionary:
+	var hold := _hold_clock(q)
+	if not hold.is_empty():
+		return hold
+	var ho := _hat("operator", q)
+	if not ho.is_empty():
+		return ho
+	if UIP._in_gate_submenu():
+		var inst = UIP._instrument()
+		var data: Dictionary = inst.current_submenu_data if inst != null and "current_submenu_data" in inst else {}
+		var acts: Dictionary = data.get("actions", {}) if data.get("actions", {}) is Dictionary else {}
+		for k in ["Q", "E", "R"]:
+			var a = acts.get(k, {})
+			if a is Dictionary and str(a.get("gate_type", "")) == "bell":
+				return _chord([["Bell pair", k]], q, "pick gate")
+		return {}
+	return _pair_gate("", q, "Bell pair")
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.
@@ -1370,7 +2042,74 @@ static func _superpose(q: Dictionary) -> Dictionary:
 	var h := _hat("druid", q)
 	if not h.is_empty():
 		return h
-	return _chord(_close_first() + _pick_plot(col) + [["Hadamard", "E"]], q, "superpose")
+	return _chord(_close_first() + _pick_plot(col) + [["Superpose", "E"]], q, "superpose")
+
+
+## A coherence_fell that rides with purity_at_most is a fade (Watch It Fade),
+## not a quieting: the Bath drains the color, and Druid spins only stir it
+## back (orchestrator wave 2, to_dist_2: Spin −/+ across G/H/J/L for 40
+## presses, 0 flags; hands-off in Gilded Rot the coherence fell 0.20 → 0.17
+## in two minutes). Gray where something grays, superpose once if the
+## high-water mark is short, then keep hands off.
+static func _fade(q: Dictionary) -> Dictionary:
+	var pg := {}
+	var from := 0.3
+	for p in q.get("state_predicates", []):
+		if not (p is Dictionary):
+			continue
+		if str(p.get("type", "")) == "purity_at_most":
+			pg = p
+		elif str(p.get("type", "")) == "coherence_fell":
+			from = float(p.get("from", 0.3))
+	if pg.is_empty():
+		return {}
+	var g := _gray(pg, q)
+	if g.is_empty():
+		return {}
+	var here := UIP._active_biome_name()
+	if not (_biome_open(here) and _biome_has_bath(here)):
+		return g  # travel there first
+	var qm = UIP._quest_manager()
+	var sp = qm.get("_state_projection") if qm != null else null
+	var mark := 0.0
+	if sp != null and "_coherence_watermark" in sp:
+		mark = float(sp._coherence_watermark.get(here, 0.0))
+	if mark < from:
+		return g  # hold it coherent first: the gray walk superposes
+	return _wait("the Bath is draining %s's color — hands off, wait" % biome_label(here), q, "fade")
+
+
+## Quiet a biome's surface (coherence_fell): the Druid spins the plot that
+## sits most on its side toward its nearer pole (Spin + up, Spin − down).
+## Still the Pond used to read the retired dynamics channel, -1 forever: no
+## key could finish it (2026-11-09).
+static func _still(q: Dictionary) -> Dictionary:
+	var fade := _fade(q)
+	if not fade.is_empty():
+		return fade
+	var biome := UIP._active_biome_name()
+	var col := -1
+	var side := 2.0
+	var north := 0.5
+	for c in range(_live_cols(biome)):
+		if not _is_revealed(biome, c):
+			continue
+		var n := _north_pct(biome, c)
+		if abs(n - 0.5) < side:
+			side = abs(n - 0.5)
+			col = c
+			north = n
+	if col < 0:
+		return _reveal(_first_live_col(biome), q)
+	var h := _hat("druid", q)
+	if not h.is_empty():
+		return h
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("spin it toward its nearer pole until the churn settles")
+	parts.append(["Spin +", "R"] if north >= 0.5 else ["Spin −", "Q"])
+	return _chord(parts, q, "still")
 
 
 ## Let a biome evolve and read itself: stand in it and run its clock fast.
@@ -1380,7 +2119,7 @@ static func _evolve(biome: String, q: Dictionary) -> Dictionary:
 		return t
 	var farm = UIP._active_farm()
 	var b = farm.grid.get_biome(UIP._active_biome_name()) if farm != null and farm.grid != null else null
-	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(["let it evolve", ["faster clock", _verb("faster")]], q, "clock")
 	return _wait("let it evolve — wait", q, "evolve")
 
@@ -1402,15 +2141,41 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 	var held = _frozen(col, biome)
 	if held != null and str(held.measured_outcome) == emoji:
 		return _wait("%s holds at %s — wait for it to settle" % [emoji, biome], q, "hold")
+	if held == null:
+		var lift := _lift_off_pole(biome, col, emoji, q)
+		if not lift.is_empty():
+			return lift
 	# Needs a fresh probe and none is free: fetch one before the trip, or the
 	# fetch and the trip pull opposite ways.
 	if held == null and not farm.terminal_pool.is_register_bound(col, biome):
 		var fr0 := _free_terminal(q)
 		if not fr0.is_empty():
 			return fr0
+	# The strike's 👥 is decided before the trip, or the supply trip and this
+	# one pull opposite ways ("to Shrine" ⇄ "to Village", sk27).
+	# Price the verb the trip leads to: a held or banked plot is gathered
+	# (🧺), anything else is struck (👥). Checking only 👥 sent sk31 back and
+	# forth for the 🧺 the release needed.
+	var pool = farm.terminal_pool
+	var tm = pool.get_measured_terminal_for_register(col, biome) if pool != null and pool.has_method("get_measured_terminal_for_register") else null
+	if tm == null and pool != null and pool.has_method("get_terminal_for_register"):
+		tm = pool.get_terminal_for_register(col, biome)
+	var gathers: bool = held != null or (tm != null and (bool(tm.is_measured) or (tm.has_method("has_banked") and tm.has_banked())))
+	var spend := "🧺" if gathers else "👥"
+	var price := float(UIP.gather_price()) if gathers else 1.0
+	if UIP._wallet(spend) < price:
+		var sup := _supply(spend, q, 1)
+		if not sup.is_empty():
+			return sup
 	var t := _travel(biome, q)
 	if not t.is_empty():
 		return t
+	# The tip wears the Druid; it must come before the Ace hat or the two
+	# undo each other ("Druid hat [0]" ⇄ "Ace hat [8]", sk29/dk26).
+	if held == null and UIP._plot_bound(col) and not UIP._plot_measured(col) and _live_col() == col:
+		var tip0 := _tip_toward(emoji, q)
+		if not tip0.is_empty():
+			return tip0
 	var h := _hat("ace", q)
 	if not h.is_empty():
 		return h
@@ -1421,8 +2186,12 @@ static func _steer(biome: String, emoji: String, q: Dictionary) -> Dictionary:
 		parts.append(["release", _verb("gather")])
 		return _cost_or(["gather", "🧺"], _chord(parts, q, "release"), q, 0)
 	if UIP._plot_bound(col):
+		# sf6 (50 flags, Fill the Urn): the plot sat at 100% 💀, so every strike
+		# landed 💀 and the follower spent its 👥 to 0 on "Strike for ⚱", then
+		# repeated a refused strike. Tip toward the pole first (bounded, as in
+		# the gather), and the strike pays 👥 — route a supply when out.
 		parts.append(["Strike for " + emoji, _verb("strike")])
-		return _chord(parts, q, "steer")
+		return _cost_or(["strike", "👥"], _chord(parts, q, "steer"), q, 0)
 	if _tracked(col):
 		return _evolve(biome, q)  # Ace F fast-forwards on a tracked plot; let time steer it
 	var fr := _free_terminal(q)
@@ -1465,6 +2234,13 @@ static func _free_terminal(q: Dictionary, protect: Array = []) -> Dictionary:
 		return {}
 	var biome := str(best.measured_biome_name if bool(best.is_measured) and str(best.measured_biome_name) != "" else best.bound_biome_name)
 	var col := int(best.measured_register_id if bool(best.is_measured) and int(best.measured_register_id) >= 0 else best.bound_register_id)
+	# Pay before the trip: with 0 👥 and 0 🧺 this walked to a probe it could
+	# neither strike nor gather, then back ("to Shrine" ⇄ "to Village", sf6).
+	var spend := "🧺" if bool(best.is_measured) or (best.has_method("has_banked") and best.has_banked()) else "👥"
+	if UIP._wallet(spend) < 1.0:
+		var sup := _supply(spend, q, 1)
+		if not sup.is_empty():
+			return sup
 	var tr := _travel(biome, q)
 	if not tr.is_empty():
 		return tr
@@ -1528,6 +2304,14 @@ static func _make_room(biome: String, atom: String, q: Dictionary) -> Dictionary
 	var h := _hat("icon", q)
 	if not h.is_empty():
 		return h
+	# Q arms the trim; the armed confirm read as "something open", so the
+	# chord led with close [ESC] — which cancels it. A first-key follower
+	# alternated Q, ESC for 800 presses (strict follower from zero, 21 flags).
+	if UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		if lbl.begins_with("Trim"):
+			return _chord(["the ring is full", ["confirm " + lbl, "F"]], q, "make room confirm")
 	var parts: Array = _close_first() + ["the ring is full"]
 	if UIP._focused_col() != col:
 		parts.append_array(_pick_plot(col))
@@ -1542,6 +2326,41 @@ static func _cull(q: Dictionary) -> Dictionary:
 	var want := UIP._named_cull_target()
 	if want == "":
 		return {}
+	# Same trap as the Trim (befa861c): Q arms the cull, the armed confirm
+	# read as an open surface, the chord led with ESC, ESC cancelled it. A
+	# strict follower from zero hit it at 37 flags and alternated Q/ESC.
+	if UIP._cull_confirm_pending():
+		var qii = UIP._instrument_input()
+		var lbl := str(qii.pending_confirm_label()) if qii != null and qii.has_method("pending_confirm_label") else ""
+		if lbl.begins_with("Cull"):
+			return _chord(["biome slots full", ["confirm " + lbl, "F"]], q, "cull confirm")
+	# The choice is the player's (owner call 2026-11-11): away from every
+	# cullable biome, offer them all by their travel keys; standing in one,
+	# that one is the pick (the farm's own rule prefers where you stand), and
+	# the others stay named as the alternative.
+	var farm = UIP._active_farm()
+	var options: Array = farm.cullable_biomes() if farm != null and farm.has_method("cullable_biomes") else []
+	var abm := UIP._active_biome_manager()
+	var here := UIP._active_biome_name()
+	if not options.is_empty() and abm != null:
+		var keyed: Array = []
+		var keyed_keys: Array = []
+		for n in options:
+			var slot := int(abm.get_slot_for_biome(str(n)))
+			if slot >= 0 and str(n) != here:
+				keyed.append("%s [%s]" % [biome_label(str(n)), str(abm.get_slot_key(slot)).to_upper()])
+				keyed_keys.append(str(abm.get_slot_key(slot)).to_upper())
+		if not options.has(here):
+			if not keyed.is_empty():
+				# One segment joined by "or": as chord steps the options read as
+				# a sequence ("Zeno Latch [O] → Shrine Of Ashes [P]", kd run).
+				# Say what letting go costs (orchestrator earn6 culled the Spring
+				# blind): remove_biome liquidates it, lock_biome re-pools it.
+				var choose := _chord(_close_first() + ["biome slots full — pick one to let go (its stock is paid out, and you can find it again): " + " or ".join(PackedStringArray(keyed.slice(0, 3)))], q, "cull choose")
+				(choose["keys"] as Array).append_array(keyed_keys.slice(0, 3))
+				return choose
+		else:
+			want = here
 	var t := _travel(want, q)
 	if not t.is_empty():
 		return t
@@ -1599,6 +2418,139 @@ static func _is_revealed(biome: String, col: int) -> bool:
 	return bool(farm.is_plot_revealed(pos))
 
 
+## Before the first strike on a fresh plot whose other pole is likelier
+## (🌱 on a 💀-leaning plot), the Druid tips it toward `res`: a strike then
+## mostly lands on `res`, and the bank keeps paying it (owner call
+## 2026-11-09 — the Druid lesson put to work, instead of 20 strikes at 26%).
+## Hysteresis (tip from <40%, stop at ≥50%) so free evolution can't ping-pong
+## Druid⇄Ace. Post-tutorial only: Act 0 drives keep their exact press count.
+const TIP_MS := 20000         # tip for at most this long per plot …
+const TIP_FORGET_MS := 120000  # … then leave that plot to the strike for a while
+static var _tips := {}
+static var _picker_seen := {}
+static var _tip_p0 := {}
+const TIP_STALL_MS := 5000
+
+
+static func _tip_toward(res: String, q: Dictionary) -> Dictionary:
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var biome := UIP._active_biome_name()
+	var col := _live_col()
+	if col < 0 or not UIP._plot_bound(col) or UIP._plot_measured(col) or _frozen(col, biome) != null:
+		return {}
+	var term = UIP._plot_terminal(col)
+	if term == null or not ("strikes" in term) or term.strikes.size() > 0:
+		return {}
+	var axis := _axis_glyphs(biome, col)
+	var north_is := axis.size() == 2 and str(axis[0]) == res
+	if axis.size() != 2 or (not north_is and str(axis[1]) != res):
+		return {}
+	var p := _north_pct(biome, col)
+	if not north_is:
+		p = 1.0 - p
+	var in_druid: bool = str(ToolConfig.get_current_frame()) == "druid"
+	if p >= (0.5 if in_druid else 0.4):
+		return {}
+	# A stirring biome can swing the plot back between spins (sf2: 33%↔59% for
+	# a dozen spins). Tip for a short while, then strike whatever the odds.
+	# (Timed, not counted: the banner re-reads this every half second.)
+	var tkey := "%s|%d|%s" % [biome, col, res]
+	var now := Time.get_ticks_msec()
+	if not _tips.has(tkey) or now - int(_tips[tkey]) > TIP_FORGET_MS:
+		_tips[tkey] = now
+		_tip_p0[tkey] = p
+	if now - int(_tips[tkey]) > TIP_MS:
+		return {}
+	# A pinned pole (the Shrine's 💀 at 100%: dissipation undoes every spin)
+	# never moves — give up after a few seconds instead of spinning out the
+	# budget (sk30: ten "Spin −" at 0%).
+	if now - int(_tips[tkey]) > TIP_STALL_MS and p <= float(_tip_p0.get(tkey, p)) + 0.01:
+		return {}
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	var other := str(axis[1]) if north_is else str(axis[0])
+	var parts: Array = _close_first() + ["tip it from %s toward %s, then strike (%d%%)" % [other, res, int(round(p * 100.0))]]
+	parts.append(["Spin +", "R"] if north_is else ["Spin −", "Q"])
+	return _chord(parts, q, "tip")
+
+
+## A plot pinned on the far pole (the Shrine's urn at 100% 💀) never moves
+## for strikes or small spins: dissipation pulls a nudge straight back.
+## Druid Superpose lifts it to the equator in one press, past the basin's
+## tipping point, and the urn fills itself (urn11, 2026-11-11: ⚱ 0% → 100%,
+## held with hands off). Try it once per plot a while; if the pole pulls it
+## straight back, leave the plot to the strike walk.
+const LIFT_PINNED_P := 0.05
+const LIFT_RETRY_MS := 20000
+static var _lifts := {}
+
+
+static func _lift_off_pole(biome: String, col: int, res: String, q: Dictionary) -> Dictionary:
+	# Banked strikes don't block it: Superpose acts on ρ, which a strike
+	# leaves alone. (Skipping measured plots only where you stand sent the
+	# follower Shrine ⇄ Village: the Village walked it to the Shrine, the
+	# Shrine skipped the lift and walked it back for 🧺.)
+	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
+		return {}
+	var axis := _axis_glyphs(biome, col)
+	if axis.size() != 2 or (str(axis[0]) != res and str(axis[1]) != res):
+		return {}
+	var p := _north_pct(biome, col)
+	if str(axis[0]) != res:
+		p = 1.0 - p
+	if p < 0.0 or p >= LIFT_PINNED_P:
+		return {}
+	var lkey := "%s|%d|%s" % [biome, col, res]
+	var now := Time.get_ticks_msec()
+	if _lifts.has(lkey) and now - int(_lifts[lkey]) < LIFT_RETRY_MS * 6 \
+			and now - int(_lifts[lkey]) > LIFT_RETRY_MS:
+		return {}  # superposed already and the pole took it back
+	var t := _travel(biome, q)
+	if not t.is_empty():
+		return t
+	var hd := _hat("druid", q)
+	if not hd.is_empty():
+		return hd
+	if not _lifts.has(lkey) or now - int(_lifts[lkey]) >= LIFT_RETRY_MS * 6:
+		_lifts[lkey] = now
+	var other := str(axis[1]) if str(axis[0]) == res else str(axis[0])
+	var parts: Array = _close_first()
+	if _live_col() != col:
+		parts.append_array(_pick_plot(col))
+	parts.append("lift it off the %s pole toward %s" % [other, res])
+	parts.append(["Superpose", "E"])
+	return _chord(parts, q, "lift")
+
+
+## [north, south] glyphs a revealed plot wears; [] when unknown.
+static func _axis_glyphs(biome: String, col: int) -> Array:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null:
+		return []
+	var b = farm.grid.get_biome(biome)
+	if b == null or not ("viz_cache" in b) or b.viz_cache == null or not b.viz_cache.has_metadata():
+		return []
+	var ax: Dictionary = b.viz_cache.get_axis(col)
+	if ax.is_empty():
+		return []
+	return [str(ax.get("north", "")), str(ax.get("south", ""))]
+
+
+## Weight toward a plot's north glyph (the bubble's visible size/tint), 0.5
+## when unknown — the same viz_cache Bloch read the field draws from.
+static func _north_pct(biome: String, col: int) -> float:
+	var farm = UIP._active_farm()
+	if farm == null or farm.grid == null:
+		return 0.5
+	var b = farm.grid.get_biome(biome)
+	if b == null or not ("viz_cache" in b) or b.viz_cache == null or not b.viz_cache.has_metadata():
+		return 0.5
+	var bl: Dictionary = b.viz_cache.get_bloch(col)
+	return float(bl.get("p0", 0.5)) if not bl.is_empty() else 0.5
+
+
 ## The first revealed live column, starting at `start` and wrapping; -1 if none.
 static func _first_revealed(biome: String, start: int = 0) -> int:
 	var n := _live_cols(biome)
@@ -1648,7 +2600,7 @@ static func _take_in_loop(biome: String, col: int, res: String, q: Dictionary) -
 		return _chord(parts, q, "take in loop")
 	if UIP._sim_paused():
 		return _chord(_close_first() + [label, ["Ace hat", _hat_key("ace")], ["resume", "E"]], q, "resume")
-	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)):
+	if b != null and int(GranularityController.get_current_stride([b])) < int(_km().get("clock_max_stride", 32)) and _clock_room():
 		return _chord(_close_first() + [label, ["faster clock", _verb("faster")]], q, "clock")
 	return _wait(label + " — wait for it to ripen, then Incorporate [R]", q, "tracked")
 

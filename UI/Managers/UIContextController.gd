@@ -478,6 +478,10 @@ func _ground_is_open() -> bool:
 
 func _apply_runtime_state(actions: Dictionary) -> void:
 	var runtime_availability = _resolve_runtime_availability()
+	# Open country (QuantumComputer.is_open_here — the jolt's own gate) runs the
+	# open verbs even in a closed game: keeper sitting 14 never pressed a
+	# working Spark jolt in Gilded Rot because the chip wore the DLC 🔒.
+	# (main's _ground_is_open reads the selected plot's biome first.)
 	var closed_mode := not _ground_is_open()
 	for action_key in ACTION_KEYS:
 		if not actions.has(action_key):
