@@ -60,6 +60,7 @@ func _physics_process(delta: float) -> void:
 	var t0 = Time.get_ticks_usec()
 	# Story flags don't require a biome — evaluate unconditionally.
 	_evaluate_story_flags()
+	_tick_wayfinding_lesson(delta)
 	# Neither does retirement: an act boundary is a campaign fact, not a physics
 	# reading. This MUST stay above the current_biome guard below — otherwise a
 	# fresh load (whose current_biome is briefly null) never sweeps, which is
@@ -416,6 +417,67 @@ func maybe_start_tutorial(farm) -> void:
 ## always >>> hard rules. A consequence: wide-width predicates fire at high confidence, a touch
 ## past their nominal threshold; this constant is the single dial for earlier/later firing.)
 const FLAG_FIRE_THRESHOLD: float = 0.85
+
+
+## Wayfinding (issue #83): explore every bubble by hand, look around, then Mass
+## Explore. The step's `redarken_biome` names the field that goes back to fog once
+## the player has looked around, so Shift+F has something to open. The look-around
+## is optional: a player who never drags (keyboard, no pointer) is credited after
+## ORBIT_GRACE_SEC with the field explored. COSMETIC fog only (anti-gating law).
+const ORBIT_GRACE_SEC: float = 25.0
+var _orbit_wait: float = 0.0
+var _redarkened_quest_ids: Dictionary = {}
+
+
+## Lifetime count of a recorded gate (the durable ledger gate_sequence_contains reads).
+func gate_count(gate: String) -> int:
+	return int(_state_projection.gate_counters.get(gate, 0)) if _state_projection != null else 0
+
+
+func _wayfinding_def(quest: Dictionary) -> Dictionary:
+	if str(quest.get("category", "")) != "TUTORIAL":
+		return {}
+	for step in _tutorial_steps:
+		if step is Dictionary and str(step.get("tutorial_teaches", "")) == str(quest.get("tutorial_teaches", "-")) \
+				and str(step.get("redarken_biome", "")) != "":
+			return step
+	return {}
+
+
+func _tick_wayfinding_lesson(delta: float) -> void:
+	if _state_projection == null or _tutorial_steps.is_empty():
+		return
+	var farm = _get_active_farm()
+	if farm == null or farm.grid == null or not farm.has_method("is_boot_finalized") or not farm.is_boot_finalized():
+		return
+	for q in active_quests.values():
+		if not (q is Dictionary):
+			continue
+		var def := _wayfinding_def(q)
+		if def.is_empty():
+			continue
+		var biome := str(def.get("redarken_biome", ""))
+		var explored := evaluate_predicate_score({"type": "biome_explored", "biome": biome}) >= 1.0
+		var qid := int(q.get("id", -1))
+		if _redarkened_quest_ids.has(qid):
+			return
+		if int(_state_projection.gate_counters.get("orbit", 0)) == 0:
+			if not explored:
+				_orbit_wait = 0.0
+				return
+			_orbit_wait += delta
+			if _orbit_wait < ORBIT_GRACE_SEC:
+				return
+			_state_projection.record_action("orbit", {"auto": true})
+		if not explored:
+			return
+		# Looked around: fog the field again for the Mass Explore half.
+		_redarkened_quest_ids[qid] = true
+		var assigned: Dictionary = farm.grid.get_plot_biome_assignments()
+		for pos in assigned:
+			if str(assigned[pos]) == biome:
+				farm.unreveal_plot(pos)
+		return
 
 
 func _evaluate_story_flags() -> void:
