@@ -114,15 +114,14 @@ def test_f_follows_a_live_toast_into_its_menu():
 
 
 def test_arc_row_is_inspect_then_shunt_never_accept():
-    """Arc: first tap inspects; a confirm tap accepts an offer (same path as
-    R) or shunts any other row to its puzzle. Selecting never accepts."""
+    """Arc: first tap inspects; R accepts an offer; a confirm tap only flashes it, or shunts any other row to its puzzle. Selecting never accepts."""
     arc = src(ROOT / "UI" / "Overlays" / "ControlsOverlay.gd")
     select = arc.split("func _select_arc_row")[1].split("\nfunc ")[0]
     assert "_tunnel_from_arc" in select
     assert "accept_quest" not in select
     assert "_on_action_r()" not in select
     ladder = src(LADDER)
-    assert "confirm tap accepts" in ladder
+    assert "confirm tap accepts" not in ladder
 
 
 def test_market_is_one_board_with_stalls():

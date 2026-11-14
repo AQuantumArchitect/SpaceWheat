@@ -271,7 +271,7 @@ static func route_claim(q: Dictionary = {}) -> String:
 	var qm = _quest_manager()
 	if not q.is_empty() and qm != null and qm.has_method("is_charge_hold") and bool(qm.is_charge_hold(q)):
 		return "tap 📖 [X], %s [%s], its row, then Claim [R]" % [SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD]
-	return "tap 📋 [C], its row twice (Claim [R])"
+	return "tap 📋 [C], its row for details, then Claim [R]"
 
 
 ## True when the live ask is a goods delivery (the mill, a market stall).
