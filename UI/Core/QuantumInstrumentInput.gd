@@ -2078,6 +2078,38 @@ func handle_bubble_tap(grid_pos: Vector2i, shift: bool = false) -> Dictionary:
 			return _run_action("pop", "🎉", "Gather")
 
 
+## Right click on a plot = Q (gather): pulls the banked resources off a struck
+## plot. Mouse only — touch keeps the on-screen Q button. Unlike the left-click
+## tap there is no select step: gather never disturbs state, so it is safe to
+## fire at once. Empty, unstruck or already-gathered plots are a SILENT no-op
+## (no toast, no focus move). Same overlay modality and validator as the tap.
+func handle_bubble_gather(grid_pos: Vector2i) -> Dictionary:
+	if not farm or not _instrument or not _active_biome_mgr or not farm.grid:
+		return {"success": false, "error": "not_ready", "message": ""}
+	if _tap_blocked_by_overlay():
+		return {"success": false, "error": "overlay_open", "message": ""}
+	var biome_name: String = ""
+	if farm.grid.has_method("get_plot_biome_assignment"):
+		biome_name = str(farm.grid.get_plot_biome_assignment(grid_pos))
+	# Only the biome in view gathers; a miniature never fires a verb unseen.
+	if biome_name == "" or biome_name != _active_biome_mgr.get_active_biome():
+		return {"success": false, "noop": true}
+	if farm.grid_config and grid_pos.x >= farm.grid_config.grid_width:
+		return {"success": false, "noop": true}
+	var plot_count = _get_active_biome_plot_count()
+	if plot_count > 0 and grid_pos.x >= plot_count:
+		return {"success": false, "noop": true}
+	if predict_tap_verb(grid_pos) != "pop":
+		return {"success": false, "noop": true}
+	_cancel_pending_confirm()
+	_focus_plot(grid_pos.x, biome_name)
+	if not ActionValidator.can_execute_action_name(
+		"pop", farm, _get_selected_positions(), _get_grid_position()
+	):
+		return {"success": false, "blocked": true, "action": "pop"}
+	return _run_action("pop", "🎉", "Gather")
+
+
 ## The select-only tap's one-liner: names what the NEXT tap on this plot will do.
 ## Says it only a few times per run (_tap_select_hints_left) — it exists to teach
 ## the rule, not to narrate every tap. Words only; no mechanics.
