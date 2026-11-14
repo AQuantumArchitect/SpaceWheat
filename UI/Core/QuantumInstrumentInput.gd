@@ -263,11 +263,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	if ToolConfig.HAT_KEY_TO_FRAME.has(key):
 		var hat_frame: String = ToolConfig.HAT_KEY_TO_FRAME[key]
 		var target_frame: String = ToolConfig.FRAME_ACE if ToolConfig.get_current_frame() == hat_frame else hat_frame
-		# Progressive disclosure (phase-2 funnel): a locked hat's key redirects
-		# instead of acting. Only Ace never locks (starter kit); the
-		# fall-back-to-Ace re-press path always passes.
+		# Progressive disclosure: a locked hat is not a thing the player can
+		# press, so its key does nothing (no toast). Only Ace never locks
+		# (starter kit); the fall-back-to-Ace re-press path always passes.
 		if not UIProgression.is_hat_active(target_frame):
-			UIProgression.redirect_locked("the %s hat" % target_frame)
+			if _verbose:
+				_verbose.debug("input", "~", "hat key %s ignored: %s hat locked" % [key, target_frame])
 			_mark_key_handled()
 			return
 		_select_frame_hat(target_frame)
