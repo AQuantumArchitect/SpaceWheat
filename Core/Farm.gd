@@ -84,7 +84,8 @@ func is_plot_revealed(grid_pos: Vector2i) -> bool:
 ## slot goes back to fog until the player touches it again). COSMETIC — the
 ## inverse of reveal_plot, same anti-gating law: never gate mechanics on it.
 func unreveal_plot(grid_pos: Vector2i) -> void:
-	revealed_plots.erase(grid_pos)
+	if revealed_plots.erase(grid_pos):
+		plot_unrevealed.emit(grid_pos)
 
 # Icon system now managed by the shared IconRegistry.
 
@@ -208,6 +209,7 @@ signal identity_band_changed(prev_band: String, new_band: String, purity: float,
 ## First time the player's focus lands on a plot (cursor selection or any action on it).
 ## Cosmetic reveal signal — the force graph wakes that plot's bubble. Fires once per plot.
 signal plot_revealed(grid_pos: Vector2i)
+signal plot_unrevealed(grid_pos: Vector2i)   # fog came back on a plot (a re-darkened lesson field)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

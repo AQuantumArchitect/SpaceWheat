@@ -283,6 +283,8 @@ func _connect_reveal_signals(farm: Node) -> void:
 		return
 	if farm.has_signal("plot_revealed") and not farm.plot_revealed.is_connected(_on_plot_revealed):
 		farm.plot_revealed.connect(_on_plot_revealed)
+	if farm.has_signal("plot_unrevealed") and not farm.plot_unrevealed.is_connected(_on_plot_unrevealed):
+		farm.plot_unrevealed.connect(_on_plot_unrevealed)
 	if farm.has_signal("terminal_released") and not farm.terminal_released.is_connected(_on_terminal_released):
 		farm.terminal_released.connect(_on_terminal_released)
 
@@ -309,6 +311,13 @@ func _on_plot_revealed(grid_pos: Vector2i) -> void:
 	for b in _bubbles:
 		if b.get("grid_pos") == grid_pos:
 			_set_bubble_revealed(b, true)
+	_update_selection_visuals()
+
+
+func _on_plot_unrevealed(grid_pos: Vector2i) -> void:
+	for b in _bubbles:
+		if b.get("grid_pos") == grid_pos:
+			_set_bubble_revealed(b, false)
 	_update_selection_visuals()
 
 
@@ -1757,6 +1766,19 @@ func _clear_lindblad_glyphs() -> void:
 	_lindblad_glyphs.clear()
 
 
+## The first meaningful orbit drag is a campaign fact (wayfinding: "look around").
+## Recorded once per field as the "orbit" gate; touch drags arrive as emulated mouse.
+const ORBIT_LESSON_PX: float = 60.0
+var _orbit_travel: float = 0.0
+var _orbit_noted: bool = false
+
+
+func _note_orbit() -> void:
+	var qm = InstrumentLocator.resolve_quest_manager(self, farm_ref)
+	if qm != null and qm.has_method("record_quantum_action"):
+		qm.record_quantum_action("orbit", {})
+
+
 func _gui_input(ev: InputEvent) -> void:
 	if ev is InputEventMouse:
 		_pointer_pos = ev.position
@@ -1803,6 +1825,10 @@ func _gui_input(ev: InputEvent) -> void:
 				_flash_orb(hit)
 		elif _press_moved:
 			_dragging = true
+			_orbit_travel += ev.relative.length()
+			if _orbit_travel >= ORBIT_LESSON_PX and not _orbit_noted:
+				_orbit_noted = true
+				_note_orbit()
 			_pivot.rotate_object_local(Vector3.UP, ev.relative.x * 0.008)
 			_pivot.rotate_object_local(Vector3.RIGHT, ev.relative.y * 0.008)
 
