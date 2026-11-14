@@ -97,6 +97,14 @@ Hamiltonian), and a faction that trusts you **pays better** (the ⭐ bonus on
 its board rows). The objective portal (top-right) always names the one live
 task and the next door behind it; tap it for the Arc.
 
+Market prices are live. Each second the board reprices every offer from the
+biome's state, so an ask rises (▲) and falls (▼) while you watch: the rarer
+the good is right now, the more it asks. **F** locks the selected offer's
+price for 60 seconds of play without accepting it (three locks at once,
+free; the clock stops while time is paused). The locked row shows the time
+left and where the live price has gone. **R** accepts at whatever price the
+row shows. Trades (the rescue stalls) have a fixed table price and never move.
+
 ## Berries — how the mid-game moves
 
 From act 3 (*What the Land Remembers*) the acts advance on **incorporated

@@ -149,6 +149,37 @@ FROZEN_SCHEMAS = {
         "quest_state",
         "incorporated_icons",
     },
+    # v8 (2026-11-13): + market_state — the market's locks (MarketLattice.
+    # to_save_dict: each locked offer with its frozen quote, its board row and
+    # its seconds left). Additive. Migration from v4–v7 = the empty dict → no
+    # locks (GameStateSerializer.apply_state_to_farm handles ==4..==7
+    # explicitly); unheld offers were never saved and requote from ρ.
+    8: {
+        "scenario_id", "save_timestamp", "game_time", "quantum_time_scale",
+        "observation_stride", "save_version", "advanced_mode_enabled",
+        "grid_width", "grid_height",
+        "all_emoji_credits", "tributes_paid", "tributes_failed",
+        "known_icons", "active_icon_slots", "known_emojis",
+        "atom_map_snapshot", "atom_map_snapshot_source", "atom_map_snapshot_time",
+        "policy_state", "policy_graph_path", "policy_graph_jsonl",
+        "balance_profile_id", "balance_workbench_config",
+        "farm_variable_graph_path", "farm_variable_graph_jsonl",
+        "economy_variables", "reap_count",
+        "faction_density", "bridges",
+        "story_flags_fired", "story_log",
+        "faction_standings", "player_alignment", "player_faction_name",
+        "unlocked_biomes", "unexplored_biome_pool", "active_biome_name",
+        "selected_plot_positions", "revealed_plots",
+        "quest_pages", "quest_board_current_page",
+        "plots",
+        "biotic_activation", "chaos_activation", "imperium_activation",
+        "active_contracts",
+        "biome_states", "plot_biome_assignments",
+        "witness_state",
+        "quest_state",
+        "incorporated_icons",
+        "market_state",
+    },
 }
 
 

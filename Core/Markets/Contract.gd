@@ -1,23 +1,33 @@
 class_name MarketContract
 extends RefCounted
 
-## Contract — pure record describing the right to measure a specific qubit on a
-## specific biome. The qubit itself lives on biome.qc; this record holds only
-## the metadata of the right.
+## Contract — the one contract record: a faction's offer on one axis (emoji and
+## pole) of one biome. The qubit lives on biome.qc; this record holds the terms.
 ##
-## Lifecycle: open → owned → exercised | expired
-## - open: faction is offering the option; not yet purchased
-## - owned: player paid price_paid; can exercise until expiry_phrame
-## - exercised: player measured the qubit; classical reward delivered
-## - expired: player let the offer/option lapse; no reward
+## Its price is LIVE: MarketLattice.quote() reads the biome's ρ every time the
+## board's heartbeat asks, so an offer's ask moves while you look at it. A LOCK
+## freezes the quote (ask and reward) for LOCK_SECONDS of play without
+## accepting; Accept takes whatever quote is showing. A `table` contract (the
+## campaign's supply trades) never requotes.
 ##
-## Phase VI ships with no save persistence — open offers regenerate from
-## substrate on next view; owned contracts are session-scoped.
+## Lifecycle: open → owned (held: accepted on the board) → exercised | expired
+## - open: on offer; requoted from ρ unless locked
+## - owned: accepted; the held quest dict carries the frozen terms
+## - exercised: delivered — the axis was Born-sampled and collapsed
+## - expired: lapsed
+##
+## Unheld offers are not saved: ρ is, and they requote from it. A locked offer
+## is saved with its lock (MarketLattice.to_save_dict).
 
 const STATUS_OPEN: String = "open"
 const STATUS_OWNED: String = "owned"
 const STATUS_EXERCISED: String = "exercised"
 const STATUS_EXPIRED: String = "expired"
+
+const PRICING_LIVE: String = "live"     # requoted from ρ on the board heartbeat
+const PRICING_TABLE: String = "table"   # a fixed table price (campaign trades)
+const SETTLE_ONCE: String = "once"      # deliver: Born-sample the axis, collapse
+const SETTLE_FLOW: String = "flow"      # a Lindblad channel that ticks (Merchant)
 
 var id: int = 0
 var resource: String = ""           # the emoji being measured (must match biome.qc.qubit())
@@ -30,6 +40,28 @@ var price_paid: float = 0.0         # cost_amount actually paid at buy() time (d
 var cost_emoji: String = ""         # commodity buyer pays in (e.g. "🌾", "🧂"); empty → settle pays in the deliverable resource itself (see MarketLattice._settle)
 var cost_amount: float = 0.0        # how much of cost_emoji is required
 var status: String = STATUS_OPEN
+
+var pricing: String = PRICING_LIVE
+var settle: String = SETTLE_ONCE
+## The prior the arbitrage term prices against: a fixed marginal (a
+## neighbourhood spec's prior, p_prior ≥ 0) or a partner biome's LIVE marginal
+## (prior_biome, pair offers). Neither → no arbitrage term.
+var p_prior: float = -1.0
+var prior_biome: String = ""
+var ask_cap: int = 0                # 0 = uncapped (apprentice re-deals cap at 8)
+var quote_p: float = 0.5            # live marginal the current quote read
+var quote_kT: float = 0.0
+var last_ask: int = 0               # the ask one heartbeat ago (the ▲▼ on the row)
+var lock_seconds_left: float = 0.0  # > 0 while locked
+var locked_view: Dictionary = {}    # the board row as it stood when locked
+
+
+func ask() -> int:
+	return maxi(1, int(round(cost_amount)))
+
+
+func is_locked() -> bool:
+	return lock_seconds_left > 0.0
 
 
 static func make(
@@ -71,7 +103,55 @@ func to_dict() -> Dictionary:
 		"cost_emoji": cost_emoji,
 		"cost_amount": cost_amount,
 		"status": status,
+		"pricing": pricing,
+		"settle": settle,
+		"p_prior": p_prior,
+		"prior_biome": prior_biome,
+		"ask_cap": ask_cap,
+		"quote_p": quote_p,
+		"quote_kT": quote_kT,
+		"last_ask": last_ask,
+		"lock_seconds_left": lock_seconds_left,
+		"locked_view": locked_view.duplicate(true),
+		"meta": {
+			"pair_a": str(get_meta("pair_a", "")),
+			"pair_b": str(get_meta("pair_b", "")),
+			"tension": float(get_meta("tension", 0.0)),
+			"shared": bool(get_meta("shared", false)),
+		},
 	}
+
+
+static func from_dict(d: Dictionary) -> RefCounted:
+	var c = load("res://Core/Markets/Contract.gd").new()
+	c.id = int(d.get("id", 0))
+	c.resource = str(d.get("resource", ""))
+	c.faction = str(d.get("faction", ""))
+	c.biome_name = str(d.get("biome_name", ""))
+	c.qubit_pole = int(d.get("qubit_pole", 1))
+	c.offer_phrame = int(d.get("offer_phrame", 0))
+	c.expiry_phrame = int(d.get("expiry_phrame", 0))
+	c.price_paid = float(d.get("price_paid", 0.0))
+	c.cost_emoji = str(d.get("cost_emoji", ""))
+	c.cost_amount = float(d.get("cost_amount", 0.0))
+	c.status = str(d.get("status", STATUS_OPEN))
+	c.pricing = str(d.get("pricing", PRICING_LIVE))
+	c.settle = str(d.get("settle", SETTLE_ONCE))
+	c.p_prior = float(d.get("p_prior", -1.0))
+	c.prior_biome = str(d.get("prior_biome", ""))
+	c.ask_cap = int(d.get("ask_cap", 0))
+	c.quote_p = float(d.get("quote_p", 0.5))
+	c.quote_kT = float(d.get("quote_kT", 0.0))
+	c.last_ask = int(d.get("last_ask", 0))
+	c.lock_seconds_left = float(d.get("lock_seconds_left", 0.0))
+	var lv = d.get("locked_view", {})
+	c.locked_view = (lv as Dictionary).duplicate(true) if lv is Dictionary else {}
+	var meta = d.get("meta", {})
+	if meta is Dictionary:
+		for k in meta:
+			if str(meta[k]) != "":
+				c.set_meta(str(k), meta[k])
+	return c
 
 
 func to_quest_offer_dict() -> Dictionary:

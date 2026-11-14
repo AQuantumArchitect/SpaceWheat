@@ -474,10 +474,13 @@ func _on_action_r() -> void:
 			pass
 
 func _on_action_f() -> void:
-	# F = confirm an armed abandon (confirm-chord law). Commitments have no
-	# clock, so there is nothing to pin: F does nothing else.
+	# F = confirm an armed abandon (confirm-chord law) on Commitments, which
+	# have no clock. On Market, F locks the selected offer's price (or
+	# unlocks it): the offer stays on offer, its ask stops moving.
 	if frame_id == FRAME_COMMITMENTS and _commitments_view != "history" and _abandon_arm_qid >= 0:
 		_abandon_confirmed()
+	elif frame_id == FRAME_MARKET and str(_selected_market_row().get("kind", "")) == "offer":
+		_toggle_lock_selected()
 
 # =============================================================================
 # INSPECT TEXT — what E pops up as a toast (OverlayBase calls get_inspect_text).
@@ -608,7 +611,8 @@ func _manifold_inspect_text() -> String:
 # Rows read continuously-evolving state (berries N/M held/asked, quest progress
 # bars) and froze at render-time values while the board stayed open (fleet #8:
 # "berries 1/3 unchanged after the second incorporation"). Same heartbeat law
-# as the action bar.
+# as the action bar. The heartbeat also REQUOTES the market from live ρ: an
+# offer's ask moves while you look (owner, 2026-11-13), which is why Lock exists.
 const BOARD_HEARTBEAT_S := 1.0
 var _board_heartbeat_accum: float = 0.0
 
@@ -619,7 +623,149 @@ func _process(delta: float) -> void:
 	_board_heartbeat_accum += delta
 	if _board_heartbeat_accum >= BOARD_HEARTBEAT_S:
 		_board_heartbeat_accum = 0.0
+		_requote_pool()
 		_render_all()
+
+
+func _market_lattice():
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null or not farm.has_method("_ensure_market_lattice"):
+		return null
+	return farm._ensure_market_lattice()
+
+
+## Requote every live offer in the pool from ρ (MarketLattice.requote). An
+## unlocked offer takes the new ask; a locked one keeps its quote and carries
+## the live ask beside it; a trade (table price) never moves. A moved ask
+## re-sorts the ring, so the cursor follows the offer it was on, not the index.
+func _requote_pool() -> void:
+	if _offer_pool.is_empty():
+		return
+	var lattice = _market_lattice()
+	if lattice == null or not lattice.has_method("requote"):
+		return
+	var keep_id = null
+	if frame_id == FRAME_MARKET:
+		var sel: Dictionary = _get_selected_offer()
+		if not sel.is_empty():
+			keep_id = sel.get("id", null)
+	for o in _offer_pool:
+		if not (o is Dictionary) or _is_supply(o) or not o.has("market_offer_id"):
+			continue
+		var c = lattice.get_contract(int(o["market_offer_id"]))
+		if c == null:
+			continue
+		var q: Dictionary = lattice.requote(c)
+		if not bool(q.get("ok", false)):
+			continue
+		if c.is_locked():
+			o["locked"] = true
+			o["lock_seconds_left"] = c.lock_seconds_left
+			o["live_ask"] = int(q.get("live_ask", c.ask()))
+			continue
+		# A lock that ran out rejoins live pricing at today's ask.
+		o.erase("locked")
+		o.erase("lock_seconds_left")
+		o.erase("live_ask")
+		_set_offer_ask(o, c.ask(), c.cost_amount, int(q.get("moved", 0)))
+	MarketView.annotate(_offer_pool, _get_inventory())
+	if keep_id != null:
+		_reselect_offer(keep_id)
+
+
+## Write a new ask into a board row in place. The voiced text carries the
+## number too ("deliver 12× 🌾"); only the number changes, so the phrasing
+## never flickers.
+static func _set_offer_ask(o: Dictionary, ask: int, price: float, moved: int) -> void:
+	var old := int(o.get("quantity", ask))
+	var res := str(o.get("resource", ""))
+	o["quantity"] = ask
+	o["cost_amount"] = price
+	o["quote_moved"] = moved
+	var proj = o.get("market_projection", {})
+	if proj is Dictionary:
+		proj["base_cost"] = ask
+		proj["effective_cost"] = ask
+	if old != ask and res != "":
+		o["body"] = str(o.get("body", "")).replace("deliver %d× %s" % [old, res], "deliver %d× %s" % [ask, res])
+		o["full_text"] = str(o.get("full_text", "")).replace("seek %d× %s" % [old, res], "seek %d× %s" % [ask, res])
+
+
+func _reselect_offer(offer_id) -> void:
+	var rows: Array = _market_rows()
+	for i in range(rows.size()):
+		var data = rows[i].get("data", {})
+		if data is Dictionary and data.get("id", null) == offer_id:
+			if i != _selected_index:
+				_selected_index = i
+				_item_page = clampi(i / MAX_VISIBLE_ITEMS, 0, _item_page_count(rows.size()) - 1)
+			return
+
+
+## Locked offers stay on the board through any re-deal (E refresh, a biome
+## change, a faction's re-deal): the row is the one the player locked — its ask
+## and its reward — stamped with the time left. Locks from other biomes show
+## too; there are at most MarketLattice.LOCK_SLOTS of them.
+func _inject_locked_offers() -> void:
+	var lattice = _market_lattice()
+	if lattice == null or not lattice.has_method("get_locked_offers"):
+		return
+	var held: Dictionary = quest_manager.active_quests if quest_manager and "active_quests" in quest_manager else {}
+	for c in lattice.get_locked_offers():
+		if c.locked_view.is_empty() or held.has(c.id):
+			continue
+		var row: Dictionary = c.locked_view.duplicate(true)
+		row["locked"] = true
+		row["lock_seconds_left"] = c.lock_seconds_left
+		var placed := false
+		for i in range(_offer_pool.size()):
+			if _offer_pool[i] is Dictionary and _offer_pool[i].get("id", null) == c.id:
+				_offer_pool[i] = row
+				placed = true
+				break
+		if not placed:
+			_offer_pool.append(row)
+	MarketView.annotate(_offer_pool, _get_inventory())
+
+
+## F on the Market tab: lock the selected offer's quote, or unlock it. Free,
+## no obligation, MarketLattice.LOCK_SLOTS at once, LOCK_SECONDS of play.
+## Accept (R) is the promise; Lock only stops the price from moving.
+func _toggle_lock_selected() -> void:
+	var offer: Dictionary = _get_selected_offer()
+	if offer.is_empty():
+		return
+	if _is_supply(offer):
+		_toast_feedback("• a trade's price is fixed — nothing to lock")
+		return
+	var lattice = _market_lattice()
+	var cid := int(offer.get("market_offer_id", -1))
+	if lattice == null or not lattice.has_method("lock") or cid < 0 or lattice.get_contract(cid) == null:
+		_toast_feedback("• this offer can't be locked")
+		return
+	var ask_words := "%s × %d" % [str(offer.get("resource", "?")), int(offer.get("quantity", 0))]
+	if lattice.is_locked(cid):
+		lattice.unlock(cid)
+		offer.erase("locked")
+		offer.erase("lock_seconds_left")
+		offer.erase("live_ask")
+		_toast_feedback("🔓 unlocked — %s moves with the market again" % ask_words)
+		_render_all()
+		return
+	var r: Dictionary = lattice.lock(cid, offer)
+	if not bool(r.get("ok", false)):
+		if str(r.get("error", "")) == "locks_full":
+			_toast_feedback("• locks full (%d/%d) — unlock one or accept it [R]" % [
+				int(r.get("locked", 0)), int(r.get("slots", 0))])
+		else:
+			_toast_feedback("✗ couldn't lock this offer (%s)" % str(r.get("error", "?")))
+		return
+	offer["locked"] = true
+	offer["lock_seconds_left"] = float(r.get("seconds_left", 0.0))
+	offer["live_ask"] = int(offer.get("quantity", 0))
+	_toast_feedback("🔒 %s held for %ds (%d/%d locks) — [R] accepts at this price" % [
+		ask_words, int(round(float(r.get("seconds_left", 0.0)))), int(r.get("locked", 0)), int(r.get("slots", 0))])
+	_render_all()
 
 
 func _render_all() -> void:
@@ -645,7 +791,7 @@ func _refresh_close_hint() -> void:
 	var paging_hint := "  ·  A/D page" if _current_row_count() > MAX_VISIBLE_ITEMS else ""
 	if frame_id == FRAME_MARKET:
 		var sort_label := str(MARKET_SORT_LABELS.get(_market_sort_mode, "?"))
-		_close_hint.text = "tap a row — again to act  ·  ESC close  ·  T Y U tabs%s  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % [paging_hint, sort_label]
+		_close_hint.text = "tap a row — again to act  ·  prices move live, [F] locks one  ·  ESC close  ·  T Y U tabs%s  ·  [1] Comfort↓  [2] Magnitude↓  [3] Tension↓  ·  active: %s" % [paging_hint, sort_label]
 	else:
 		_close_hint.text = "tap a row  ·  ESC close   ·   T Y U tabs%s" % paging_hint
 
@@ -724,7 +870,11 @@ func _current_verb_labels() -> Dictionary:
 			var mrow: Dictionary = _selected_market_row()
 			if str(mrow.get("kind", "")) == "held":
 				return _held_verb_labels(mrow.get("data", {}))
-			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": "—"}
+			var mdata = mrow.get("data", {})
+			var f_label := "—"
+			if mdata is Dictionary and not mdata.is_empty() and not _is_supply(mdata):
+				f_label = "Unlock" if bool(mdata.get("locked", false)) else "Lock"
+			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": f_label}
 		FRAME_COMMITMENTS:
 			if _commitments_view == "history":
 				return {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
@@ -1060,7 +1210,12 @@ func _resolve_marginals(biome_name: String) -> Dictionary:
 	var spec = br.get_by_name(biome_name)
 	if spec == null:
 		return {}
-	var static_marg: Dictionary = MarketLattice._static_marginals_from_spec(spec)
+	# Openness is a place: the prior follows the board biome's own regime,
+	# the same prior the market prices against.
+	_ensure_biome()
+	var here_qc = current_biome.quantum_computer if current_biome != null and "quantum_computer" in current_biome else null
+	var closed_here = null if here_qc == null else not MarketLattice._qc_open(here_qc)
+	var static_marg: Dictionary = MarketLattice._static_marginals_from_spec(spec, closed_here)
 	var out: Dictionary = {}
 	for e in static_marg.keys():
 		out[str(e)] = {"q": -1, "p": float(static_marg[e]), "pole": -1}
@@ -1106,6 +1261,10 @@ func _build_market_body() -> void:
 		hands += " — full. deliver or abandon a commitment [U] to take another"
 	else:
 		hands += " · %d open" % free_n
+	# Prices move with ρ; F locks one in place without taking a hand.
+	var lattice = _market_lattice()
+	if lattice != null and lattice.has_method("locked_count"):
+		hands += "  ·  locks %d/%d [F]" % [lattice.locked_count(), MarketLattice.LOCK_SLOTS]
 	_body_box.add_child(_make_muted_label(hands, 11))
 	var rows: Array = _market_rows()
 	if rows.is_empty():
@@ -1165,6 +1324,33 @@ func _offer_reward_text(offer: Dictionary) -> String:
 	return "pays ?"
 
 
+## ▲/▼ when the live ask moved on the last heartbeat (live offers only).
+static func _quote_arrow(offer: Dictionary) -> String:
+	if bool(offer.get("locked", false)):
+		return ""
+	var moved := int(offer.get("quote_moved", 0))
+	if moved > 0:
+		return " ▲"
+	if moved < 0:
+		return " ▼"
+	return ""
+
+
+## "held 42s · now 9▼" on a locked row: the time left and where the live
+## price went, so the player can see whether the lock is worth keeping.
+static func _lock_note(offer: Dictionary) -> String:
+	if not bool(offer.get("locked", false)):
+		return ""
+	var left := int(ceil(float(offer.get("lock_seconds_left", 0.0))))
+	var note := "🔒 held %ds" % left
+	if offer.has("live_ask"):
+		var live := int(offer.get("live_ask", 0))
+		var ask := int(offer.get("quantity", 0))
+		var dir := "▲" if live > ask else ("▼" if live < ask else "=")
+		note += " · now %d%s" % [live, dir]
+	return note
+
+
 func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Control:
 	var row := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
@@ -1200,10 +1386,14 @@ func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Cont
 	top_hbox.add_child(faction_lbl)
 
 	var ask_lbl := Label.new()
-	ask_lbl.text = "%s × %d" % [str(offer.get("resource", "?")), int(offer.get("quantity", 0))]
+	ask_lbl.name = "OfferAsk"
+	ask_lbl.text = "%s%s × %d%s" % [
+		"🔒 " if bool(offer.get("locked", false)) else "",
+		str(offer.get("resource", "?")), int(offer.get("quantity", 0)),
+		_quote_arrow(offer)]
 	ask_lbl.add_theme_font_size_override("font_size", 16)
 	ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
-	ask_lbl.custom_minimum_size = Vector2(110, 0)
+	ask_lbl.custom_minimum_size = Vector2(130, 0)
 	top_hbox.add_child(ask_lbl)
 
 	var share: float = float(offer.get("view_share", 0.0))
@@ -1229,11 +1419,14 @@ func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Cont
 	prov_lbl.add_theme_font_size_override("font_size", 10)
 	prov_lbl.add_theme_color_override("font_color", _tension_color(tension))
 	if _is_supply(offer):
-		prov_lbl.text = "    ⇄ standing trade — always on the %s board" % str(offer.get("biome", ""))
+		prov_lbl.text = "    ⇄ trade · table price, it doesn't move — on the %s board while you're short" % str(offer.get("biome", ""))
 	elif biome_a != "" and biome_b != "":
 		prov_lbl.text = "    from %s ⊗ %s · τ=%.2f" % [biome_a, biome_b, tension]
 	else:
 		prov_lbl.text = "    from %s · τ=%.2f" % [biome_b, tension]
+	var lock_note := _lock_note(offer)
+	if lock_note != "":
+		prov_lbl.text += "  ·  " + lock_note
 	vbox.add_child(prov_lbl)
 
 	# Substrate quartet kept on tooltip.
@@ -1533,6 +1726,7 @@ func _refresh_pool() -> void:
 	# the current biome's board ALWAYS, regardless of the lattice's RNG.
 	_refresh_market_pool()
 	_inject_supply_offers()
+	_inject_locked_offers()
 	_pool_signature = _signature_stamp()
 
 
@@ -1778,6 +1972,10 @@ func _adapt_contracts_for_view(contracts: Array) -> Array:
 	for c in contracts:
 		if c == null:
 			continue
+		# A locked offer keeps the row the player locked (_inject_locked_offers);
+		# re-adapting it would re-roll its reward.
+		if c.has_method("is_locked") and c.is_locked():
+			continue
 		var quest: Dictionary = QuestPipeline.from_market_contract(c, current_biome)
 		if quest.is_empty():
 			continue
@@ -1826,7 +2024,9 @@ func _on_quest_completed(quest_id: int, _rewards: Dictionary = {}) -> void:
 		return
 	var kept: Array = []
 	for o in _offer_pool:
-		if o is Dictionary and not _is_supply(o) and str(o.get("faction", "")) == faction:
+		# A locked offer is not re-dealt: the player froze that quote.
+		if o is Dictionary and not _is_supply(o) and not bool(o.get("locked", false)) \
+				and str(o.get("faction", "")) == faction:
 			continue
 		kept.append(o)
 	_offer_pool = kept
@@ -2342,9 +2542,10 @@ func _accept_selected() -> void:
 			_drop_from_pool(offer.get("id", -1))
 			_render_all()
 			# Raw economy: accepting beyond your means is LEGAL (chaos in the
-			# deal) — but the gap must speak, and Lock is the tool for it
-			# (round-3 tester read the timeout+debt as 'the system's own
-			# mistake' because nothing said 'you hold 5 of 64').
+			# deal) — but the gap must speak (round-3 tester read the debt as
+			# 'the system's own mistake' because nothing said 'you hold 5 of
+			# 64'). The ask accepted is the one on the row: the locked quote
+			# if locked, else this heartbeat's live quote.
 			var ask_res := str(offer.get("resource", ""))
 			var ask_qty := int(offer.get("quantity", 0))
 			var held := 0

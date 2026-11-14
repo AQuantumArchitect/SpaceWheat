@@ -260,6 +260,14 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		# loaded ledger forward rather than silently dropping it from the save.
 		state.quest_state = current_state.quest_state.duplicate(true)
 
+	# Market locks ride the save (v8+). Only locks: unheld offers requote from
+	# the saved ρ, held ones are in quest_state.
+	var lat_capture = farm.market_lattice if farm and "market_lattice" in farm else null
+	if lat_capture != null and lat_capture.has_method("to_save_dict"):
+		state.market_state = lat_capture.to_save_dict()
+	elif current_state and current_state.market_state is Dictionary:
+		state.market_state = current_state.market_state.duplicate(true)
+
 	var money = state.all_emoji_credits.get("💰", 0)
 	_log("info", "save", "📸", "Captured game state: grid=" + str(state.grid_width) + "x" + str(state.grid_height) +
 		", plots=" + str(state.plots.size()) + ", 💰=" + str(money) + ", selected=" + str(state.selected_plot_positions.size()))
@@ -610,6 +618,16 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 			_log("info", "save", "📜", "Restored quest ledger: %d active, %d completed, %d failed (next id %d)" % [
 				saved_quests.get("active", {}).size(), saved_quests.get("completed", []).size(),
 				saved_quests.get("failed", []).size(), int(saved_quests.get("next_quest_id", 0))])
+
+	# Restore the market's locks (v8+). v4–v7 carry none: explicit empty dict,
+	# which clears any lock left over from the session being replaced.
+	var saved_market: Dictionary = {}
+	if state.save_version == 4 or state.save_version == 5 or state.save_version == 6 or state.save_version == 7:
+		saved_market = {}
+	elif state.market_state is Dictionary:
+		saved_market = state.market_state
+	if farm and farm.has_method("_ensure_market_lattice"):
+		farm._ensure_market_lattice().from_save_dict(saved_market)
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 
