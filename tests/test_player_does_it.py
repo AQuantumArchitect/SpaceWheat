@@ -75,6 +75,19 @@ def test_reap_is_ctrl_shift_f_and_shift_f_is_mass_explore():
     assert '"ctrl+shift+F"' in src("Core/Campaign/Guide.gd")
 
 
+def test_reap_is_blocked_while_a_market_commitment_is_open():
+    qi = src("Core/Instrumentation/QuantumInstrument.gd")
+    body = qi.split("func action_reap()")[1].split("\nfunc ")[0]
+    # The gate sits before the reap is dispatched, so key and season button share it.
+    assert body.index("_open_market_commitments()") < body.index("ProbeActions.action_reap")
+    assert '"commitments_outstanding"' in body and "Commitments" in body
+    # It reads market holds only: Charge lessons never block.
+    helper = qi.split("func _open_market_commitments()")[1].split("\nfunc ")[0]
+    assert "commitment_quests()" in helper and "charge_quests" not in helper
+    qm = src("Core/Quests/QuestManager.gd")
+    assert "func is_market_hold(q: Dictionary) -> bool:\n\treturn not is_charge_hold(q)" in qm
+
+
 def test_free_probe_never_gathers_the_plots_the_step_needs():
     guide = src("Core/Campaign/Guide.gd")
     ft = guide.split("static func _free_terminal(")[1].split("\nstatic func ")[0]

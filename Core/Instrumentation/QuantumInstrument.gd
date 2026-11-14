@@ -584,10 +584,38 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 	return result
 
 
+## Market contracts still held, in any market, named for the refusal. Open
+## Charge lessons (story beats) are not market holds and never appear here.
+func _open_market_commitments() -> Array:
+	var qm = _resolve_quest_manager()
+	var out: Array = []
+	if qm == null or not qm.has_method("commitment_quests"):
+		return out
+	for q in qm.commitment_quests():
+		var qty := int(q.get("quantity", 1))
+		var what := "%s%s" % [("×%d " % qty) if qty > 1 else "", str(q.get("resource", ""))]
+		var faction := str(q.get("faction", ""))
+		if faction != "":
+			what = "%s for %s" % [what, faction]
+		what = what.strip_edges()
+		out.append(what if what != "" else str(q.get("display_name", "a commitment")))
+	return out
+
+
 func action_reap() -> Dictionary:
 	var economy = _get_economy()
 	if not farm or not economy:
 		return {"success": false, "error": "no_farm", "message": "Farm not ready"}
+
+	var open_holds := _open_market_commitments()
+	if not open_holds.is_empty():
+		var result_blocked := {
+			"success": false,
+			"error": "commitments_outstanding",
+			"message": "Reap is blocked — %s still open. Fill or drop them on Commitments (C)." % ", ".join(open_holds),
+		}
+		_emit_farm_action("reap", result_blocked)
+		return result_blocked
 
 	var result = ProbeActions.action_reap(farm, economy)
 	# The season ending is the one thing that lets a selection go.
