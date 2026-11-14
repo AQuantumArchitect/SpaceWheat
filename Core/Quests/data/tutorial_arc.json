@@ -69,6 +69,10 @@
           "biome": "StarterForest"
         }
       ],
+      "unlock_flags": [
+        "druid_opens"
+      ],
+      "_unlock_note": "Completing this step fires druid_opens, which shows the Druid hat: the superposition lesson (next) is the first thing that needs it.",
       "display_name": "Past the Hedge"
     },
     {

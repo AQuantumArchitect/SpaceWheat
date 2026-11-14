@@ -427,13 +427,15 @@ const ARCHETYPE_FRAMES: Dictionary = {
 # FRAME MANAGEMENT
 # =============================================================================
 
-## Openness is a place, not a setting: every hat is always selectable. The
-## Lindblad verbs (Spark jolt, Merchant contracts) refuse per-plot wherever the
-## target biome's regime runs closed — QuantumInstrument checks is_open_here()
-## on the actual ground, and the chips grey honestly via ActionValidator. The
-## keyboard is never sealed; the world decides.
-static func is_frame_available(_frame_name: String) -> bool:
-	return true
+## One answer to "which hats does the player have right now": the campaign
+## unlock tables, read through UIProgression (the same call the hat tabs and
+## the hat keys use). No farm (visual tests, early boot) fails open. Openness
+## stays a place, not a setting: the Lindblad verbs refuse per-plot via
+## is_open_here(), never through the hat.
+static func is_frame_available(frame_name: String) -> bool:
+	# Loaded lazily: UIProgression preloads this file.
+	var prog = load("res://UI/Core/UIProgression.gd")
+	return prog.is_hat_active(frame_name)
 
 
 ## Frames selectable in the current system mode, in FRAME_IDS order.
@@ -447,7 +449,7 @@ static func available_frame_ids() -> Array:
 
 static func select_frame(frame_name: String) -> bool:
 	# Select an archetype frame by name. Empty string (FRAME_NULL) = no hat.
-	# Every frame is always selectable — regime gating lives on the verbs, not the hats.
+	# A hat the player has not unlocked is not selectable (is_frame_available).
 	if frame_name == FRAME_NULL:
 		current_frame = frame_name
 		return true

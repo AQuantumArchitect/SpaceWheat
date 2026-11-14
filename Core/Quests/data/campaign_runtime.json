@@ -238,8 +238,16 @@
       "operator": [
         "loom_opens"
       ],
+      "druid": [
+        "druid_opens",
+        "loom_opens"
+      ],
       "merchant": [
         "village_stirs"
+      ],
+      "icon": [
+        "village_stirs",
+        "first_breath"
       ],
       "captain": [
         "woodlot_door",
