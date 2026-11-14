@@ -995,6 +995,9 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		ui_data["north_probability"] = north_prob
 		ui_data["south_probability"] = south_prob
 
+	# Known-word glow (#105): the strike multiplier's own check, on whatever
+	# axis this tile shows.
+	ui_data["word_known"] = ProbeActions.word_known(farm, str(ui_data["north_emoji"]), str(ui_data["south_emoji"]))
 	return ui_data
 
 

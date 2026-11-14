@@ -310,6 +310,13 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
    surprisal `−kT·log p`, times an **incorporation bonus** if that icon is already
    in your signature (closed mode: ~4× flat).
 
+**Known words glow.** A plot whose axis is in `farm.incorporated_icons` wears a
+steady pale-lime halo in every biome (`QuantumField3D`, `PlotTile`; channel
+`bubble.known_word` in `QuantumVisualGrammar`). The glow and the strike bonus
+are one check, `ProbeActions.word_known`, so a glowing plot always pays the
+multiplier and the strike's floating receipt shows it ("+N ×3.5 known word").
+Taught words (`known_icons`) do not glow.
+
 Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 `Core/Markets/EnergyPricing.gd`.
 

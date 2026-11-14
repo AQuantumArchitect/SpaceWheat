@@ -158,6 +158,7 @@ var _metro_dirty := true
 var _lindblad_frame := 0
 var _lindblad_glyphs: Array = []  # {shaft, head, register_id} — pump/drain flow cones, cleared on rebuild
 var _last_biome := ""
+var _known_sig := 0                 # incorporation-ledger signature the known-word halos were drawn for
 # current biome theme colours
 var _glow := Color(0.96, 0.80, 0.36)
 var _orb_base := Color(0.14, 0.11, 0.05)
@@ -722,6 +723,24 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	mi.position = pos
 	_pivot.add_child(mi)
 
+	# known-word halo (#105, QuantumVisualGrammar.CHANNEL_BUBBLE_KNOWN_WORD): a steady
+	# pale shell behind the ball when this register's word is in your vocabulary —
+	# ProbeActions.word_known, the same check that pays the strike multiplier.
+	var halo := MeshInstance3D.new()
+	var hm := SphereMesh.new(); hm.radius = R * 1.24; hm.height = R * 2.48
+	hm.radial_segments = 24; hm.rings = 12
+	halo.mesh = hm
+	var hmat := StandardMaterial3D.new()
+	hmat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	hmat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	hmat.cull_mode = BaseMaterial3D.CULL_FRONT   # back faces only: a soft disc behind the ball
+	var kc: Color = QuantumVisualGrammar.COLOR_KNOWN_WORD
+	hmat.albedo_color = Color(kc.r, kc.g, kc.b, 0.24)
+	halo.material_override = hmat
+	halo.position = pos
+	halo.visible = false
+	_pivot.add_child(halo)
+
 	# equator = the equal-superposition circle (the x–y phase plane), biome hue
 	var eq := MeshInstance3D.new()
 	var etm := TorusMesh.new(); etm.inner_radius = R - 0.004; etm.outer_radius = R + 0.004
@@ -772,7 +791,7 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	_pivot.add_child(ring)
 
 	var slot_lbl := _spawn_slot_label(reg, pos)
-	var b := {"reg": reg, "mesh": mi, "eq": eq, "axisline": axisline, "np": np,
+	var b := {"reg": reg, "mesh": mi, "halo": halo, "known": false, "eq": eq, "axisline": axisline, "np": np,
 		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "anchor": pos, "grid_pos": grid_pos,
 		"trail": [], "north_e": north_emoji, "south_e": south_emoji, "revealed": false,
 		"slot_lbl": slot_lbl}
@@ -783,7 +802,37 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	# draws (dimmed), so the biome's shape is constant and every plot has a click target.
 	# The SLOT LETTER stays on unexplored fog so G H J K L ; are findable.
 	_set_bubble_revealed(b, _is_plot_revealed(grid_pos))
+	_apply_known_glow(b)
 	_apply_check_visual(b)
+
+
+## Known-word glow (#105): on iff this register's axis is in the incorporation
+## ledger. Derived from the vocabulary alone, so the same rule lights the Demos,
+## the Village and the Forest — and fog too: you recognise your own word in the
+## ground before you have explored what it is doing.
+func _apply_known_glow(b: Dictionary) -> void:
+	var known := ProbeActions.word_known(farm_ref, str(b.get("north_e", "")), str(b.get("south_e", "")))
+	b["known"] = known
+	var halo = b.get("halo")
+	if halo != null and is_instance_valid(halo):
+		halo.visible = known
+
+
+## The ledger only changes on an incorporate (or a load), so the halos are
+## redrawn when its contents change, not every frame.
+func _ledger_sig() -> int:
+	if farm_ref == null or not is_instance_valid(farm_ref) or not ("incorporated_icons" in farm_ref):
+		return 0
+	return farm_ref.incorporated_icons.hash()
+
+
+## Registers (of the biome on screen) whose known-word halo is lit.
+func known_glow_regs() -> Array:
+	var out: Array = []
+	for b in _bubbles:
+		if bool(b.get("known", false)):
+			out.append(int(b.reg))
+	return out
 
 
 func _spawn_slot_label(reg: int, pos: Vector3) -> Label3D:
@@ -864,7 +913,7 @@ func _pole_sprite(e: String, at: Vector3, sz: float) -> Sprite3D:
 
 func _clear_bubbles() -> void:
 	for b in _bubbles:
-		for k in ["mesh", "eq", "axisline", "np", "spr", "dot", "ring",
+		for k in ["mesh", "halo", "eq", "axisline", "np", "spr", "dot", "ring",
 				"slot_lbl"]:
 			if b.get(k) != null and is_instance_valid(b[k]):
 				b[k].queue_free()
@@ -1277,6 +1326,12 @@ func _tick_field(dt: float) -> void:
 		if OS.has_environment("SW_FIELD_3D_DEBUG"):
 			print("[QF3D] rebuilt biome=", bname, " registers=", _bubbles.size(), " portals=", _portals.size())
 
+	var ksig := _ledger_sig()
+	if ksig != _known_sig:
+		_known_sig = ksig
+		for b in _bubbles:
+			_apply_known_glow(b)
+
 	var vc = biome.viz_cache
 	var t1 := Time.get_ticks_usec()
 	_apply_force_dynamics(vc, dt)
@@ -1514,7 +1569,7 @@ func _apply_force_dynamics(vc, dt: float) -> void:
 ## b.pos in the main _process loop, same as before.
 func _reposition_bubble_visuals(b: Dictionary) -> void:
 	var pos: Vector3 = b.pos
-	for k in ["mesh", "eq", "axisline", "ring"]:
+	for k in ["mesh", "halo", "eq", "axisline", "ring"]:
 		var node = b.get(k)
 		if node != null and is_instance_valid(node):
 			node.position = pos

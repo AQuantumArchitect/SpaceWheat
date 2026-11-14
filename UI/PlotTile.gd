@@ -475,6 +475,13 @@ func _draw():
 		if entangled_count > 0:
 			_draw_entanglement_ring_inline(rect, entangled_count)
 
+	# Known-word glow (#105): this plot's word is in your vocabulary —
+	# ProbeActions.word_known, the same check that pays the strike multiplier.
+	if plot_ui_data and plot_ui_data.get("word_known", false):
+		var kc: Color = QuantumVisualGrammar.COLOR_KNOWN_WORD
+		draw_rect(Rect2(Vector2(2, 2), size - Vector2(4, 4)), Color(kc.r, kc.g, kc.b, 0.14), true)
+		draw_rect(Rect2(Vector2(1, 1), size - Vector2(2, 2)), Color(kc.r, kc.g, kc.b, 0.85), false, 2.0)
+
 	# Berry-phase ripeness ring — the incorporate cue (drawn for any tracked register).
 	if plot_ui_data and plot_ui_data.get("berry_tracked", false):
 		_draw_berry_ring_inline(rect)
@@ -698,6 +705,8 @@ func _structural_same(cur: Dictionary, nxt) -> bool:
 	if str(cur.get("north_emoji", "")) != str(nxt.get("north_emoji", "")):
 		return false
 	if str(cur.get("south_emoji", "")) != str(nxt.get("south_emoji", "")):
+		return false
+	if bool(cur.get("word_known", false)) != bool(nxt.get("word_known", false)):
 		return false
 	if bool(cur.get("lindblad_pump_active", false)) != bool(nxt.get("lindblad_pump_active", false)):
 		return false

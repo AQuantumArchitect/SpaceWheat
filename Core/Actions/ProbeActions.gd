@@ -302,10 +302,14 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	terminal.bank_strike(outcome, amount, recorded_probability)
 	# spiral_breaks: a strike on a word you have incorporated is the lesson
 	# ("harvest what you know"); the quest ledger counts it as strike_known.
+	# `known` and `known_multiplier` are the glow's own check (word_known) and
+	# the payout's own factor, so the receipt can show the bonus it paid.
 	var known := false
+	var known_multiplier := 1.0
 	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
 		var ax: Dictionary = biome.quantum_computer.register_map.axis(register_id)
-		known = _icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", "")))
+		known = word_known(farm, str(ax.get("north", "")), str(ax.get("south", "")))
+		known_multiplier = _incorporation_reward_multiplier(str(ax.get("north", "")), str(ax.get("south", "")), bloch_r, farm)
 
 	# 6. Commit cost after successful measurement
 	if not _commit_cost(economy, measure_cost, "measure"):
@@ -320,6 +324,7 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		"outcome": outcome,
 		"amount": amount,
 		"known": known,
+		"known_multiplier": known_multiplier,
 		"banked": terminal.banked_totals(),
 		"strikes": terminal.strikes.size(),
 		"probability": recorded_probability,
@@ -532,7 +537,7 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 static func _incorporation_reward_multiplier(north: String, south: String, bloch_r: float, farm = null) -> float:
 	if farm == null:
 		return 1.0
-	if not _icon_incorporated(farm, north, south):
+	if not word_known(farm, north, south):
 		return 1.0
 	var bonus: float = float(BalanceService.get_tuning_value(farm, "signature_r_bonus"))
 	var exponent: float = float(BalanceService.get_tuning_value(farm, "signature_reward_exponent"))
@@ -548,14 +553,30 @@ static func _incorporation_reward_multiplier(north: String, south: String, bloch
 ## the starter signature stores north=🌾 while TheDemos register mounts north=👥,
 ## and an exact-order compare would never match them (the ×4 escape never fired).
 static func _icon_incorporated(farm, north: String, south: String) -> bool:
+	return word_known(farm, north, south)
+
+
+## THE known-word rule (#105): a plot whose axis is in your incorporation
+## ledger glows in every biome (QuantumField3D, PlotTile) AND pays the
+## incorporated multiplier on strike. One check for both, derived from the
+## vocabulary alone — no biome is a special case; the Demos glows where its
+## words are yours, the Village and the Forest wherever they share one.
+static func word_known(farm, north: String, south: String) -> bool:
 	if north == "" or south == "" or farm == null or not ("incorporated_icons" in farm):
 		return false
 	for ic in farm.incorporated_icons:
-		var a := str(ic.get("north", ""))
-		var b := str(ic.get("south", ""))
-		if (a == north and b == south) or (a == south and b == north):
+		if same_word(ic, north, south):
 			return true
 	return false
+
+
+## One ledger entry against one axis, orientation-blind (see _icon_incorporated).
+static func same_word(ic, north: String, south: String) -> bool:
+	if not (ic is Dictionary) or north == "" or south == "":
+		return false
+	var a := str(ic.get("north", ""))
+	var b := str(ic.get("south", ""))
+	return (a == north and b == south) or (a == south and b == north)
 
 
 ## What one strike of `resource` at strike-time probability `p` pays: the

@@ -141,7 +141,7 @@
     "act_title": "The Village",
     "chapter": "first_taste",
     "chapter_title": "First Breath",
-    "arc_beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather.",
+    "arc_beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather. A word you take is yours in every land: each plot that carries it will glow, and a strike on a glowing plot pays more than a strike on a stranger.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -150,7 +150,7 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "First Breath — track one loop, and keep what it traced.",
+      "body": "First Breath — track one loop, and keep what it traced. A word you keep glows on every plot that carries it, in every land, and strikes there pay more.",
       "hint": "Icon [5]: [F] tracks the 🦅/🐇 plot; wait ~90s; [R] Incorporate.",
       "math_note": "Count gate on StarterForest berry_consumed_count ≥ 1 — fires exactly at the first incorporation (the ritual consumes the berry). The old signature_growth gate moved off this beat when teachings began growing the signature in act 1; berries are the only witness that the word came from the land.",
       "state_predicates": [
@@ -166,7 +166,7 @@
           "value": 1
         }
       ],
-      "done_beat": "You did something. A qubit you tracked came back to where it started, and you incorporated the shape of its walk — the signed solid angle the loop enclosed. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours."
+      "done_beat": "You did something. A qubit you tracked came back to where it started, and you incorporated the shape of its walk — the signed solid angle the loop enclosed. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours. Look at the field: every plot carrying the word you kept now glows, here and in every land you reach. That glow is your own vocabulary, seen in the ground."
     }
   },
   {
@@ -178,7 +178,7 @@
     "act_title": "The Village",
     "chapter": "first_taste",
     "chapter_title": "First Breath",
-    "arc_beat": "Contracts fed you; teachings armed you. There is a third economy, and it is nobody's to grant. Take a second word from the land, then strike a plot whose word you have incorporated and read the receipt twice.",
+    "arc_beat": "Contracts fed you; teachings armed you. There is a third economy, and it is nobody's to grant. The word you just took glows wherever it stands: strike one of those plots and read the receipt twice. Then take a second word from the land.",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -187,19 +187,20 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "The Spiral Breaks — take a second word from the land, then strike a plot whose word you know.",
-      "hint": "Icon [5]: track a fresh plot, ripen, [R]. Then Ace [8]: strike a plot whose word you know — it pays up to ×4.",
-      "math_note": "Count gate on StarterForest berry_consumed_count ≥ 2 AND one strike_known gate: a measure on a register whose axis is in farm.incorporated_icons (ProbeActions.action_measure → QuantumInstrument records strike_known). The ×4 is (bloch_r + 1)² on an incorporated axis.",
+      "body": "The Spiral Breaks — strike a glowing plot, the word you just learned, then take a second word from the land.",
+      "hint": "Ace [8]: strike a glowing plot, a word you know. It pays up to ×4. Then Icon [5]: track a fresh plot, ripen, [R].",
+      "math_note": "One strike_known gate AND StarterForest berry_consumed_count ≥ 2. strike_known is a measure on a register whose axis is in farm.incorporated_icons (ProbeActions.word_known — the same check that lights the known-word glow; ProbeActions.action_measure → QuantumInstrument records strike_known). The strike objective is the lead: the Guide walks it first, to the newest incorporated word on the biome (Guide.known_word_col). The ×4 is (bloch_r + 1)² on an incorporated axis.",
       "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "strike_known",
+          "count": 1,
+          "lead": true
+        },
         {
           "type": "berry_consumed_count_gte",
           "biome": "StarterForest",
           "value": 2
-        },
-        {
-          "type": "gate_sequence_contains",
-          "gate": "strike_known",
-          "count": 1
         }
       ],
       "done_beat": "Because you KNOW it — because you walked its loop and kept the shape — every harvest of that word pays more than the strike cost. Up to four times more. The spiral of spending to look breaks here. Incorporated words pay; taught words plant."

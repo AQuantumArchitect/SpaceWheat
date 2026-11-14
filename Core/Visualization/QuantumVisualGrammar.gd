@@ -41,6 +41,11 @@ const CHANNEL_EDGE_ENTANGLEMENT := "edge.entanglement"
 const CHANNEL_INFRA_GATE_TOPOLOGY := "infra.gate_topology"
 const CHANNEL_EVENT_DEATH := "event.death"
 const CHANNEL_EVENT_COHERENCE_STRIKE := "event.coherence_strike"
+const CHANNEL_BUBBLE_KNOWN_WORD := "bubble.known_word"
+
+## The known-word glow (#105). Pale lime: not ripeness gold, not selection
+## cyan, not berry violet, not descend indigo.
+const COLOR_KNOWN_WORD := Color(0.78, 1.0, 0.62)
 
 const CHANNELS := {
 	CHANNEL_BUBBLE_RADIUS: {
@@ -150,6 +155,12 @@ const CHANNELS := {
 		"source": "coherence strike event",
 		"motion_policy": MotionPolicy.EVENT_BOUND,
 		"rule": "Transient motion is allowed only while the event is active.",
+	},
+	CHANNEL_BUBBLE_KNOWN_WORD: {
+		"owner": "QuantumField3D",
+		"source": "ProbeActions.word_known: the plot's axis is in farm.incorporated_icons",
+		"motion_policy": MotionPolicy.STATIC,
+		"rule": "A steady halo on every plot whose word you incorporated, in any biome. The same check pays the strike multiplier, so the glow never promises a bonus the strike does not pay.",
 	},
 }
 
