@@ -274,7 +274,7 @@
          "faction": "Millwright's Union",
          "biome": "TheDemos",
          "body": "The Millwright's Union is buying wheat. Accept here, take one of their contracts from the Market, deliver it on Commitments, then claim the lesson on Charge. Kept contracts are how a small country eats — and how factions learn your name.",
-         "tutorial_hint": "Take a Millwright contract on the Market, deliver it, claim on Charge.",
+         "tutorial_hint": "Attend to your Charge [U]. Then Market: keep a Millwright contract.",
          "math_note": "Signed lesson (not auto-accepted, not auto-claimed): Accept on the Arc puts it on Charge. contracts_kept_gte counts market contracts kept for the faction; one Millwright 🌾 contract is guaranteed on the board while the lesson is open (lesson_offer: a standing deal on the lesson's own board, 🌾×2 for 🍞×3, held from Accept until the lesson closes). Claim on Charge.",
          "signed": true,
          "lesson_offer": {
@@ -2873,6 +2873,7 @@
     "strike:TheDemos"
    ],
    "lesson:contracts": [
+    "attend_charge",
     "deliver_to"
    ],
    "lesson:wayfinding": [

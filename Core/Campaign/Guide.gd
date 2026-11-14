@@ -486,6 +486,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _berry(q, _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", ""))))
 		"survey":
 			return _survey(q)
+		"attend_charge":
+			return _attend_charge(q)
 		"deliver_to":
 			# A lesson keeps its contract on its own board (lesson_offer).
 			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
@@ -1552,6 +1554,21 @@ static func _strike_known(q: Dictionary) -> Dictionary:
 
 
 ## A lesson that is a delivery (resource × quantity): gather it, then claim.
+## Right after the first Accept the lesson sits on Charge, and nothing has
+## yet sent the player there. Guidance, not a gate: once Charge has been opened
+## (or the lesson is claimable, which skips this step) the walk moves on.
+static func _attend_charge(q: Dictionary) -> Dictionary:
+	var qm = UIP._quest_manager()
+	if qm == null or not qm.has_method("charge_attended") or bool(qm.charge_attended(UIP._active_farm())):
+		return {}
+	var keys: Array = _go("X/charge")
+	if keys.is_empty():
+		return {}
+	var c := _chord(keys, q, "attend charge")
+	c["text"] = "%s ❔ attend to your Charge" % c["text"]
+	return c
+
+
 static func _deliver_lesson(q: Dictionary) -> Dictionary:
 	var res := str(q.get("resource", ""))
 	var need := int(q.get("quantity", 0))

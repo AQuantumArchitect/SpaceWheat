@@ -1248,6 +1248,20 @@ func is_charge_hold(q: Dictionary) -> bool:
 			or str(q.get("source_flag", "")) != ""
 
 
+## The player has opened Charge at least once (X → U). Act 0 asks them to
+## attend to it right after the first Accept; the Guide reads this flag.
+const CHARGE_ATTENDED_FLAG := "charge_attended"
+
+
+func note_charge_attended(farm) -> void:
+	if farm != null and "story_flags_fired" in farm and not farm.story_flags_fired.has(CHARGE_ATTENDED_FLAG):
+		farm.story_flags_fired[CHARGE_ATTENDED_FLAG] = Engine.get_physics_frames()
+
+
+func charge_attended(farm) -> bool:
+	return farm != null and "story_flags_fired" in farm and farm.story_flags_fired.has(CHARGE_ATTENDED_FLAG)
+
+
 func is_market_hold(q: Dictionary) -> bool:
 	return not is_charge_hold(q)
 
