@@ -649,6 +649,7 @@
         "strike:TheDemos"
       ],
       "lesson:contracts": [
+        "attend_charge",
         "deliver_to"
       ],
       "lesson:wayfinding": [

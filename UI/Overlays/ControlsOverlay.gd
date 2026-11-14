@@ -2548,6 +2548,9 @@ func _selected_charge_ready() -> bool:
 
 
 func _build_charge_body() -> void:
+	var qm = _arc_quest_manager()
+	if qm != null and qm.has_method("note_charge_attended"):
+		qm.note_charge_attended(InstrumentLocator.resolve_active_farm(self))
 	var rows: Array = _charge_rows()
 	if rows.is_empty():
 		_body_box.add_child(_make_muted_label("nothing on Charge right now — open doors wait on %s [%s]" % [
