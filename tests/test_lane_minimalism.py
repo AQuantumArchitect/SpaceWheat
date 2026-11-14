@@ -1142,7 +1142,7 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
 
 
 def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
-    """Arc: a confirm tap accepts an unsigned offer (playtest 2026-10-29, via
+    """Arc: only R accepts an unsigned offer (issue #76; was a confirm tap, via
     the same _accept_selected_arc as R); every other row tunnels to C or the
     field. The first tap never accepts."""
     arc = src(ARC)
@@ -1152,7 +1152,7 @@ def test_arc_row_never_accepts_it_shunts_to_the_puzzle():
     assert "_tunnel_from_arc" in select
     tunnel = arc.split("func _tunnel_from_arc")[1].split("\nfunc ")[0]
     assert "accept_quest" not in tunnel
-    assert "_accept_selected_arc()" in tunnel
+    assert "_accept_selected_arc" not in tunnel
     assert "open_board_on_commitments" in tunnel
     assert "_scoot_from_arc" in tunnel
     shunt = arc.split("func _arc_shunt_kind")[1].split("\nfunc ")[0]

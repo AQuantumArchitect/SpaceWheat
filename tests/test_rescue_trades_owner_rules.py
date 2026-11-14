@@ -74,5 +74,5 @@ def test_staple_refusal_routes_to_the_market_without_accepting():
     assert "show_supply_focused" in door
     assert "accept" not in door.lower().replace("accepts", "")
     focus = _fn(QB, "show_supply_focused")
-    assert "_row_confirm_armed = false" in focus
+    assert "_row_confirm_armed" not in focus
     assert "_accept_selected" not in focus and "_on_action_r" not in focus

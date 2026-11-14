@@ -2037,7 +2037,7 @@ func _make_arc_footer() -> Control:
 		dismiss_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
 		ClickWire.attach(dismiss_lbl, func() -> void: handle_action("Q"))
 		box.add_child(dismiss_lbl)
-		box.add_child(_make_muted_label("tap a row to inspect, again to accept  ·  R accepts  ·  GHJKL; pick", 11))
+		box.add_child(_make_muted_label("GHJKL; row for details  ·  [R] Accept", 11))
 	else:
 		var n := IntroVoice.remembered_count()
 		var remembered := ("%d beats remembered — %s [%s]" % [n, SurfaceRooms.NAME_STORY, SurfaceRooms.KEY_STORY]) if n > 0 else "tap a row  ·  tap again for the work"
@@ -2104,10 +2104,9 @@ func _tunnel_from_arc() -> void:
 	if home == "charge":
 		_show_tab(Tab.CHARGE)
 		return
-	# Unsigned offer: the confirm tap signs on, exactly like Accept [R]
-	# (same _accept_selected_arc path, same refusals).
+	# Unsigned offer: only Accept [R] signs on. A tap here is info.
 	if str(entry.get("kind", "")) == "arc_quest":
-		_accept_selected_arc()
+		_flash_arc_row(_arc_selected_idx)
 		return
 	_flash_arc_row(_arc_selected_idx)
 
@@ -2296,7 +2295,7 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 			if _arc_inspect_open:
 				_append_arc_inspect(vbox, entry)
 			elif kind == "arc_quest":
-				vbox.add_child(_make_muted_label("tap to inspect  ·  tap again to accept (or R)", 10))
+				vbox.add_child(_make_muted_label("row key for details  ·  [R] Accept", 10))
 			else:
 				vbox.add_child(_make_muted_label("tap to inspect  ·  tap again for the work", 10))
 		return row
@@ -2441,7 +2440,7 @@ func _append_arc_inspect(vbox: VBoxContainer, entry: Dictionary) -> void:
 	vbox.add_child(panel)
 	var kind := str(entry.get("kind", ""))
 	if kind == "arc_quest":
-		vbox.add_child(_make_muted_label("R accepts  ·  E/F flatten", 10))
+		vbox.add_child(_make_muted_label("[R] Accept  ·  E/F flatten", 10))
 	else:
 		vbox.add_child(_make_muted_label("tap again for the work  ·  E/F flatten", 10))
 

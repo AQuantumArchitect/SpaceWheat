@@ -104,12 +104,6 @@ var _pool_biome: String = ""   # the biome the ring was dealt for
 ## kept showing the old offers after incorporating new icons).
 var _pool_signature: int = -1
 var _selected_index: int = 0
-# _selected_index defaults to 0, so row 0 reads as "already selected" the instant the
-# board opens. Without this flag, a tap-to-look at row 0 (idx == _selected_index on the
-# very first tap) reads identically to a deliberate confirm and fires the verb immediately
-# -- a silent accept before the player ever chose to commit. True only once a real tap (or
-# keyboard nav via _select()) has actually landed on the current row.
-var _row_confirm_armed: bool = false
 # Which block of MAX_VISIBLE_ITEMS rows the GHJKL; ring is currently pointed at.
 # The ring is exactly six keys wide, so a list longer than six needs a page
 # offset or its tail is unreachable — items past the sixth were never added to
@@ -178,7 +172,7 @@ func set_biome(biome: Node) -> void:
 
 ## The supply door (OverlayManager.open_board_on_supply): land on Market with
 ## the trade that pays `emoji` selected. Navigation ONLY — the row is
-## left disarmed, so the player still taps it twice (or presses R) to accept.
+## left unaccepted: only R accepts.
 func show_supply_focused(emoji: String) -> void:
 	if frame_id != FRAME_MARKET:
 		set_frame(FRAME_MARKET)
@@ -195,16 +189,13 @@ func show_supply_focused(emoji: String) -> void:
 		if data is Dictionary and _is_supply(data) and str(data.get("supply_emoji", "")) == emoji:
 			_select(i)
 			break
-	_row_confirm_armed = false
 	_render_all()
 
 
 ## The HUD door: land on Commitments (U) for a held quest (or History when
 ## view == "history"). C and the contract chip open the fill tab, not Market.
 ## Navigation ONLY — the claim stays a deliberate click on the board, so
-## _row_confirm_armed is forced false afterwards: _select() arms the
-## second-click confirm, and a programmatic focus must not turn the player's
-## very first click into a claim.
+## A programmatic focus never claims: only R does.
 func show_commitments_focused(quest_id: int = -1, view: String = "active") -> void:
 	var want_history: bool = str(view) == "history"
 	_commitments_view = "history" if want_history else "active"
@@ -217,7 +208,6 @@ func show_commitments_focused(quest_id: int = -1, view: String = "active") -> vo
 			if data is Dictionary and int(data.get("id", -1)) == quest_id:
 				_select(i)
 				break
-	_row_confirm_armed = false
 	_render_all()
 
 # =============================================================================
@@ -361,7 +351,6 @@ func _on_unhandled_key(keycode: int, event: InputEvent) -> bool:
 func _reset_item_cursor() -> void:
 	_selected_index = 0
 	_item_page = 0
-	_row_confirm_armed = false
 	_pinned_market_id = null
 	_pick_cleared = false
 
@@ -414,24 +403,15 @@ func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
 		"F": _on_action_f()
 
 func _on_row_gui_input(event: InputEvent, idx: int) -> void:
-	# First click selects the row; a second click on the selected row fires
-	# the primary verb (R: accept an offer, claim/deliver a held stall).
-	# _row_confirm_armed guards this: idx == _selected_index is trivially true
-	# for row 0 the instant the board opens (default selection), so without the
-	# arm flag a first look at row 0 would fire the verb immediately instead
-	# of just selecting it.
-	# Acts on PRESS, not release: the 1 s board heartbeat (_process →
+	# A click (or any number of clicks) only SELECTS the row: more info, never
+	# a verb. R (or the Accept label) is the one way to accept/deliver.
+	# Acts on PRESS, not release: the 1 s board heartbeat (_process ->
 	# _render_all) rebuilds every row node, and a click whose press and
-	# release straddled a rebuild lost its release with the freed node — so a
-	# double-tap on a market contract sometimes never accepted (playtest
-	# 2026-10-29). The node a press lands on always exists.
+	# release straddled a rebuild lost its release with the freed node.
 	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
 		return
 	accept_event()
-	if idx == _selected_index and _row_confirm_armed:
-		_on_action_r()
-	else:
-		_select(idx)
+	_select(idx)
 
 ## Corner-toast feedback through the shell — board verbs must visibly land.
 func _toast_feedback(text: String) -> void:
@@ -460,12 +440,9 @@ func _on_action_e() -> void:
 			_refresh_pool()
 			_render_all()
 		FRAME_MARKET:
-			_refresh_pool()
-			_render_all()
-			# Refresh must visibly land even when the list stays empty —
-			# a silent E reads as a dead key (playtest 2).
-			var n: int = _offer_pool.size()
-			if n <= 0:
+			# E is info only: the toast OverlayBase raises from get_inspect_text.
+			# It never accepts, locks or re-rolls the list under the cursor.
+			if _selected_market_row().is_empty():
 				_toast_feedback("🛒 %s" % (_market_status_note if _market_status_note != "" else "no offers yet"))
 		_:
 			pass
@@ -901,7 +878,7 @@ func _current_verb_labels() -> Dictionary:
 			var f_label := "—"
 			if mdata is Dictionary and not mdata.is_empty() and not _is_supply(mdata):
 				f_label = "Unlock" if bool(mdata.get("locked", false)) else "Lock"
-			return {"Q": "—", "E": "Refresh", "R": "Accept", "F": f_label}
+			return {"Q": "—", "E": "Info", "R": "Accept", "F": f_label}
 		FRAME_COMMITMENTS:
 			if _commitments_view == "history":
 				return {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
@@ -1303,7 +1280,7 @@ func _build_market_body() -> void:
 		var empty_msg: String = _market_status_note
 		if empty_msg == "":
 			empty_msg = "no offers here yet"
-		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or tap Refresh [E]"
+		empty_msg += "\nthe market follows your active biome — walk somewhere with factions, or press a row key [G H J K L ;] for details"
 		_body_box.add_child(_make_muted_label(empty_msg, 12))
 		return
 	var start: int = _item_page_start(rows.size())
@@ -2603,9 +2580,9 @@ func board_walk_cue(q: Dictionary) -> String:
 				return "▸ [R] Accept"
 			if key == "":
 				return "▸ [R] Accept"
-			return "▸ [%s] then [R] Accept" % key
+			return "▸ [%s] for details, [R] Accept" % key
 	if want != "":
-		return "▸ [E] Refresh for a %s offer" % want
+		return "▸ no %s offer yet — walk the market, or [Y] to look again" % want
 	return "▸ [E] Refresh"
 
 
@@ -3160,7 +3137,6 @@ func _step_item_page(step: int) -> void:
 	_disarm_abandon(true)
 	_item_page = next
 	_selected_index = clampi(_item_page * MAX_VISIBLE_ITEMS, 0, maxi(0, total - 1))
-	_row_confirm_armed = false
 	_render_all()
 
 
@@ -3184,7 +3160,6 @@ func _select(idx: int) -> void:
 		# …and nothing stays picked: the old row still took the next R (wave 33
 		# distractible: L on "—", R accepted the earlier Hearth Keepers row).
 		_pick_cleared = true
-		_row_confirm_armed = false
 		_refresh_body()
 		_refresh_verb_chips()
 		return
@@ -3193,7 +3168,6 @@ func _select(idx: int) -> void:
 	_pin_market_selection()
 	# Keep the cursor and the visible page in agreement.
 	_item_page = clampi(_selected_index / MAX_VISIBLE_ITEMS, 0, _item_page_count(total) - 1)
-	_row_confirm_armed = true
 	_refresh_body()
 	_refresh_verb_chips()
 
