@@ -247,7 +247,7 @@ def cmd_press(seat: str, key: str, shift: bool, ctrl: bool = False) -> dict:
     kw = {"key": key, "settle_frames": 10}
     if shift:
         kw["shift"] = True
-    if ctrl:  # Ctrl chords are player keys too (Ace reap = Ctrl+Shift+F)
+    if ctrl:  # Ctrl chords are player keys too (Ace reap = Ctrl+Shift+Q)
         kw["ctrl"] = True
     r = _turn(seat, st, c, "press_key", **kw)
     out = {"ok": bool(r.get("ok", False)), "pressed": key, "shift": shift}

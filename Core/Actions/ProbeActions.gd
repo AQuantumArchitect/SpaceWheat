@@ -892,7 +892,7 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		return {
 			"success": false,
 			"error": "no_active_biomes",
-			"message": "Nothing to reap — explore plots first (tap one, or F); then Ctrl+Shift+F (or the season button) reaps every explored plot still in play."
+			"message": "Nothing to reap — explore plots first (tap one, or F); then Ctrl+Shift+Q (or the season button) reaps every explored plot still in play."
 		}
 
 	var reap_count_before = _get_reap_count(farm)

@@ -106,7 +106,7 @@ def test_no_player_text_says_shift_f_reaps():
         for line in src(rel).splitlines():
             if line.strip().startswith("#"):
                 continue
-            if "reap" in line.lower() and "Shift+F" in line and "Ctrl+Shift+F" not in line:
+            if "reap" in line.lower() and "Shift+F" in line and "Ctrl+Shift+Q" not in line:
                 raise AssertionError("%s: %s" % (rel, line.strip()[:90]))
 
 

@@ -22,6 +22,6 @@ system (`ProbeActions._incorporation_reward_multiplier`). Resources you have nev
 incorporated pay the bare surprisal floor. **Resources come from harvest/the market;
 icons come from incorporation** — the two economies never substitute for each other.
 
-`Reap` (Ace hat, `Shift+F`) is harvest at scale: it fast-forwards the biome, then
+`Reap` (Ace hat, `Ctrl+Shift+Q`) is harvest at scale: it fast-forwards the biome, then
 Born-samples and collapses every live register at once for a seasonal payout, priced by
 the same law.

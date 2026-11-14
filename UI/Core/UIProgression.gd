@@ -197,12 +197,12 @@ const VERB_UNLOCK_STEP: Dictionary = {
 	"ace:R": 0,
 	"ace:Q": 0,
 
-	# Step 5 (reap_season, the capstone): Ace Shift+F. Locked until the step
+	# Step 5 (reap_season, the capstone): Ace Ctrl+Shift+Q. Locked until the step
 	# that teaches it, on purpose — reap is once-affordable early (Fibonacci 🍼
 	# costs, wallet starts with 1) and reaps EVERY biome at once, so an early
 	# mash must not spend the only bottle on an undeveloped field. The redirect
 	# toast names the live objective, per the funnel law.
-	"ace:shift+F": 5,
+	"ace:ctrl+shift+Q": 5,
 
 	# Icon F (track berry-phase) and R (incorporate/plant) are locked for ALL
 	# of Act 0 — vocabulary is mid-game content (the act-3 berry chapter), and
@@ -736,7 +736,9 @@ static func objective_target() -> Dictionary:
 	if not g.is_empty():
 		var keys: Array = g.get("keys", [])
 		var k := str(keys[0]) if not keys.is_empty() else ""
-		if k.to_lower().begins_with("shift+"):
+		if k.to_lower().begins_with("ctrl+shift+"):
+			k = k.substr(11)
+		elif k.to_lower().begins_with("shift+"):
 			k = k.substr(6)
 		return {"key": k.to_upper() if k.length() == 1 else k}
 	var best := _banner_quest()
@@ -999,9 +1001,9 @@ static func _verb_line(q: Dictionary) -> String:
 	var wearing := str(ToolConfig.get_current_frame())
 	if need_frame != "" and wearing != need_frame:
 		return "▸ [%s] %s" % [hat.to_upper(), need_frame.capitalize()]
-	# Reap is Ace Ctrl+Shift+F — never remapped onto plain F, never a hat swap.
+	# Reap is Ace Ctrl+Shift+Q — never remapped onto plain F, never a hat swap.
 	if step == 5:
-		return "▸ Ctrl+Shift+F %s" % ask
+		return "▸ Ctrl+Shift+Q %s" % ask
 	# Bell pair: Operator R opens Gate. Bell sits on Q once two plots are marked.
 	if step == 4:
 		var n := _checked_count()

@@ -8,7 +8,7 @@ Playtest 2026-10-23:
     Druid and the Operator act on what the player can see
   * F explores, R strikes as often as you like (each strike banks its
     harvest on the plot), Q gathers the bank and returns the plot to fog
-  * Reap is Ctrl+Shift+F; Shift+F is mass explore
+  * Reap is Ctrl+Shift+Q; Shift+F is mass explore
 """
 import json
 from pathlib import Path
@@ -68,11 +68,16 @@ def test_strike_banks_and_gather_pays_the_bank():
     assert "_pay_bank(" in pop
 
 
-def test_reap_is_ctrl_shift_f_and_shift_f_is_mass_explore():
-    assert 'REAP_CHORD := "Ctrl+Shift+F"' in src("UI/Core/VerbGrammar.gd")
+def test_reap_is_ctrl_shift_q_and_shift_f_is_mass_explore():
+    assert 'REAP_CHORD := "Ctrl+Shift+Q"' in src("UI/Core/VerbGrammar.gd")
     qii = src("UI/Core/QuantumInstrumentInput.gd")
-    assert "_mass_explore()" in qii and "elif shift and ctrl" in qii
-    assert '"ctrl+shift+F"' in src("Core/Campaign/Guide.gd")
+    assert "_mass_explore()" in qii and "_run_reap()" in qii
+    # Ctrl+Shift+F is bound to nothing: it must never reach mass explore or reap.
+    f_branch = qii.split("# Reap is Ace Ctrl+Shift+Q (gather")[1].split("elif not f_action.is_empty()")[0]
+    assert "shift and ctrl" in f_branch and "_run_action" not in f_branch
+    tc = src("Core/GameState/ToolConfig.gd")
+    assert '"reap_action": "reap"' in tc and '"shift_action": "reap"' not in tc
+    assert '"ctrl+shift+Q"' in src("Core/Campaign/Guide.gd")
 
 
 def test_free_probe_never_gathers_the_plots_the_step_needs():

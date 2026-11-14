@@ -263,7 +263,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 				"measure":
 					return "Strike ×%d — %s: select a live bubble, tap it again (or R); strike again when it has spread" % [gcount, verb_home("ace")]
 				"reap":
-					return "Reap the season ×%d — %s: the season button (or Ctrl+Shift+F)" % [gcount, verb_home("ace")]
+					return "Reap the season ×%d — %s: the season button (or Ctrl+Shift+Q)" % [gcount, verb_home("ace")]
 				"pop":
 					return "Gather ×%d — %s: select a struck bubble, tap it again (or Q)" % [gcount, verb_home("ace")]
 				"explore":

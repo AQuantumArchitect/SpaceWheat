@@ -149,7 +149,7 @@ def test_title_menu_restart_path_reaches_arc_handover(rig_boot) -> None:
 
     # 5 reap_season — wait for the capstone step to go live (the bell weave's
     #   completion → chain unlock → auto-accept), then reap. The Shift+F
-    #   funnel gate opens exactly here (VERB_UNLOCK_STEP "ace:shift+F": 5) —
+    #   funnel gate opens exactly here (VERB_UNLOCK_STEP "ace:ctrl+shift+Q": 5) —
     #   an earlier Shift+F would have been redirected, not spent.
     deadline = time.time() + 20.0
     capstone_live = False
