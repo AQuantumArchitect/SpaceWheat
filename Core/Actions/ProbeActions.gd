@@ -896,6 +896,17 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		}
 
 	var reap_count_before = _get_reap_count(farm)
+	# First season only: the whole field must be explored. After that the player
+	# chooses what to have explored; no requirement.
+	if reap_count_before == 0:
+		var dark: Array = _unexplored_plots(farm, active_biomes)
+		if not dark.is_empty():
+			return {
+				"success": false,
+				"error": "not_all_explored",
+				"unexplored": dark,
+				"message": "Explore every bubble before you reap — %d still dark." % dark.size()
+			}
 	var reap_cost = BalanceService.get_reap_cost(farm, reap_count_before)
 	var reap_cost_gate = _preflight_cost(economy, reap_cost)
 	if not reap_cost_gate.get("ok", true):
@@ -910,6 +921,10 @@ static func action_reap(farm, economy = null) -> Dictionary:
 			"error": "cost_commit_failed",
 			"message": "Reap failed: unable to spend cost."
 		}
+
+	# End of season gathers every banked strike on every plot, in every biome,
+	# before the payout: Shift+Q on everything, no pop cost, no state disturbance.
+	var gathered: Dictionary = _gather_all_banks(farm, economy)
 
 	var reap_cycles = int(BalanceService.get_tuning_value(farm, "reap_evolution_cycles"))
 	reap_cycles = maxi(reap_cycles, 0)
@@ -943,10 +958,62 @@ static func action_reap(farm, economy = null) -> Dictionary:
 		"icon_totals": icon_totals,
 		"total_flux_credits": total_flux_credits,
 		"total_icon_credits": total_icon_credits,
-		"total_credits": total_flux_credits + total_icon_credits,
+		"gathered_totals": gathered.get("totals", {}),
+		"total_gathered": int(gathered.get("total", 0)),
+		"total_credits": total_flux_credits + total_icon_credits + int(gathered.get("total", 0)),
 		"rite_credits": int(reap_result.get("rite_credits", 0)),
 		"harvest_results": []
 	}
+
+
+## A plot is explored once its register has been bound, and stays explored when a
+## strike has since darkened it (measured, or holding a bank). Mills (⚙/🏭) and
+## blank axes are not bubbles. Returns "Biome:col" for every plot still dark.
+static func _unexplored_plots(farm, biomes: Array) -> Array:
+	var dark: Array = []
+	if not farm or not ("grid" in farm) or not farm.grid or not ("terminal_pool" in farm) or not farm.terminal_pool:
+		return dark
+	var pool = farm.terminal_pool
+	var assignments: Dictionary = farm.grid.get_plot_biome_assignments()
+	for biome in biomes:
+		if not biome or not biome.quantum_computer or not biome.quantum_computer.register_map:
+			continue
+		var name: String = str(biome.get_biome_type())
+		var rm = biome.quantum_computer.register_map
+		for pos in assignments.keys():
+			if str(assignments[pos]) != name:
+				continue
+			var col := int(pos.x)
+			var ax: Dictionary = rm.axis(col)
+			var north := str(ax.get("north", ""))
+			var south := str(ax.get("south", ""))
+			if north == "" or south == "" or "⚙" in (north + south) or "🏭" in (north + south):
+				continue
+			if pool.is_register_bound(col, name) or pool.get_measured_terminal_for_register(col, name) != null:
+				continue
+			dark.append("%s:%d" % [name, col])
+	return dark
+
+
+## Pay and clear every banked strike across the whole terminal pool.
+static func _gather_all_banks(farm, economy) -> Dictionary:
+	var totals: Dictionary = {}
+	var total := 0
+	var pool = farm.terminal_pool if farm and ("terminal_pool" in farm) else null
+	if pool == null or economy == null:
+		return {"totals": totals, "total": 0}
+	for terminal in pool.get_all_terminals():
+		if terminal == null or not terminal.has_banked():
+			continue
+		var bank: Dictionary = terminal.banked_totals()
+		for e in bank:
+			var amt := int(bank[e])
+			economy.add_resource(str(e), amt, "pop")
+			totals[e] = int(totals.get(e, 0)) + amt
+			total += amt
+		terminal.strikes.clear()
+		terminal.state_changed.emit(terminal)
+	return {"totals": totals, "total": total}
 
 
 static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:

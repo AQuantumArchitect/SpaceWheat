@@ -364,7 +364,7 @@
          "tutorial_teaches": "reap_season",
          "faction": "Hearth Keepers",
          "biome": "TheDemos",
-         "body": "Explore, strike, gather — three verbs. The fourth turns time itself: reap the season. Every plot the country holds collapses and pays at once, the quantum state is spent, and the round ends. It costs the 🍼 the loom left you. Every country ahead runs on these four verbs.",
+         "body": "Explore, strike, gather — three verbs. The fourth turns time itself: reap the season. This is the end of the season. Everything that's explored pays out on its whole state, so the more you explore, the more you reap — one of the best ways to earn 🦅 eagles, which you will need later. This first time, explore every bubble before you reap. Anything you have struck but not gathered is gathered for you. It costs the 🍼 the loom left you. Every country ahead runs on these four verbs.",
          "tutorial_hint": "Reap the season — the whole country pays at once.",
          "math_note": "Fires on 1 recorded reap gate — a structural count over the durable gate ledger (survives save/load; a refused reap does not count). Reap only has material when explored plots are still in play (a gathered plot left the season). Reap costs follow the sequence 1,1,2,3,5,8,…🍼; the entanglement step's claim paid your first.",
          "state_predicates": [

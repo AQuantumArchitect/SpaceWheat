@@ -2026,6 +2026,13 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 		var col := _first_live_col(biome)
 		if col >= 0:
 			return _reveal(col, q)
+	# First season: every bubble must be explored before the reap is allowed.
+	if farm != null and ProbeActions._get_reap_count(farm) == 0:
+		var dark: Array = ProbeActions._unexplored_plots(farm, ProbeActions._get_active_biomes_for_reap(farm))
+		for d in dark:
+			var bits := str(d).rsplit(":", true, 1)
+			if bits[0] == biome:
+				return _reveal(int(bits[1]), q)
 	var parts: Array = _close_first()
 	if _live_col() < 0:
 		parts.append_array(_pick_plot(0))
