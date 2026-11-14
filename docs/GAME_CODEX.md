@@ -175,9 +175,17 @@ contract's tick, a load, a rig driver) stamps `QuantumComputer.state_epoch`. Whe
 the epoch has moved past the one the buffered frames were forecast from, the
 batcher evolves the live ρ that phrame instead of replaying a stale frame, and
 forecasts again from there. No caller invalidates the lookahead by hand; the input
-layer holds no buffer code (`tests/test_lookahead_follows_writes.py`). The rig
-defaults to lookahead off, which steps ρ directly each tick at the tick's dt, not
-the packet's: the two lanes run at different sim speeds.
+layer holds no buffer code (`tests/test_lookahead_follows_writes.py`).
+
+**One clock.** Every biome advances `PhysicsConfig.PHRAME_SIM_DT` (0.02 sim-s)
+per phrame, times its `observation_stride` (the `−`/`=` clock), in both lanes:
+the player's lookahead and the rig's direct stepping (lookahead off). Standing
+contracts and gated channels tick on the same clock. A biome's
+`max_evolution_dt` is its resolution: it caps the integrator substep and never
+sets how much time passes. Refills continue the buffer from its last frame. So
+a biome's state depends only on how long it has run, not on which biomes shared
+its packet or which lane ran it: a state can be found again
+(`tests/test_shared_clock.py`; owner ruling 2026-11-13).
 
 ---
 

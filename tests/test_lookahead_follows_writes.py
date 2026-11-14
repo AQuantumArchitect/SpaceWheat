@@ -124,9 +124,10 @@ def test_write_survives_the_lookahead(traces, path):
 
 
 def test_standing_pump_compounds_with_lookahead_on(traces):
-    """Rate 20 moves 86% of the south population per tick. One tick that sticks
-    leaves ~14% of it; before 2026-11-11 that was all that ever stuck (the pump
-    plateaued at ~0.96 from 0.72). Compounding over 40 ticks leaves ~nothing."""
+    """Rate 20 on the shared clock (0.02 sim-s per tick, since 2026-11-13) moves
+    a third of the south population per tick. Before 2026-11-11 only a tick
+    captured at a refill seam ever stuck (the pump plateaued at ~0.96 from
+    0.72). Compounding over 40 ticks leaves ~nothing."""
     t = traces["pump"]
     assert t["lookahead"] is True
     frames = dict((int(f), float(p)) for f, p in t["trace"])

@@ -1440,40 +1440,11 @@ func _draw_debug_overlay():
 
 
 func _get_scaled_force_delta(delta: float) -> float:
-	# Scale force graph delta based on quantum evolution granularity.
-	#
-	# Slower quantum evolution (larger dt) → slower force graph movement.
-	# Uses minimum dt across all loaded biomes (fastest biome drives the animation).
-	# 4th-root scaling keeps slow biomes more visually alive than sqrt did.
-	#
-	# Reference: dt=0.02s → scale_val=1.0 (full speed)
-	# dt=1.0s  → scale_val=0.376 (2.7× slower, was 7× with sqrt)
-	# dt=100s  → scale_val=0.133 (clamped to MIN_SCALE=0.1)
-	#
-	# Args:
-	# delta: Raw frame delta from _process()
-	#
-	# Returns:
-	# Scaled delta for force graph physics
-	const REFERENCE_DT = 0.02  # Baseline evolution dt (default for fast biomes)
-	const MIN_SCALE = 0.1      # Was 0.002 — raised so slow biomes stay animated
-
-	# Use minimum dt across all biomes so the fastest biome drives animation rate
-	var min_dt = REFERENCE_DT
-	var found_any = false
-	for biome_name in biomes:
-		var biome = biomes[biome_name]
-		if biome and "max_evolution_dt" in biome:
-			if not found_any or biome.max_evolution_dt < min_dt:
-				min_dt = biome.max_evolution_dt
-				found_any = true
-
-	# 4th-root scaling: softer than sqrt, keeps slow biomes more animated
-	# pow(x, 0.25) = sqrt(sqrt(x))
-	var scale_val = pow(REFERENCE_DT / min_dt, 0.25)
-	scale_val = max(scale_val, MIN_SCALE)
-
-	return delta * scale_val
+	# The bubbles' wobble clock. Every biome evolves on the shared clock
+	# (PhysicsConfig.PHRAME_SIM_DT), and max_evolution_dt is resolution, not
+	# speed (owner ruling 2026-11-13), so the wobble no longer slows when some
+	# biome's resolution is coarse. Before, it ran at (0.02 / min dt)^0.25.
+	return delta
 
 
 # Station layout tuning (Mini-Metro pass, 2026-07-07; flex pass 2026-07-08;

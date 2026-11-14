@@ -85,19 +85,15 @@ signal resource_registered(emoji: String, is_producible: bool, is_consumable: bo
 var _is_initialized: bool = false
 var quantum_evolution_enabled: bool = true
 
-# Sim-speed: sim-seconds advanced per wall-second.
-# Controls how fast the world evolves relative to real time.
-# Day/night wall-time = driver_period / quantum_time_scale.
-# Default sourced from BalanceConfig.physics.quantum_time_scale.
-# See PhysicsConfig for the full derivation.
-var quantum_time_scale: float = 0.5  # Overwritten in _ready from BalanceConfig
+# Vestigial: nothing steps by it. Every biome runs on the shared clock
+# (PhysicsConfig.PHRAME_SIM_DT per phrame × observation_stride). Still saved.
+var quantum_time_scale: float = 0.5
 
-# Max sim-time per Euler substep (numerical accuracy vs cost).
-# At 0.05, a typical phrame is ONE substep (cheapest).
-# Reduce if evolution becomes unstable (oscillations, trace divergence).
-# See PhysicsConfig.MAX_SUBSTEP_DT for the global default.
-# Whoever sets it (the − / = keys, the rig's set_resolution, a profile, a load),
-# the batcher is told here, so its lookahead frames never outlive their step.
+# Resolution: the largest integrator substep this biome allows (accuracy vs
+# cost; only open biomes substep, a closed one takes one exact step). It never
+# sets how much time passes — that is the shared clock (owner ruling
+# 2026-11-13). Whoever sets it (the rig's set_resolution, a profile, a load),
+# the batcher is told here, and re-forecasts at the new accuracy.
 var max_evolution_dt: float = _PC.MAX_SUBSTEP_DT:
 	set(value):
 		var old_dt := max_evolution_dt

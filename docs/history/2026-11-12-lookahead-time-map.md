@@ -81,3 +81,14 @@ Nothing quantum couples two biomes: each has its own ρ, H and L. Everything bel
 3. Should Farm's contract tick follow that same clock?
 
 A per-biome substep inside one native call, and stepping biomes on parallel threads, need a C++ change to `MultiBiomeLookaheadEngine` and rebuilt binaries. That is its own PR, after these decisions.
+
+## Outcome (2026-11-13)
+
+Owner ruling: one shared clock, "because we want to find particular states". The clock is 0.02 sim-s per phrame, the pace players already had. Standing contracts follow the same clock. `max_evolution_dt` is resolution only. Branch `shared-clock`, stacked on PR #65:
+
+- Every native call runs `PHRAME_SIM_DT` per frame. The substep cap is the biome's own `max_evolution_dt` for single-biome calls, and the packet's finest for batched ones; a per-biome cap inside one call needs the native PR.
+- The rig lane converts wall time with `PhysicsConfig.sim_dt`, so it slows 5× to match players.
+- Farm's channels tick `sim_dt × stride` (capped at 32), with no resolution factor.
+- The force graph's wobble no longer scales with resolution. Frame decimation on a resolution change is gone; the change now re-forecasts.
+- Found while measuring: a refill was seeded from the live ρ but appended after the frames still waiting, so the player lane replayed 2 frames per 21-frame refill (TheDemos period 221 vs 196 ticks). Refills now seed from the buffer's last frame. Packets replacing frozen placeholders skip the ticks those placeholders stood in for. Measured after the fix: 198 vs 196 ticks, with no backward steps.
+- Still open: the biome time tracker is a wall-clock counter that up to three code paths advance. In the lookahead lane a stride above the buffer depth is capped by the buffer; not measured.

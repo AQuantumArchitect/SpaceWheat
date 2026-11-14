@@ -157,8 +157,8 @@ var biome_enabled: bool = false
 # Dynamic grid sizing
 const DEFAULT_PLOTS_PER_BIOME = 6  # canonical ring: G H J K L ; = 6 icons / 12 atoms
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
-const LINDBLAD_TIMESCALE_BASE_DT = 0.02
-const LINDBLAD_TIMESCALE_CAP = 4096.0
+## Standing channels follow a biome's stride up to the evolution's own cap.
+const LINDBLAD_STRIDE_CAP = 32
 ## Thermal contracts run a detailed-balance pair: the chosen direction at the
 ## contract rate, the back-channel at this fraction of it. Fixed point sits at
 ## back/(1+back) ≈ 1/3 against the flow — warm, never pinned.
@@ -1307,9 +1307,13 @@ func _process_gated_channels(delta: float) -> void:
 				rate_eff, effective_delta)
 
 
+## The simulated time a standing channel ticks this frame: the shared clock
+## (PhysicsConfig.sim_dt of the wall delta) times the biome's stride, capped
+## at 32× like the evolution itself — the same time H gets, so each phrame
+## composes channel then H. Resolution (max_evolution_dt) doesn't enter: it is
+## accuracy, not time (owner ruling 2026-11-13).
 func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float:
-	# Scale Lindblad timestep by biome timescale controls (stride + resolution).
-	var base_delta = maxf(0.0, float(frame_delta))
+	var base_delta = PhysicsConfig.sim_dt(maxf(0.0, float(frame_delta)))
 	if base_delta <= 0.0:
 		return 0.0
 	if not biome:
@@ -1320,14 +1324,7 @@ func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float
 		stride = max(0, int(biome.observation_stride))
 	if stride <= 0:
 		return 0.0
-
-	var dt_scale = 1.0
-	if "max_evolution_dt" in biome:
-		var max_dt = maxf(0.000001, float(biome.max_evolution_dt))
-		dt_scale = max_dt / LINDBLAD_TIMESCALE_BASE_DT
-
-	var multiplier = clampf(float(stride) * dt_scale, 0.0, LINDBLAD_TIMESCALE_CAP)
-	return base_delta * multiplier
+	return base_delta * float(mini(stride, LINDBLAD_STRIDE_CAP))
 
 
 func _accumulate_sink_flux_from_biome_rates(biome_name: String, biome, dt: float) -> void:

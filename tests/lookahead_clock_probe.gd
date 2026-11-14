@@ -5,14 +5,17 @@ extends SceneTree
 ## Boots the real game headless (AppRoot path, demos_normal) with whatever lane
 ## the environment selects, then watches the batcher for WINDOW_TICKS physics
 ## ticks without touching anything. Every packet the batcher starts is logged
-## with the biomes it carries, its phrame count and the dt it is evolved at
-## (the packet minimum of max_evolution_dt). Prints:
+## with the biomes it carries, its phrame count and the dt it was submitted at
+## (since 2026-11-13 the shared clock, PhysicsConfig.PHRAME_SIM_DT). Each
+## biome's first-register p_north is sampled every tick, so two lanes can be
+## compared by their oscillation periods. Prints:
 ##
 ##   CLOCK_BIOME {"biome", "max_evolution_dt", "stride", "dim", "open", "paused",
 ##                "frames", "sim_s", "sim_per_wall", "by_dt": {dt: frames}}
 ##   CLOCK_PACKET {"dt", "steps", "biomes": [...], "count"}     (one per distinct shape)
+##   CLOCK_SERIES {"biome", "p_north": [one per tick]}
 ##   CLOCK_SUMMARY {"lane", "wall_s", "phrames", "packets_seen", "packets_total",
-##                  "live_phrames", "native_ms_per_packet"}
+##                  "live_phrames", "native_ms_per_packet", "tick_hz"}
 ##
 ## sim_s is the simulated time forecast for that biome in the window (frames ×
 ## packet dt). The buffer plays those frames one phrame per tick, so over a
@@ -59,6 +62,7 @@ func _run() -> void:
 	var sim := {}         # biome -> sim seconds forecast
 	var by_dt := {}       # biome -> {dt_str: frames}
 	var shapes := {}      # "dt|steps|a,b,c" -> count
+	var series := {}      # biome -> [p_north of register 0, one per tick]
 	var last_started: int = int(b._packet_started_at_ms)
 	var last_phrame: int = int(b._last_phrame_wall_ms)
 	var phrames := 0
@@ -77,6 +81,12 @@ func _run() -> void:
 		if disturb != null and _t % every == 0:
 			disturb.quantum_computer.apply_pauli_x(0)
 		await physics_frame
+		for biome in b.biomes:
+			if b._is_valid_biome(biome) and biome.quantum_computer and biome.quantum_computer.density_matrix:
+				var sn: String = b._get_biome_name(biome)
+				var arr: Array = series.get(sn, [])
+				arr.append(float(biome.quantum_computer.get_marginal_density_matrix(null, 0).get_element(0, 0).re))
+				series[sn] = arr
 		if int(b._last_phrame_wall_ms) != last_phrame:
 			last_phrame = int(b._last_phrame_wall_ms)
 			phrames += 1
@@ -87,7 +97,7 @@ func _run() -> void:
 			var req: Dictionary = b._active_packet_request
 			var flags: Array = req.get("active_flags", [])
 			var steps: int = int(req.get("num_steps", 0))
-			var dt: float = float(b._get_packet_dt_for_active_flags(flags))
+			var dt: float = float(req.get("dt", -1.0))
 			var names: Array = []
 			for id in range(flags.size()):
 				if bool(flags[id]):
@@ -120,6 +130,8 @@ func _run() -> void:
 			"sim_per_wall": float(sim.get(n, 0.0)) / maxf(wall_s, 0.001),
 			"by_dt": by_dt.get(n, {}),
 		}))
+	for sn in series:
+		print("CLOCK_SERIES " + JSON.stringify({"biome": sn, "p_north": series[sn]}))
 	for key in shapes:
 		var parts: PackedStringArray = str(key).split("|")
 		print("CLOCK_PACKET " + JSON.stringify({"dt": float(parts[0]), "steps": int(parts[1]),
@@ -130,5 +142,6 @@ func _run() -> void:
 		"wall_s": wall_s, "phrames": phrames, "packets_seen": seen, "packets_total": packets,
 		"live_phrames": int(b.live_phrames_total) - live0,
 		"native_ms_per_packet": (float(b._native_ms_total) - native0) / maxf(1.0, float(packets)),
+		"tick_hz": Engine.physics_ticks_per_second,
 	}))
 	quit(0)
