@@ -459,7 +459,7 @@ func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALI
 	# refused "already explored" forever while biome_explored waited on the
 	# fog — Past the Hedge stuck at 50% (distractible ds3, 2026-11-09).
 	# Re-seat the held terminal on this plot and reveal it; no second cost.
-	if not result.get("success", false) and str(result.get("error", "")) == "already_bound" 			and grid_pos != GridSentinel.INVALID_POSITION and farm.has_method("is_plot_revealed") 			and not farm.is_plot_revealed(grid_pos):
+	if bool(result.get("noop", false)) and str(result.get("already", "")) == "already_bound" 			and grid_pos != GridSentinel.INVALID_POSITION and farm.has_method("is_plot_revealed") 			and not farm.is_plot_revealed(grid_pos):
 		var held = terminal_pool.get_terminal_for_register(target_register_id, biome_name)
 		if held != null:
 			if held.grid_position != grid_pos:
@@ -473,6 +473,9 @@ func action_explore(biome_name: String, grid_pos: Vector2i = GridSentinel.INVALI
 			_emit_farm_action("explore", result, grid_pos)
 			action_performed.emit("explore", result)
 			return result
+	# Already explored (and revealed): nothing changed, nothing to announce.
+	if bool(result.get("noop", false)):
+		return result
 	# Attach terminal to its grid plot. Under the plot_idx ≡ register_id
 	# invariant, the canonical grid position for any register is always
 	# (register_id, biome_row). If the caller supplied a grid_pos, use it
@@ -549,6 +552,8 @@ func action_measure(grid_pos: Vector2i) -> Dictionary:
 		return {"success": false, "error": "no_biome", "message": "Biome '%s' not found" % biome_name, "blocked": true}
 
 	var result = ProbeActions.action_measure(terminal, biome, economy, farm)
+	if bool(result.get("noop", false)):
+		return result
 	_emit_farm_action("measure", result, grid_pos)
 	action_performed.emit("measure", result)
 	# Quest-visible: the Zeno arc counts watching (gate_sequence_contains "measure").
@@ -566,6 +571,11 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 
 	var terminal = _resolve_terminal_for_harvest(grid_pos)
 	if not terminal:
+		# A revealed plot with no probe has already been gathered: silent no-op.
+		# An unexplored plot has nothing to gather at all — that stays honest.
+		if farm.has_method("is_plot_revealed") and farm.is_plot_revealed(grid_pos):
+			return {"success": true, "noop": true, "already": "already_gathered",
+					"detail": "Nothing banked at %s — already gathered." % str(grid_pos)}
 		return {"success": false, "error": "no_terminal", "message": "No terminal at selection"}
 
 	_detach_terminal_from_plot(terminal)
