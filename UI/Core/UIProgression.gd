@@ -367,6 +367,23 @@ static func objective_detail() -> String:
 	return hint
 
 
+## What the banner's "[E] more about this" opens: the live quest's own body
+## (the story / teaching behind the ask), then its how-line. Empty when there
+## is nothing beyond the one-line ask — then the banner shows no E line.
+static func objective_more() -> String:
+	var best := _banner_quest()
+	if best.is_empty():
+		return ""
+	var parts: Array[String] = []
+	var body := str(best.get("body", "")).strip_edges()
+	if body != "":
+		parts.append(body)
+	var how := objective_detail()
+	if how != "" and how != body:
+		parts.append(how)
+	return "\n\n".join(parts)
+
+
 ## The single ranked winning quest/offer — shared by objective_text() (the
 ## text banner) and objective_target_key() (the visual spotlight), so both
 ## always agree on what "the one live objective" is. {} when there's none.
