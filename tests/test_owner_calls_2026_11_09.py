@@ -44,14 +44,16 @@ def test_still_the_pond_is_guided_by_the_druid():
     assert "static func _still(" in src("Core/Campaign/Guide.gd")
 
 
-def test_market_refresh_is_f():
+def test_market_refresh_is_e_and_f_locks():
+    # Owner call 2026-11-09 moved Refresh to F; #69 (built with Luke's picks,
+    # 2026-11-14) gave F to Lock and Refresh back to E. This pins the later call.
     board = src("UI/Overlays/QuestBoard.gd")
     f = board.split("func _on_action_f()")[1].split("\nfunc ")[0]
     e = board.split("func _on_action_e()")[1].split("\nfunc ")[0]
-    assert "_refresh_pool()" in f and "_refresh_pool()" not in e
-    assert '"F": "Refresh"' in board and '"E": "Refresh"' not in board
+    assert "_toggle_lock_selected()" in f and "_refresh_pool()" in e
+    assert "\"E\": \"Refresh\"" in board  # #69 (Luke's picks): F locks a price, E refreshes
     keymap = json.loads(src("Core/Campaign/campaign.json"))["guide"]["keymap"]
-    assert keymap["verbs"]["refresh"] == "F"
+    assert keymap["verbs"]["refresh"] == "E"
 
 
 def test_arc_quest_titles_are_unique():

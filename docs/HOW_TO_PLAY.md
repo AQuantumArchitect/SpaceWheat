@@ -62,7 +62,7 @@ Four verbs, same directions on every surface:
 |-----|-----|--------------|
 | 4 | **Spark** | One-shot Lindblad jolt — wet country only (chips grey on closed ground); the kick that can *re-purify*. **E** reads the gauge. Mode 2 (🌉): Majorana bridges — never sealed. |
 | 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). Mode **1** is inject: **F tracks** a plot's walk (⌖), **R incorporates** it when ripe. Mode **2** is the mirror 🪞 (see What Turns). R on an empty plot (mode 1) adds an icon, Q trims one. |
-| 6 | **Merchant** | Standing contracts with the Bath (wet country only). 1/2/3 picks the channel — thermal / dephase / damp. Q exports, E reads the order book, R imports, **F settles**. |
+| 6 | **Merchant** | Channels with the Bath (wet country only), issued by the biome's native faction. 1/2/3 picks the kind — thermal / dephase / damp. Q exports, E reads the order book (the C board's price), R imports, **F settles**. Held channels show on the C board's Commitments. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
 | 8 | **Ace** | The default: explore/fast-fwd (F; Shift+F explores all; Ctrl+Shift+F reaps the season) / strike (R, banks; strike again when it spreads) / gather (Q, pays the bank) / pause (E). |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. Mode **2** is the compass 🧭 (see What Turns). |
@@ -96,6 +96,18 @@ words **plant** (Icon-hat R on an empty plot authors the biome's
 Hamiltonian), and a faction that trusts you **pays better** (the ⭐ bonus on
 its board rows). The objective portal (top-right) always names the one live
 task and the next door behind it; tap it for the Arc.
+
+Market prices are live. Each second the board reprices every offer from the
+biome's state, so an ask rises (▲) and falls (▼) while you watch: the rarer
+the good is right now, the more it asks. **F** locks the selected offer's
+price for 60 seconds of play without accepting it (three locks at once,
+free; the clock stops while time is paused). The locked row shows the time
+left and where the live price has gone. **R** accepts at whatever price the
+row shows. Trades (the rescue stalls) have a fixed table price and never move.
+On open (wet) ground the Market also offers **channels**: the Merchant's
+import and export contracts on each free register, priced the same way and
+lockable. A channel you sign runs on Commitments until you close it (**Q**,
+then **F**), which is free.
 
 ## Berries — how the mid-game moves
 

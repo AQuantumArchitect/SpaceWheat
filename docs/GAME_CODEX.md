@@ -164,17 +164,28 @@ market/contracts in `Core/Markets/MarketLattice.gd`.
 (`native/src/`) is the only integrator: it batches all biomes × ~13 phrames across
 one bridge crossing and returns evolved ρ, Bloch metrics, purity and mutual
 information, which `BiomeEvolutionBatcher` plays back into ρ one phrame at a time.
-It trusts the builders' H/L (a physics-signature check re-registers it when they
-change).
+It keeps its own copy of the builders' H/L: every write to `hamiltonian` or
+`lindblad_operators` stamps `QuantumComputer.operator_epoch`, and the batcher
+re-registers a biome whose epoch moved (holding it still, frames dropped, until
+the engine is free to take the new operators). A physics-signature check is the
+backstop.
 
 Everything else that writes ρ (a strike, a gate, a Spark jolt, a standing
 contract's tick, a load, a rig driver) stamps `QuantumComputer.state_epoch`. When
 the epoch has moved past the one the buffered frames were forecast from, the
 batcher evolves the live ρ that phrame instead of replaying a stale frame, and
 forecasts again from there. No caller invalidates the lookahead by hand; the input
-layer holds no buffer code (`tests/test_lookahead_follows_writes.py`). The rig
-defaults to lookahead off, which steps ρ directly each tick at the tick's dt, not
-the packet's: the two lanes run at different sim speeds.
+layer holds no buffer code (`tests/test_lookahead_follows_writes.py`).
+
+**One clock.** Every biome advances `PhysicsConfig.PHRAME_SIM_DT` (0.02 sim-s)
+per phrame, times its `observation_stride` (the `−`/`=` clock), in both lanes:
+the player's lookahead and the rig's direct stepping (lookahead off). Standing
+contracts and gated channels tick on the same clock. A biome's
+`max_evolution_dt` is its resolution: it caps the integrator substep and never
+sets how much time passes. Refills continue the buffer from its last frame. So
+a biome's state depends only on how long it has run, not on which biomes shared
+its packet or which lane ran it: a state can be found again
+(`tests/test_shared_clock.py`; owner ruling 2026-11-13).
 
 ---
 
@@ -209,7 +220,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 |----:|-----|---------------|-------|
 | 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | unlocks in Act 5 (`edge_of_the_enclave`); fires only on open ground |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
-| 6 | **Merchant** 🤝 | import / price / export / tip | unlocks in Act 1 (`village_stirs`) |
+| 6 | **Merchant** 🤝 | Export / Price (order book) / Import / Settle — channels, wet ground only | unlocks in Act 1 (`village_stirs`) |
 | 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
@@ -319,6 +330,26 @@ harvests, not on Reap.
 marginals; a biome must have a live `QuantumComputer` (and a neighborhood anchor
 faction) to make offers. **Resources come from the market; icons come from
 incorporation** — do not confuse the two economies.
+- **Prices are live.** `MarketLattice.quote()` is the one price function:
+  (−kT·log p_live + kT·|log p_live − log p_prior|) × the issuer's standing factor.
+  The board's 1 s heartbeat requotes every open offer, so asks move with ρ while
+  the board is open.
+- **Lock** (F on Market) freezes an offer's quote without accepting it. It is
+  free, 3 at once, and lasts 60 s of play (`Farm._physics_process` runs the clock,
+  so pausing stops it). Locks survive a re-deal and a save (GameState v8
+  `market_state`). **Accept** (R) takes the quote on the row; delivery settles
+  on the contract's own biome, collapsing it per that biome's regime.
+- **Channels** (the Merchant hat, 6) are contracts in the same lattice: they
+  settle by *flow* instead of one delivery. The biome's native faction issues
+  them, and the stake is `MarketLattice.channel_quote()`: quote() on the
+  driven pole, plus the 📜/🧺 fee. The physical counterparty is still the Bath.
+  Held channels show on Commitments with their flow, and Q there (or Merchant
+  F) closes one, free and standing-neutral. On open ground the Market tab
+  offers them, live and lockable; Merchant E shows the same quote.
+- **Trades** (the campaign's supply `trades`) are table-priced, never requote,
+  can't be locked, and stand on the board only while you're short.
+- "Standing" means reputation only: channel, trade and offer are the three
+  kinds of contract.
 
 **Ambient life:** six faction *socialites* speak by **measuring** a biome they are
 native to and emitting the outcome emojis. Cadence and biome-choice are now driven

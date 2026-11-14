@@ -57,7 +57,7 @@ static func from_market_contract(contract, biome) -> Dictionary:
 	return quest
 
 
-## SUPPLY source: a standing trade from the campaign `resources` table
+## SUPPLY source: a trade from the campaign `resources` table
 ## (CampaignRuntime.trades_for_biome) as a canonical market DELIVERY quest.
 ## Deliver `give` to the faction, receive EXACTLY get×emoji — no lattice
 ## pricing, no RNG (QuestManager.complete_quest settles supply_trade quests on
@@ -97,7 +97,7 @@ static func supply_offer(trade: Dictionary) -> Dictionary:
 		"resource": ask,
 		"quantity": int(give[ask]),
 		"give": give,
-		"time_limit": -1.0,   # a standing trade never expires
+		"time_limit": -1.0,   # a trade never expires
 		"supply_trade": true,
 		"supply_emoji": emoji,
 		"reward_resources": {emoji: get_n},
@@ -105,8 +105,8 @@ static func supply_offer(trade: Dictionary) -> Dictionary:
 	})
 	QuestVoice.apply(q)
 	var deal := CampaignRuntime.trade_words(trade)
-	q["body"] = "%s · standing trade %s" % [str(q.get("body", "")), deal]
-	q["full_text"] = "%s — standing trade: %s, any time you stand in %s" % [
+	q["body"] = "%s · trade %s" % [str(q.get("body", "")), deal]
+	q["full_text"] = "%s — trade at a fixed table price: %s, while you're short in %s" % [
 		str(q.get("full_text", "")), deal, biome_name]
 	return q
 

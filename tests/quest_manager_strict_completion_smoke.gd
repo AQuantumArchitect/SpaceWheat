@@ -35,7 +35,7 @@ class FakeLattice extends RefCounted:
 	func _init(economy_ref: FakeEconomy = null) -> void:
 		economy = economy_ref
 
-	func synthesize_and_exercise(emoji: String, faction_name: String = "") -> Dictionary:
+	func synthesize_and_exercise(emoji: String, faction_name: String = "", _biome_name: String = "") -> Dictionary:
 		call_count += 1
 		if economy != null:
 			economy.add_resource(outcome_emoji, classical_reward, "contract_exercise")

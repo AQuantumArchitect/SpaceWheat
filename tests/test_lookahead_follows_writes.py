@@ -11,12 +11,19 @@ Now every write stamps QuantumComputer.state_epoch, and the batcher evolves the
 live ρ (instead of replaying a stale frame) whenever the epoch has moved past the
 one its frames were forecast from. The game layer holds no invalidation at all.
 
-- tests/rho_write_epoch_check.gd: every QuantumComputer writer stamps the epoch.
-- tests/strike_collapse_probe.gd: the real game, lookahead ON, written five ways
+The generator is the other half of a biome's state. The native engine keeps its
+own copy of H and L; every write to either stamps QuantumComputer.operator_epoch,
+and the batcher re-registers a biome whose epoch moved (holding it, frames
+dropped, until the engine takes the new operators). Before 2026-11-12 that also
+depended on callers remembering mark_for_reregister.
+
+- tests/rho_write_epoch_check.gd: every QuantumComputer writer stamps its epoch.
+- tests/strike_collapse_probe.gd: the real game, lookahead ON, written six ways
   (key strike, key Druid spin, direct strike, GateInjector gate, a raw gate on
-  the QC, a standing pump). Each write must hold; the pump must compound across ticks.
+  the QC, H assigned zero, a standing pump). Each write must hold; the pump must
+  compound across ticks.
 - Source pins: the input layer, GateInjector and the verb handlers don't touch the
-  batcher; any in-place ρ write outside QuantumComputer stamps the epoch.
+  batcher; any in-place ρ, H or L write outside QuantumComputer stamps its epoch.
 """
 import json
 import os
@@ -73,6 +80,32 @@ def test_every_qc_writer_stamps_the_epoch(tmp_path):
         "next buffered frame would overwrite them:\n" + "\n".join(missing)
 
 
+def test_every_qc_operator_writer_stamps_the_epoch(tmp_path):
+    out = _run(EPOCH_CHECK, tmp_path, 120)
+    rows = [l.split(" ", 1)[1] for l in out.splitlines() if l.startswith("OPEPOCH ")]
+    assert len(rows) >= 6, f"epoch check printed {len(rows)} operator writers:\n{out[-2000:]}"
+    missing = [r for r in rows if r.endswith(" MISSING")]
+    assert not missing, "these writes to H or L leave operator_epoch where it was, " \
+        "so the native engine would keep evolving the old physics:\n" + "\n".join(missing)
+
+
+def test_an_operator_change_reaches_the_engine(traces):
+    """Village (closed, no L) gets H = 0 by plain assignment. A closed biome with
+    no generator doesn't move; frames from an engine that kept the old H do."""
+    t = traces["operators"]
+    assert t["lookahead"] is True
+    assert t["open"] is False and t["lindblad_count"] == 0, \
+        f"Village must be closed with no L for H = 0 to mean 'holds still': {t}"
+    drift = dict((int(f), float(d)) for f, d in t["trace"])
+    worst = max(drift.values())
+    assert worst < 1e-6, (
+        f"after H was set to zero Village still moved (max |Δp_north| {worst:.4f}, "
+        f"by frame: {drift}): the native engine is evolving the old H")
+    before, after = t["operator_epoch"]
+    assert after > before, "assigning qc.hamiltonian must move operator_epoch"
+    assert t["registered_epoch"] == after, "the engine was not re-registered from the new H"
+
+
 @pytest.mark.parametrize("path", ["keys", "druid", "direct", "gate", "raw"])
 def test_write_survives_the_lookahead(traces, path):
     assert path in traces, f"no {path} trace"
@@ -91,9 +124,10 @@ def test_write_survives_the_lookahead(traces, path):
 
 
 def test_standing_pump_compounds_with_lookahead_on(traces):
-    """Rate 20 moves 86% of the south population per tick. One tick that sticks
-    leaves ~14% of it; before 2026-11-11 that was all that ever stuck (the pump
-    plateaued at ~0.96 from 0.72). Compounding over 40 ticks leaves ~nothing."""
+    """Rate 20 on the shared clock (0.02 sim-s per tick, since 2026-11-13) moves
+    a third of the south population per tick. Before 2026-11-11 only a tick
+    captured at a refill seam ever stuck (the pump plateaued at ~0.96 from
+    0.72). Compounding over 40 ticks leaves ~nothing."""
     t = traces["pump"]
     assert t["lookahead"] is True
     frames = dict((int(f), float(p)) for f, p in t["trace"])
@@ -109,10 +143,12 @@ def test_standing_pump_compounds_with_lookahead_on(traces):
 # ---------------------------------------------------------------------------
 
 BATCHER_CALLS = re.compile(r"invalidate_biome_buffer|decimate_biome_buffer|reset_stride_carry"
-                           r"|signal_user_action|invalidate_after_write|BUFFER_INVALIDATING")
+                           r"|signal_user_action|invalidate_after_write|BUFFER_INVALIDATING"
+                           r"|mark_for_reregister")
 
 
 @pytest.mark.parametrize("rel", [
+    "Core/Environment/BiomeBase.gd",
     "UI/Core/QuantumInstrumentInput.gd",
     "Core/QuantumSubstrate/GateInjector.gd",
     "Core/Actions/ProbeActions.gd",
@@ -136,6 +172,21 @@ def test_batcher_checks_the_epoch_before_every_frame():
     queue = b.split("func _queue_adaptive_packet(")[1].split("\nfunc ")[0]
     assert '"generations": _snapshot_buffer_generations()' in queue, \
         "packets must carry the generation from when their ρs were captured"
+
+
+def test_batcher_notices_operator_writes_every_tick():
+    b = read_source("Core/Environment/BiomeEvolutionBatcher.gd")
+    pending = b.split("func _process_pending_reregisters(")[1].split("\nfunc ")[0]
+    assert pending.index("_flag_operator_changes()") < pending.index("_active_packet_request.is_empty()"), \
+        "operator changes must be flagged before the re-register waits on an in-flight packet"
+    flag = b.split("func _flag_operator_changes(")[1].split("\nfunc ")[0]
+    assert "operator_epoch" in flag and "invalidate_biome_buffer(" in flag
+    status = b.split("func _get_biome_rho_status(")[1].split("\nfunc ")[0]
+    assert "biome_pending_reregister" in status, \
+        "a biome waiting to re-register must not be put in a packet (the engine has its old H/L)"
+    live = b.split("func _evolve_live_phrame(")[1].split("\nfunc ")[0]
+    assert "biome_pending_reregister" in live, \
+        "a biome waiting to re-register must not take a live step on the old H/L"
 
 
 def test_timing_setters_tell_the_batcher():
@@ -165,3 +216,24 @@ def test_in_place_rho_writes_outside_the_qc_stamp_the_epoch():
                         offenders.append(f"{rel}:{n + 1}: {line.strip()}")
     assert not offenders, "in-place writes to ρ must call qc.mark_state_written() " \
         "(or go through a QuantumComputer method):\n" + "\n".join(offenders)
+
+
+IN_PLACE_OPERATOR_WRITE = re.compile(r"hamiltonian\.(set_element|_from_packed)\(|"
+                                     r"lindblad_operators\.(append|push_back|clear|erase|remove_at|resize|insert)\(")
+
+
+def test_in_place_operator_writes_outside_the_qc_stamp_the_epoch():
+    offenders = []
+    for d in ("Core", "UI", "🍄"):
+        for f in (ROOT / d).rglob("*.gd"):
+            rel = f.relative_to(ROOT).as_posix()
+            if rel == "Core/QuantumSubstrate/QuantumComputer.gd":
+                continue
+            lines = f.read_text(encoding="utf-8").splitlines()
+            for n, line in enumerate(lines):
+                if IN_PLACE_OPERATOR_WRITE.search(line) and not line.lstrip().startswith("#"):
+                    window = "\n".join(lines[n:n + 4])
+                    if "mark_operators_written()" not in window:
+                        offenders.append(f"{rel}:{n + 1}: {line.strip()}")
+    assert not offenders, "in-place writes to H or L must call qc.mark_operators_written() " \
+        "(or assign the field, or go through a QuantumComputer method):\n" + "\n".join(offenders)

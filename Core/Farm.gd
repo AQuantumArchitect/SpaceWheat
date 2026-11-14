@@ -157,8 +157,8 @@ var biome_enabled: bool = false
 # Dynamic grid sizing
 const DEFAULT_PLOTS_PER_BIOME = 6  # canonical ring: G H J K L ; = 6 icons / 12 atoms
 const MAX_PLOTS_PER_BIOME = 7  # J K L ; ' H G
-const LINDBLAD_TIMESCALE_BASE_DT = 0.02
-const LINDBLAD_TIMESCALE_CAP = 4096.0
+## Standing channels follow a biome's stride up to the evolution's own cap.
+const LINDBLAD_STRIDE_CAP = 32
 ## Thermal contracts run a detailed-balance pair: the chosen direction at the
 ## contract rate, the back-channel at this fraction of it. Fixed point sits at
 ## back/(1+back) ≈ 1/3 against the flow — warm, never pinned.
@@ -1043,6 +1043,11 @@ func _physics_process(delta: float) -> void:
 
 	# Authored nonlinear channels (the basins' hearts)
 	_process_gated_channels(delta)
+
+	# Market locks hold for seconds of PLAY: this tick is skipped while paused,
+	# so a paused world holds every lock where it is.
+	if market_lattice != null:
+		market_lattice.tick_locks(delta)
 	FrameCostLedger.add_us("viz_farm_physics_rest", Time.get_ticks_usec() - rest_us)
 
 
@@ -1156,7 +1161,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
-	# Persistent Lindblad pump/drain (the Merchant frame's standing contracts) runs
+	# Persistent Lindblad pump/drain (the Merchant frame's channels) runs
 	# wherever the biome's regime is open — per biome, below (is_open_here). The
 	# world switch is NOT a gate here: What Fades opens biomes one at a time long
 	# before the endgame door, and a contract signed in open country must tick
@@ -1177,7 +1182,7 @@ func _process_lindblad_effects(delta: float) -> void:
 		var qc = biome.quantum_computer
 		if not ("register_infrastructure" in qc) or qc.register_infrastructure.is_empty():
 			continue
-		# Openness is a place: standing channels run only where the regime is
+		# Openness is a place: Merchant channels run only where the regime is
 		# open. Flags may survive on sealed ground (old saves, later regime
 		# flips) — they simply never tick there. The enclave holds.
 		if not qc.is_open_here():
@@ -1307,9 +1312,13 @@ func _process_gated_channels(delta: float) -> void:
 				rate_eff, effective_delta)
 
 
+## The simulated time a standing channel ticks this frame: the shared clock
+## (PhysicsConfig.sim_dt of the wall delta) times the biome's stride, capped
+## at 32× like the evolution itself — the same time H gets, so each phrame
+## composes channel then H. Resolution (max_evolution_dt) doesn't enter: it is
+## accuracy, not time (owner ruling 2026-11-13).
 func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float:
-	# Scale Lindblad timestep by biome timescale controls (stride + resolution).
-	var base_delta = maxf(0.0, float(frame_delta))
+	var base_delta = PhysicsConfig.sim_dt(maxf(0.0, float(frame_delta)))
 	if base_delta <= 0.0:
 		return 0.0
 	if not biome:
@@ -1320,14 +1329,7 @@ func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float
 		stride = max(0, int(biome.observation_stride))
 	if stride <= 0:
 		return 0.0
-
-	var dt_scale = 1.0
-	if "max_evolution_dt" in biome:
-		var max_dt = maxf(0.000001, float(biome.max_evolution_dt))
-		dt_scale = max_dt / LINDBLAD_TIMESCALE_BASE_DT
-
-	var multiplier = clampf(float(stride) * dt_scale, 0.0, LINDBLAD_TIMESCALE_CAP)
-	return base_delta * multiplier
+	return base_delta * float(mini(stride, LINDBLAD_STRIDE_CAP))
 
 
 func _accumulate_sink_flux_from_biome_rates(biome_name: String, biome, dt: float) -> void:
@@ -1372,6 +1374,9 @@ func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, dra
 
 	accum -= whole_credits
 	qc.set_register_infra_field(register_id, "lindblad_drain_accumulator", accum)
+	# The channel's running total, read by its row on Commitments.
+	qc.set_register_infra_field(register_id, "lindblad_credited_total",
+			int(qc.get_register_infra_field(register_id, "lindblad_credited_total", 0)) + whole_credits)
 	economy.add_resource(emoji, whole_credits, "lindblad_drain", biome_name)
 
 

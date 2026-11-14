@@ -575,7 +575,7 @@
         "accept": "R",
         "claim": "R",
         "deliver": "R",
-        "refresh": "F",
+        "refresh": "E",
         "faster": "="
       },
       "clock_max_stride": 32,

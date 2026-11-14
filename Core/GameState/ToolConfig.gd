@@ -10,7 +10,7 @@ extends RefCounted
 ## |-----|------------|------------------------------------------------|
 ## |  4  | Spark      | Lindblad jolt (wet country) / Majorana bridges |
 ## |  5  | Icon       | Icon injection (player faction signature)      |
-## |  6  | Merchant   | Bath contracts: thermal / dephase / damp       |
+## |  6  | Merchant   | Channels: thermal / dephase / damp             |
 ## |  7  | Captain    | Biomes lifecycle (discover / cull)             |
 ## |  8  | Ace        | Measure / probe (explore / measure / pop)      |
 ## |  9  | Operator   | Gate building (build / inspect / break)        |
@@ -171,7 +171,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	},
 
 	# =========================================================================
-	# MERCHANT (S, C, F) — standing contracts with the country you stand in.
+	# MERCHANT (S, C, F) — channels with the country you stand in.
 	# Each sub-mode (1/2/3) IS one of the three canonical qubit channels:
 	#   thermal 🌡 — detailed-balance pair (generalized amplitude damping):
 	#                net flow the direction you chose, but the back-rate keeps
@@ -181,10 +181,14 @@ const ARCHETYPE_FRAMES: Dictionary = {
 	#                sell your phase back. Pays deferred: kT rises with entropy.
 	#   damp    🌊 — one-way amplitude damping: pins the pole hard. Maximum
 	#                extraction, and it cools the biome toward purity.
-	# The counterparty is the Bath itself — a Lindblad channel's other end is
-	# the environment, by definition. Your wallet is the ledger. Costs use
-	# social fees (🧺 export, 📜 import) + the surprisal-priced pole stake.
-	# Openness is a place: contracts run only where the regime is open.
+	# A channel is a contract like any market offer (MarketLattice): the
+	# biome's native faction issues it and its standing moves the price; the
+	# physical counterparty is the Bath — a Lindblad channel's other end is the
+	# environment, by definition. Your wallet is the ledger. Costs use social
+	# fees (🧺 export, 📜 import) + the pole stake from the market's one price
+	# law (MarketLattice.channel_quote). Held channels show on the C board's
+	# Commitments; on open ground the Market tab offers them too.
+	# Openness is a place: channels run only where the regime is open.
 	# Q exports (channel out) · E reads the price · R imports · F settles.
 	# =========================================================================
 	FRAME_MERCHANT: {
@@ -192,7 +196,7 @@ const ARCHETYPE_FRAMES: Dictionary = {
 		"emoji": "🤝",
 		"icon": "res://Assets/UI/Icon/Icon.svg",
 		"time_scale": "discrete",
-		"description": "Standing contracts (wet country only) — Q exports, E reads the price, R imports, F settles. Modes 1/2/3 pick the channel: thermal / dephase / damp. Price = −kT·log p.",
+		"description": "Channels (wet country only) — Q exports, E reads the price, R imports, F settles (closes it). Modes 1/2/3 pick the channel: thermal / dephase / damp. Price = −kT·log p × the issuing faction's standing; the same quote as the C board.",
 		"modes": ["thermal", "dephase", "damp"],
 		"mode_labels": ["~", ".", "|"],
 		"mode_emojis": ["🌡", "💨", "🌊"],
@@ -204,12 +208,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Thermal export — couple the plot to a colder reservoir: population flows out at detailed balance, credited to your wallet as it drains (costs 🧺 + south-pole stake). The back-rate keeps the plot warm — the reap bank survives."},
 				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
+					  "hint": "Read the order book — what a channel costs each way on this plot, the same quote the C board shows, and how your standing with the issuing faction moves it"},
 				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
 					  "hint": "Thermal import — couple to a hotter reservoir: population flows in at detailed balance (costs 📜 + north-pole stake). The gentle way in: arrives warm, never pinned."},
 				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
-					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
+					  "icon": "", "hint": "Close the channel on the selected plot(s) — free, standing unchanged. The ledger keeps what already moved."}
 			},
 			"dephase": {
 				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
@@ -217,12 +221,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Sell your phase to the noise — coherence drains, populations untouched (costs 🧺 only). Nothing lands in the wallet: the biome runs hotter, and the season's reap pays kT·ΔS on the entropy you grew."},
 				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
+					  "hint": "Read the order book — what a channel costs each way on this plot, the same quote the C board shows, and how your standing with the issuing faction moves it"},
 				"R": {"action": "", "label": "—", "emoji": "🚫", "icon": "",
 					  "hint": "No contract can sell you back your phase — decoherence is irreversible. Coherence returns only through your own gates (Druid, 0).",
 					  "disabled": true},
 				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
-					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
+					  "icon": "", "hint": "Close the channel on the selected plot(s) — free, standing unchanged. The ledger keeps what already moved."}
 			},
 			"damp": {
 				"Q": {"action": "drain", "label": "Export", "emoji": "📤",
@@ -230,12 +234,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 					  "hint": "Damping export — one-way drain to the south sink, credited as it flows (costs 🧺 + south-pole stake). Maximum extraction: pins the plot cold and starves the reap bank."},
 				"E": {"action": "read_price", "label": "Price", "emoji": "!",
 					  "icon": "res://Assets/UI/Science/Measure.svg",
-					  "hint": "Read the order book — pole odds, the biome's kT, unit prices both directions, and how your standing with the native faction moves them"},
+					  "hint": "Read the order book — what a channel costs each way on this plot, the same quote the C board shows, and how your standing with the issuing faction moves it"},
 				"R": {"action": "pump", "label": "Import", "emoji": "📥",
 					  "icon": "res://Assets/UI/Tools/Lindblad/Drive.svg",
 					  "hint": "Damping import — one-way pump toward north (costs 📜 + north-pole stake). Pins the pole hard: purity rises, the heat dies."},
 				"F": {"action": "settle", "label": "Settle", "emoji": "✔",
-					  "icon": "", "hint": "Close the contract — remove the standing channel on the selected plot(s). The ledger keeps what already moved."}
+					  "icon": "", "hint": "Close the channel on the selected plot(s) — free, standing unchanged. The ledger keeps what already moved."}
 			}
 		}
 	},

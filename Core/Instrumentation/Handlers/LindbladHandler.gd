@@ -120,6 +120,28 @@ static func _resolve_axis_binding(farm, pos: Vector2i, biome) -> Dictionary:
 	}
 
 
+## The farm's market lattice: channels are contracts there (MarketLattice
+## channel_quote / record_channel / close_channel). null in stripped harnesses.
+static func _lattice(farm):
+	if farm != null and farm.has_method("_ensure_market_lattice"):
+		return farm._ensure_market_lattice()
+	return null
+
+
+## The stake (pole emoji units) for signing a channel, by the market's one
+## price law (MarketLattice.channel_quote: quote() on the driven pole, the
+## native faction's standing factor, a lock taken on the board honoured).
+## Falls back to the bare surprisal when no lattice is wired.
+static func _channel_stake(farm, biome, qubit_idx: int, direction: String, kind: String, p_pole: float) -> Dictionary:
+	var lattice = _lattice(farm)
+	if lattice != null and lattice.has_method("channel_quote"):
+		var q: Dictionary = lattice.channel_quote(biome, qubit_idx, direction, kind)
+		if bool(q.get("ok", false)):
+			return q
+	return {"ok": true, "stake": EnergyPricing.drive_units(clampf(p_pole, 0.0, 1.0),
+			EnergyPricing.biome_temperature(biome, farm)), "faction": "", "locked": false}
+
+
 static func _get_register_infra(biome, register_id: int) -> Dictionary:
 	if not biome or not biome.quantum_computer or register_id < 0:
 		return {}
@@ -367,9 +389,10 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 
 		# Drive-cost: pump (charge north) costs the surprisal of the target north
 		# pole — forcing an improbable pole is more work (any Lindblad drive costs).
-		var pump_units := EnergyPricing.drive_units(
-			clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 0)), 0.0, 1.0),
-			EnergyPricing.biome_temperature(biome, farm))
+		# Priced like every contract: MarketLattice.channel_quote.
+		var quoted := _channel_stake(farm, biome, qubit_idx, "import", kind,
+			float(biome.quantum_computer.get_marginal(qubit_idx, 0)))
+		var pump_units := int(quoted.get("stake", 1))
 		var cost = _preflight_lindblad_cost(
 			farm,
 			EconomyConstants.normalize_action_id("lindblad_pump"),
@@ -387,6 +410,9 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 		infra["lindblad_pump_active"] = true
 		infra["lindblad_pump_rate"] = rate
 		infra["lindblad_channel_kind"] = kind
+		var lattice = _lattice(farm)
+		if lattice != null and lattice.has_method("record_channel"):
+			lattice.record_channel(biome, qubit_idx, "import", kind, rate, quoted, cost)
 		activated_count += 1
 
 		charged_count += 1
@@ -415,11 +441,11 @@ static func enable_persistent_drive(farm, positions: Array[Vector2i],
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"cost_model": "pump = 4📜 + ⌈−kT·log p_N⌉ × north-pole"
+		"cost_model": "pump = 4📜 + round(−kT·log p_N × standing) × north-pole"
 	}
 	if not result.success:
 		if sealed > 0 and already_active == 0 and insufficient.is_empty():
-			result["message"] = "The enclave holds — contracts need open (wet) country."
+			result["message"] = "The enclave holds — channels need open (wet) country."
 		elif already_active > 0:
 			result["message"] = "Pump already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
@@ -501,11 +527,13 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		# Drive-cost: drain (discharge south) costs the surprisal of the target south
 		# pole — mirror of pump; forcing the field (either direction) is work.
 		# Dephasing moves no population, so it stakes no pole emoji — 🧺 fee only.
+		# Priced like every contract: MarketLattice.channel_quote.
 		var drain_units := 0
+		var quoted := {"stake": 0, "faction": ""}
 		if kind != "dephase":
-			drain_units = EnergyPricing.drive_units(
-				clampf(float(biome.quantum_computer.get_marginal(qubit_idx, 1)), 0.0, 1.0),
-				EnergyPricing.biome_temperature(biome, farm))
+			quoted = _channel_stake(farm, biome, qubit_idx, "export", kind,
+				float(biome.quantum_computer.get_marginal(qubit_idx, 1)))
+			drain_units = int(quoted.get("stake", 1))
 		var cost = _preflight_lindblad_cost(
 			farm,
 			EconomyConstants.normalize_action_id("lindblad_drain"),
@@ -526,6 +554,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 		infra["lindblad_channel_kind"] = kind
 		# Dephasing pays deferred (kT rises with entropy); nothing lands in the wallet.
 		infra["lindblad_harvest_visible"] = kind != "dephase"
+		var lattice = _lattice(farm)
+		if lattice != null and lattice.has_method("record_channel"):
+			if kind == "dephase" and lattice.has_method("channel_issuer"):
+				quoted["faction"] = lattice.channel_issuer(biome)
+			lattice.record_channel(biome, qubit_idx, "export", kind, rate, quoted, cost)
 		activated_count += 1
 
 		charged_count += 1
@@ -554,11 +587,11 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 			"unresolved_axis": unresolved_axis,
 			"unresolved_qubit": unresolved_qubit
 		},
-		"cost_model": "drain = 4🧺 + ⌈−kT·log p_S⌉ × south-pole (dephase: 4🧺 only)"
+		"cost_model": "drain = 4🧺 + round(−kT·log p_S × standing) × south-pole (dephase: 4🧺 only)"
 	}
 	if not result.success:
 		if sealed > 0 and already_active == 0 and insufficient.is_empty():
-			result["message"] = "The enclave holds — contracts need open (wet) country."
+			result["message"] = "The enclave holds — channels need open (wet) country."
 		elif already_active > 0:
 			result["message"] = "Drain already active on %d plot(s)" % already_active
 		elif not insufficient.is_empty():
@@ -573,9 +606,10 @@ static func enable_persistent_decay(farm, positions: Array[Vector2i],
 
 
 static func settle_channels(farm, positions: Array[Vector2i]) -> Dictionary:
-	# Close standing contracts: clear pump/drain flags on the selected plots.
-	# Free, and deliberately regime-blind — a contract can always be CLOSED,
-	# even on ground that has since sealed. The ledger keeps what already moved.
+	# Close channels: clear pump/drain flags on the selected plots and drop
+	# their contracts from the lattice. Free, standing-neutral, and
+	# deliberately regime-blind — a channel can always be CLOSED, even on
+	# ground that has since sealed. The ledger keeps what already moved.
 	if not farm or not farm.grid:
 		return {"success": false, "error": "farm_not_ready", "message": "Farm not loaded"}
 	if positions.is_empty():
@@ -605,6 +639,9 @@ static func settle_channels(farm, positions: Array[Vector2i]) -> Dictionary:
 		infra["lindblad_harvest_visible"] = false
 		var kind = str(infra.get("lindblad_channel_kind", "damp"))
 		infra.erase("lindblad_channel_kind")
+		var lattice = _lattice(farm)
+		if lattice != null and lattice.has_method("close_channel"):
+			lattice.close_channel(str(binding.get("biome_name", "")), qubit_idx)
 		settled += 1
 		var emoji = str(binding.get("north", ""))
 		if emoji != "":
@@ -619,7 +656,7 @@ static func settle_channels(farm, positions: Array[Vector2i]) -> Dictionary:
 	}
 	if settled == 0:
 		result["error"] = "no_active_channel"
-		result["message"] = "No standing contract on the selected plot(s)."
+		result["message"] = "No channel on the selected plot(s)."
 	return result
 
 

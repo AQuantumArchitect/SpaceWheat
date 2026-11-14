@@ -441,7 +441,7 @@ def test_mill_apprentice_names_the_board_key():
     market = board.split("func _market_rows")[1].split("\nfunc ")[0]
     # Accepted contracts live on Commitments only; the Market ring is offers.
     assert '"held"' not in market
-    assert "[F] Refresh" in board
+    assert "[E] Refresh" in board
     cue = board.split("func board_walk_cue")[1].split("\nfunc ")[0]
     assert "_held_walk_cue" in cue
     held_cue = board.split("func _held_walk_cue")[1].split("\nfunc ")[0]

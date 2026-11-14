@@ -394,7 +394,7 @@ func action_plant(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
-	# Merchant Q (export) — standing channel out. kind picks the canonical
+	# Merchant Q (export) — a channel out. kind picks the canonical
 	# channel: thermal / dephase / damp. Per-plot regime gating lives in the
 	# handler: openness is a place.
 	var guard = _action_guard(positions)
@@ -408,7 +408,7 @@ func action_drain(positions: Array[Vector2i], kind: String = "damp") -> Dictiona
 
 
 func action_pump(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
-	# Merchant R (import) — standing channel in. kind: thermal / damp
+	# Merchant R (import) — a channel in. kind: thermal / damp
 	# (dephase-import is refused: decoherence is irreversible).
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
@@ -421,7 +421,7 @@ func action_pump(positions: Array[Vector2i], kind: String = "damp") -> Dictionar
 
 
 func action_settle(positions: Array[Vector2i]) -> Dictionary:
-	# Merchant F — close the standing contract on the selected plots. Free,
+	# Merchant F — close the channel on the selected plots. Free,
 	# regime-blind: a contract can always be closed.
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
@@ -2445,16 +2445,13 @@ func _rebuild_operators_after_shrink(biome) -> void:
 			biome_icons.append(IconCls.from_pair_physics(iname, north, south, physics, 1.0))
 
 	qc.hamiltonian = HamBuilder.build_from_icons(biome_icons, qc.register_map, verbose_ref)
-	var lindblad_result = LindBuilder.build_from_atoms(atom_components, qc.register_map, verbose_ref, qc.biome_name)
+	var lindblad_result = LindBuilder.build_from_atoms(atom_components, qc.register_map, verbose_ref, qc.biome_name,
+			qc.is_open_here())
 	qc.lindblad_operators = lindblad_result.get("operators", [])
 	var driven_configs = HamBuilder.get_driven_icons(biome_icons, qc.register_map)
 	qc.set_driven_icons(driven_configs)
-
-	# Same-dim H/L mutation — must tell the C++ lookahead engine to re-register
-	# or it'll keep replaying the pre-shrink operators (silent de-sync).
-	var local_farm = InstrumentLocator.resolve_active_farm_main_loop()
-	if local_farm and local_farm.biome_evolution_batcher and local_farm.biome_evolution_batcher.has_method("mark_for_reregister"):
-		local_farm.biome_evolution_batcher.mark_for_reregister(qc.biome_name)
+	# Assigning H and L moved qc.operator_epoch: the batcher re-registers the
+	# native engine's copy on its next tick.
 
 
 ## Return observation_stride for a biome with a safe default.

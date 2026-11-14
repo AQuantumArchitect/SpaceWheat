@@ -294,7 +294,7 @@ const BRIDGE_WHISPER := {
 ## not per tick — contracts speak when signed, not while they flow.
 const TRADE_WHISPER := {
 	"imperial":  "The Throne licenses every tax farmer in its lands. You have opened a levy on the world itself. Expect an audit.",
-	"guild":     "A standing channel, rate fixed, paid on flow. Mind it — contracts run until settled.",
+	"guild":     "A channel, rate fixed, paid on flow. Mind it — channels run until closed.",
 	"mystic":    "You have opened a small mouth in the world, and it will drink until you close it.",
 	"merchant":  "Continuous delivery, the environment as counterparty. The one partner who never defaults.",
 	"militant":  "A supply line is a wound you cut on purpose. Guard it, and know when to close it.",

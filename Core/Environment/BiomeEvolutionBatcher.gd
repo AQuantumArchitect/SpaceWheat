@@ -27,7 +27,9 @@ const EVOLUTION_INTERVAL = _PC.PHRAME_DT  # Phrame rate (see PhysicsConfig)
 # Lookahead configuration (Stage 2)
 const ENABLE_LOOKAHEAD = true   # C++ batched lookahead: fills per-biome position buffers consumed by QuantumForceGraph.
 const LOOKAHEAD_STEPS = 13  # 13 phrames × PHRAME_DT = ~2.2s lookahead (Fib[6])
-const LOOKAHEAD_DT = _PC.PHRAME_DT  # Time per phrame (see PhysicsConfig)
+const LOOKAHEAD_DT = _PC.PHRAME_DT  # Wall time per phrame (see PhysicsConfig)
+## Simulated time per phrame for every biome: the shared clock (PhysicsConfig).
+const PHRAME_SIM_DT = _PC.PHRAME_SIM_DT
 const MAX_SUBSTEP_DT = _PC.MAX_SUBSTEP_DT  # Numerical stability limit
 const MIN_BUFFER_STEPS = 3
 const TARGET_BUFFER_STEPS = LOOKAHEAD_STEPS
@@ -73,6 +75,12 @@ class BiomeLookaheadBuffer:
 	# Producer side of the same pipe: a packet is growing at the far end.
 	var generation: int = 0
 	var awaiting_packet: bool = false
+	## The frames are placeholders (copies of one ρ, primed after a restart or
+	## a starve) rather than a forecast. frozen_held counts the ones played as
+	## a tick of elapsed time: the packet that replaces them starts that many
+	## frames in, so holding still while compute runs costs the biome no time.
+	var frozen: bool = false
+	var frozen_held: int = 0
 	# Async take already flattened ρ / Bloch / MI / purity / pos. Keep that
 	# form here so merge is a move, not an Array-of-Array unpack (the 5 Hz
 	# GC hitch after cheap take).
@@ -101,6 +109,19 @@ class BiomeLookaheadBuffer:
 		if layout == "flat":
 			return maxi(0, rho_n - cursor)
 		return maxi(0, frames.size() - cursor)
+
+	## The last forecast frame: where the next packet must start so its frames
+	## continue this buffer instead of replaying part of it.
+	func tail_rho() -> PackedFloat64Array:
+		var n: int = rho_n if layout == "flat" else frames.size()
+		return step_rho(n - 1) if n > 0 else PackedFloat64Array()
+
+	## Clear placeholder frames for the packet that replaces them. Not a
+	## restart: the generation stays, since this is the packet they stood in for.
+	func drop_placeholders() -> void:
+		var g := generation
+		reset_frames()
+		generation = g
 
 	func _clear_flat() -> void:
 		layout = "nested"
@@ -136,6 +157,8 @@ class BiomeLookaheadBuffer:
 		_clear_flat()
 		generation += 1
 		awaiting_packet = false
+		frozen = false
+		frozen_held = 0
 
 	func clear() -> void:
 		reset_frames()
@@ -338,6 +361,10 @@ var biome_pending_reregister: Dictionary = {}  # biome_name -> bool
 ## so drift between the live builders and the engine's copy can be DETECTED (signature
 ## mismatch) rather than relying on a caller remembering to mark_for_reregister.
 var _biome_registered_signature: Dictionary = {}  # biome_name -> String
+## The QuantumComputer.operator_epoch each engine copy was (re)registered at. A
+## biome whose epoch has moved since has new physics the engine doesn't have:
+## its frames are dropped and it holds until the engine re-registers.
+var _registered_operator_epoch: Dictionary = {}  # biome_name -> int
 
 # Signal emitted when a biome has its 10-step lookahead buffers primed and is ready
 signal biome_ready(biome_name: String)
@@ -517,6 +544,7 @@ func _teardown_runtime_state() -> void:
 	biome_dirty.clear()
 	biome_pending_reregister.clear()
 	_biome_registered_signature.clear()
+	_registered_operator_epoch.clear()
 
 	biome_buffer_states.clear()
 	biome_fib_indices.clear()
@@ -810,6 +838,7 @@ func _erase_biome_runtime_state(biome_name: String) -> void:
 	_forecast_epoch.erase(biome_name)
 	_live_streak.erase(biome_name)
 	biome_pending_reregister.erase(biome_name)
+	_registered_operator_epoch.erase(biome_name)
 	biome_buffer_states.erase(biome_name)
 	biome_fib_indices.erase(biome_name)
 	biome_emergency_refill.erase(biome_name)
@@ -849,6 +878,7 @@ func _register_native_biome(biome) -> int:
 	_biome_engine_dims[biome_name] = dim
 	# Record the physics fingerprint this engine copy was built from (drift anchor).
 	_biome_registered_signature[biome_name] = str(qc.physics_signature)
+	_registered_operator_epoch[biome_name] = int(qc.operator_epoch)
 	_sync_biome_structure_payload(biome, biome_id)
 
 	# Wire the coherent generator switch into the C++ engine (two-axis isolation). The
@@ -1064,12 +1094,12 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 		else:
 			biome_rhos.append(PackedFloat64Array())  # not in this prime batch → skip
 
-	var actual_dt = _get_packet_dt_for_biomes(biomes_to_prime)
+	var max_dt = _get_packet_max_dt_for_biomes(biomes_to_prime)
 
-	# Batched evolution: all biomes × LOOKAHEAD_STEPS in one native call
-	# Pass actual_dt as BOTH dt and max_dt (no subcycling, max_dt is the timestep)
+	# Batched evolution: all biomes × LOOKAHEAD_STEPS in one native call, each
+	# phrame PHRAME_SIM_DT long (the shared clock), substeps capped at max_dt.
 	var evo_result = lookahead_engine.evolve_all_lookahead(
-		biome_rhos, prime_steps, actual_dt, actual_dt
+		biome_rhos, prime_steps, PHRAME_SIM_DT, max_dt
 	)
 
 	# Unpack results into per-biome buffers
@@ -1091,6 +1121,8 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 		# Fill buffers with evolution results
 		if i < results.size():
 			lookahead_buffer.frames = results[i]
+			lookahead_buffer.frozen = false
+			lookahead_buffer.frozen_held = 0
 		if i < bloch_steps.size():
 			lookahead_buffer.bloch_steps = bloch_steps[i]
 		if i < purity_steps.size():
@@ -1134,30 +1166,36 @@ func _matrix_to_triplets(mat) -> PackedFloat64Array:
 	return triplets
 
 
-func _get_biome_evolution_dt(biome) -> float:
+## A biome's resolution: the largest integrator substep it allows. It never
+## sets how much time a phrame covers — every biome's phrame is PHRAME_SIM_DT
+## (the shared clock). Only open biomes substep; a closed one is exact.
+func _get_biome_max_substep(biome) -> float:
 	if biome and "max_evolution_dt" in biome:
 		return maxf(0.000001, float(biome.max_evolution_dt))
-	return LOOKAHEAD_DT
+	return MAX_SUBSTEP_DT
 
 
-func _get_packet_dt_for_biomes(packet_biomes: Array) -> float:
-	var actual_dt := INF
+## The substep cap for one native call over several biomes: the finest
+## resolution among them (one max_dt per call until the native engine takes a
+## per-biome cap). Time per phrame is the shared clock either way.
+func _get_packet_max_dt_for_biomes(packet_biomes: Array) -> float:
+	var cap := INF
 	for biome in packet_biomes:
 		if _is_valid_biome(biome):
-			actual_dt = minf(actual_dt, _get_biome_evolution_dt(biome))
-	return LOOKAHEAD_DT if actual_dt == INF else actual_dt
+			cap = minf(cap, _get_biome_max_substep(biome))
+	return MAX_SUBSTEP_DT if cap == INF else cap
 
 
-func _get_packet_dt_for_active_flags(active_flags_arr: Array) -> float:
-	var actual_dt := INF
+func _get_packet_max_dt_for_active_flags(active_flags_arr: Array) -> float:
+	var cap := INF
 	for engine_id in range(active_flags_arr.size()):
 		if not bool(active_flags_arr[engine_id]):
 			continue
 		var biome_name = _engine_id_to_biome.get(engine_id, "")
 		var biome = _get_biome_by_name(biome_name)
 		if _is_valid_biome(biome):
-			actual_dt = minf(actual_dt, _get_biome_evolution_dt(biome))
-	return LOOKAHEAD_DT if actual_dt == INF else actual_dt
+			cap = minf(cap, _get_biome_max_substep(biome))
+	return MAX_SUBSTEP_DT if cap == INF else cap
 
 
 func _build_metadata_payload(biome) -> Dictionary:
@@ -1568,6 +1606,11 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 		biome_pending_reregister[biome_name] = true
 		return status
 
+	if biome_pending_reregister.get(biome_name, false):
+		# The engine's H/L copy is stale: a packet would forecast the old physics.
+		status.reason = "pending_reregister"
+		return status
+
 	status.valid = true
 	status.reason = "ok"
 	biome_last_good_rho[biome_name] = rho_packed
@@ -1577,6 +1620,7 @@ func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
 func _process_pending_reregisters() -> void:
 	if lookahead_engine == null:
 		return
+	_flag_operator_changes()
 	if not _active_packet_request.is_empty() or not _packet_queue.is_empty():
 		return
 
@@ -1592,6 +1636,26 @@ func _process_pending_reregisters() -> void:
 	for biome_name in pending_names:
 		if biome_pending_reregister.get(biome_name, false):
 			_reregister_biome_by_name(biome_name)
+
+
+## A biome whose H or L was written since its engine copy was registered
+## (QuantumComputer.operator_epoch) has physics the engine doesn't. Flag it for
+## re-register and drop its frames now: until the engine is free to take the
+## new operators the biome holds (frozen frames, no packets, no live steps), so
+## no frame forecast with the old physics plays. Runs every tick in both lanes,
+## before the re-register waits on an in-flight packet.
+func _flag_operator_changes() -> void:
+	for biome in biomes:
+		if not _is_valid_biome(biome) or biome.quantum_computer == null:
+			continue
+		var biome_name: String = _get_biome_name(biome)
+		if not _registered_operator_epoch.has(biome_name) or biome_pending_reregister.get(biome_name, false):
+			continue
+		if int(biome.quantum_computer.operator_epoch) == int(_registered_operator_epoch[biome_name]):
+			continue
+		biome_pending_reregister[biome_name] = true
+		if lookahead_enabled:
+			invalidate_biome_buffer(biome_name)
 
 
 ## Flag any registered biome whose LIVE physics signature no longer matches the one its
@@ -1642,6 +1706,7 @@ func _reregister_biome_by_name(biome_name: String) -> void:
 		if lookahead_engine.reregister_biome(old_id, dim, H_packed, lindblad_triplets, num_qubits):
 			_biome_engine_dims[biome_name] = dim
 			_biome_registered_signature[biome_name] = str(qc.physics_signature)
+			_registered_operator_epoch[biome_name] = int(qc.operator_epoch)
 			_sync_biome_structure_payload(biome, old_id)
 			if lookahead_engine.has_method("set_biome_coherent"):
 				lookahead_engine.set_biome_coherent(old_id, BalanceConfig.coherent_enabled())
@@ -1887,7 +1952,7 @@ func _queue_emergency_packet(starving_biomes: Array) -> void:
 		var biome = _get_biome_by_name(biome_name)
 		if biome and _is_valid_biome(biome):
 			var status = _get_biome_rho_status(biome_name, biome)
-			biome_rhos.append(status.rho)
+			biome_rhos.append(_refill_seed(biome_name, status.rho) if status.valid else status.rho)
 			active_flags_arr.append(status.valid)
 			if status.valid:
 				rescued_count += 1
@@ -2051,7 +2116,7 @@ func _queue_hybrid_packet():
 		# C++ evolves ALL non-empty rhos regardless of active_flags; active_flags
 		# only gates the GDScript merge.
 		if should_evolve:
-			biome_rhos.append(status.rho)
+			biome_rhos.append(_refill_seed(biome_name, status.rho))
 		else:
 			biome_rhos.append(PackedFloat64Array())
 		active_flags_arr.append(should_evolve)
@@ -2085,10 +2150,9 @@ func _queue_hybrid_packet():
 
 
 ## Force the C++ lookahead engine to re-register this biome on the next refill,
-## picking up the current GDScript H + L. Call after any in-place mutation of
-## `qc.hamiltonian` or `qc.lindblad_operators` that does NOT change dim — those
-## mutations are otherwise invisible to the C++ twin (which only auto-detects
-## dim mismatches at BiomeEvolutionBatcher.gd:629).
+## picking up the current GDScript H + L. Nothing outside the batcher needs it:
+## writing H or L moves QuantumComputer.operator_epoch and _flag_operator_changes
+## re-registers the biome itself (an in-place edit calls mark_operators_written()).
 func mark_for_reregister(biome_name: String) -> void:
 	if biome_name == "":
 		return
@@ -2136,6 +2200,19 @@ func _restart_forecast_from_live(biome_name: String) -> void:
 		_prime_single_biome_frozen(biome)
 
 
+## Where a refill starts. A packet's frames are appended after the frames still
+## waiting, so it must start from the last of them: seeded from the live ρ
+## instead, every refill replayed the frames that were waiting when it was
+## queued (measured 2026-11-13: 2 frames per 21-frame refill, the player lane
+## ~10% behind the rig). Placeholders and an empty buffer start from live ρ.
+func _refill_seed(biome_name: String, live_rho: PackedFloat64Array) -> PackedFloat64Array:
+	var buf = _get_lookahead_buffer(biome_name)
+	if buf == null or buf.frozen or buf.depth() <= 0:
+		return live_rho
+	var tail: PackedFloat64Array = buf.tail_rho()
+	return tail if tail.size() == live_rho.size() else live_rho
+
+
 ## The buffered frames continue the live ρ as it is now.
 func _note_forecast_from_live(biome_name: String, qc) -> void:
 	if qc != null:
@@ -2164,17 +2241,19 @@ func _evolve_live_phrame(biome, steps: int) -> void:
 		lookahead_engine.has_method("is_lookahead_job_running") and lookahead_engine.is_lookahead_job_running())
 	# The native engine refuses a single-biome step while an async packet is
 	# computing; then this phrame holds the written ρ, and the refill packet
-	# (seeded from it) carries on.
+	# (seeded from it) carries on. A biome waiting to re-register holds too: the
+	# engine still has its old physics.
+	var can_step: bool = engine_free and not biome_pending_reregister.get(biome_name, false)
 	live_phrames_total += 1
-	if not engine_free:
+	if not can_step:
 		live_phrames_held += 1
-	if engine_free and engine_id >= 0 and dim > 0 and qc.density_matrix != null \
+	if can_step and engine_id >= 0 and dim > 0 and qc.density_matrix != null \
 			and int(_biome_engine_dims.get(biome_name, -1)) == dim:
 		var rho: PackedFloat64Array = qc.density_matrix._to_packed()
 		if rho.size() >= dim * dim * 2 and not DegenerateRho.is_degenerate(rho, dim):
-			var dt := _live_phrame_dt()
 			var live_us := Time.get_ticks_usec()
-			var result = lookahead_engine.evolve_single_biome(engine_id, rho, maxi(1, steps), dt, dt)
+			var result = lookahead_engine.evolve_single_biome(engine_id, rho, maxi(1, steps),
+					PHRAME_SIM_DT, _get_biome_max_substep(biome))
 			live_ms_total += float(Time.get_ticks_usec() - live_us) / 1000.0
 			var results: Array = result.get("results", []) if result is Dictionary else []
 			if not results.is_empty() and results[results.size() - 1] is PackedFloat64Array \
@@ -2188,17 +2267,10 @@ func _evolve_live_phrame(biome, steps: int) -> void:
 		# the next write before it landed. Ask again when the writes stop.
 		biome_dirty[biome_name] = false
 	_apply_buffered_step(biome)
-
-
-## The step one buffered frame covers. Packets evolve every biome they carry at
-## the smallest max_evolution_dt among them, so a live phrame does the same —
-## a written biome must not run at a different speed from its neighbours.
-func _live_phrame_dt() -> float:
-	var active: Array = []
-	for b in biomes:
-		if _is_valid_biome(b) and not biome_paused.get(_get_biome_name(b), false):
-			active.append(b)
-	return _get_packet_dt_for_biomes(active)
+	# That frame showed the live step's result, which already took the time.
+	var buf = _get_lookahead_buffer(biome_name)
+	if buf != null:
+		buf.frozen_held = 0
 
 
 ## A biome's resolution (max_evolution_dt) changed. BiomeBase's setter calls
@@ -2210,14 +2282,12 @@ func note_resolution_changed(biome, old_dt: float, new_dt: float) -> void:
 	if biome_name == "" or _get_biome_by_name(biome_name) != biome:
 		return   # not one of ours (a biome being built, another farm's)
 	reset_stride_carry(biome_name)
-	if not _lookahead_buffers.has(biome_name):
+	if not _lookahead_buffers.has(biome_name) or is_equal_approx(old_dt, new_dt):
 		return
-	var factor: float = new_dt / maxf(old_dt, 0.000001)
-	var whole: int = roundi(factor)
-	if whole >= 2 and is_equal_approx(factor, float(whole)):
-		decimate_biome_buffer(biome_name, whole)
-	else:
-		invalidate_biome_buffer(biome_name)
+	# Resolution is accuracy, not time: the buffered frames still cover the
+	# right moments (the shared clock), but were integrated at the old substep.
+	# Forecast again from the live ρ at the new one.
+	invalidate_biome_buffer(biome_name)
 
 
 ## A biome's observation stride changed (BiomeBase's setter). The frames stay
@@ -2227,91 +2297,6 @@ func note_stride_changed(biome) -> void:
 	var biome_name = _get_biome_name(biome)
 	if biome_name != "" and _get_biome_by_name(biome_name) == biome:
 		reset_stride_carry(biome_name)
-
-
-func decimate_biome_buffer(biome_name: String, decimation_factor: int) -> int:
-	# Decimate buffer when coarsening granularity (keep every Nth frame).
-	#
-	# When dt doubles (2x coarser), existing frames are still valid but oversampled.
-	# Instead of full invalidation, keep every 2nd frame to preserve computed work.
-	#
-	# Args:
-	# biome_name: Biome to decimate
-	# decimation_factor: Keep every Nth frame (2 for 2x coarsening)
-	#
-	# Returns:
-	# New buffer depth after decimation
-	var lookahead_buffer = _get_lookahead_buffer(biome_name)
-	if lookahead_buffer == null:
-		return 0
-	if decimation_factor < 2:
-		return lookahead_buffer.depth()
-
-	if lookahead_buffer.layout == "flat":
-		var start: int = int(lookahead_buffer.cursor)
-		var leftover: int = int(lookahead_buffer.depth())
-		var nf: Array = []
-		var nmi: Array = []
-		var nb: Array = []
-		var np: Array = []
-		var npos: Array = []
-		nf.resize(leftover)
-		nmi.resize(leftover)
-		nb.resize(leftover)
-		np.resize(leftover)
-		npos.resize(leftover)
-		for i in range(leftover):
-			nf[i] = lookahead_buffer.step_rho(start + i)
-			nmi[i] = lookahead_buffer.step_mi(start + i)
-			nb[i] = lookahead_buffer.step_bloch(start + i)
-			np[i] = lookahead_buffer.step_purity(start + i)
-			npos[i] = lookahead_buffer.step_pos(start + i)
-		lookahead_buffer._clear_flat()
-		lookahead_buffer.frames = nf
-		lookahead_buffer.mi_steps = nmi
-		lookahead_buffer.bloch_steps = nb
-		lookahead_buffer.purity_steps = np
-		lookahead_buffer.positions = npos
-		lookahead_buffer.cursor = 0
-
-	# Decimate all 6 buffers in lockstep (from cursor position, not start)
-	var cursor = lookahead_buffer.cursor
-	var frames = lookahead_buffer.frames
-	var mi = lookahead_buffer.mi_steps
-	var bloch = lookahead_buffer.bloch_steps
-	var purity = lookahead_buffer.purity_steps
-	var positions = lookahead_buffer.positions
-
-	# Slice from cursor (unconsumed) then decimate
-	var unconsumed_frames = frames.slice(cursor) if cursor < frames.size() else []
-	var unconsumed_mi = mi.slice(cursor) if cursor < mi.size() else []
-	var unconsumed_bloch = bloch.slice(cursor) if cursor < bloch.size() else []
-	var unconsumed_purity = purity.slice(cursor) if cursor < purity.size() else []
-	var unconsumed_positions = positions.slice(cursor) if cursor < positions.size() else []
-
-	# Decimate: keep every Nth frame
-	lookahead_buffer.frames = _decimate_array(unconsumed_frames, decimation_factor)
-	lookahead_buffer.mi_steps = _decimate_array(unconsumed_mi, decimation_factor)
-	lookahead_buffer.bloch_steps = _decimate_array(unconsumed_bloch, decimation_factor)
-	lookahead_buffer.purity_steps = _decimate_array(unconsumed_purity, decimation_factor)
-	lookahead_buffer.positions = _decimate_array(unconsumed_positions, decimation_factor)
-	lookahead_buffer.cursor = 0  # Reset cursor (we sliced unconsumed)
-
-	var new_depth = lookahead_buffer.frames.size()
-	_log("info", "DECIMATE", "✂️", "%s: kept every %d frames → depth=%d" % [
-		biome_name, decimation_factor, new_depth
-	])
-	return new_depth
-
-
-func _decimate_array(arr: Array, factor: int) -> Array:
-	# Keep every factor-th element: [0, factor, 2*factor, ...]
-	if arr.is_empty() or factor < 2:
-		return arr
-	var decimated: Array = []
-	for i in range(0, arr.size(), factor):
-		decimated.append(arr[i])
-	return decimated
 
 
 func _prime_single_biome_frozen(biome):
@@ -2338,6 +2323,8 @@ func _prime_single_biome_frozen(biome):
 	lookahead_buffer._clear_flat()
 	lookahead_buffer.frames = _create_frozen_buffer(rho_packed, LOOKAHEAD_STEPS)
 	lookahead_buffer.cursor = 0
+	lookahead_buffer.frozen = true
+	lookahead_buffer.frozen_held = 0
 
 	# Export current Bloch and purity
 	var bloch_packet = qc.export_bloch_packet() if qc.has_method("export_bloch_packet") else biome_last_good_bloch.get(biome_name, PackedFloat64Array())
@@ -2491,6 +2478,8 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 			biome.viz_cache.update_icon_map(icon_map_payload)
 
 	lookahead_buffer.cursor = cursor + 1
+	if lookahead_buffer.frozen:
+		lookahead_buffer.frozen_held += 1
 
 	# Increment cumulative evolution count (for music ghost timer sync)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
@@ -2529,15 +2518,16 @@ func _prime_single_biome(biome, biome_id: int) -> void:
 		# Return early if no valid state - can't prime
 		_log("warn", "biome", "⚠️", "Cannot prime '%s' - density_matrix is null" % biome_name)
 		return
-	var actual_dt = _get_biome_evolution_dt(biome)
 	var result = lookahead_engine.evolve_single_biome(
-		biome_id, rho, LOOKAHEAD_STEPS, actual_dt, actual_dt
+		biome_id, rho, LOOKAHEAD_STEPS, PHRAME_SIM_DT, _get_biome_max_substep(biome)
 	)
 
 	var lookahead_buffer = _ensure_lookahead_buffer(biome_name)
 	lookahead_buffer._clear_flat()
 	lookahead_buffer.frames = result.get("results", [])
 	lookahead_buffer.cursor = 0
+	lookahead_buffer.frozen = false
+	lookahead_buffer.frozen_held = 0
 	lookahead_buffer.mi_steps = result.get("mi_steps", [])
 	lookahead_buffer.latest_mi = result.get("mi", PackedFloat64Array())
 	lookahead_buffer.bloch_steps = result.get("bloch_steps", [])
@@ -3029,6 +3019,8 @@ func _prime_frozen_buffers_only(biome_rhos: Array = []) -> void:
 		lookahead_buffer._clear_flat()
 		lookahead_buffer.frames = _create_frozen_buffer(rho, LOOKAHEAD_STEPS)
 		lookahead_buffer.cursor = 0
+		lookahead_buffer.frozen = true
+		lookahead_buffer.frozen_held = 0
 		lookahead_buffer.bloch_steps = _create_frozen_buffer(bloch_packet, LOOKAHEAD_STEPS)
 		# Purity buffer is Array[float], not Array[PackedFloat64Array]
 		var frozen_purity: Array = []
@@ -3556,8 +3548,10 @@ func _process_next_packet_async() -> void:
 
 	var biome_rhos = _active_packet_request["biome_rhos"]
 	var num_phrames: int = int(_active_packet_request["num_steps"])
-	var actual_dt: float = _get_packet_dt_for_active_flags(_active_packet_request.get("active_flags", []))
-	if lookahead_engine.submit_lookahead_job(biome_rhos, num_phrames, actual_dt, actual_dt):
+	var max_dt: float = _get_packet_max_dt_for_active_flags(_active_packet_request.get("active_flags", []))
+	_active_packet_request["dt"] = PHRAME_SIM_DT
+	_active_packet_request["max_dt"] = max_dt
+	if lookahead_engine.submit_lookahead_job(biome_rhos, num_phrames, PHRAME_SIM_DT, max_dt):
 		return
 
 	# Submit refused — compute this once on the frame rather than stall the farm.
@@ -3576,11 +3570,11 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 	var biome_rhos = packet_req["biome_rhos"]
 	var num_phrames = packet_req["num_steps"]  # Number of phrames (evolution frames) to compute
 
-	var actual_dt = _get_packet_dt_for_active_flags(packet_req.get("active_flags", []))
+	var max_dt = _get_packet_max_dt_for_active_flags(packet_req.get("active_flags", []))
 
 	var packet_start = Time.get_ticks_usec()
 	var result = lookahead_engine.evolve_all_lookahead(
-		biome_rhos, num_phrames, actual_dt, actual_dt
+		biome_rhos, num_phrames, PHRAME_SIM_DT, max_dt
 	)
 	var packet_end = Time.get_ticks_usec()
 	var packet_ms := float(packet_end - packet_start) / 1000.0
@@ -3747,11 +3741,18 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 			if engine_id < stamped_gens.size() and int(stamped_gens[engine_id]) != lookahead_buffer.generation:
 				# This biome was invalidated while compute grew the packet.
 				continue
+			var replaced_held: int = lookahead_buffer.frozen_held if lookahead_buffer.frozen else -1
+			if replaced_held >= 0:
+				# The packet replaces placeholders. Its frame k is the anchor plus
+				# k+1 phrames; the held ticks already spent frames 0..held-1.
+				lookahead_buffer.drop_placeholders()
 			if flat:
 				if lookahead_buffer.layout == "flat" and lookahead_buffer.depth() > 0:
 					lookahead_buffer.append_flat_from_result(result, engine_id)
 				else:
 					lookahead_buffer.adopt_flat_from_result(result, engine_id)
+				if replaced_held > 0:
+					lookahead_buffer.cursor = mini(replaced_held, maxi(0, lookahead_buffer.rho_n - 1))
 			else:
 				var unconsumed_frames = lookahead_buffer.frames.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.frames.size() else []
 				var unconsumed_mi = lookahead_buffer.mi_steps.slice(lookahead_buffer.cursor) if lookahead_buffer.cursor < lookahead_buffer.mi_steps.size() else []
@@ -3768,7 +3769,7 @@ func _merge_packet_result(packet_request: Dictionary, result: Dictionary) -> voi
 				unconsumed_positions.append_array(position_steps[engine_id] if engine_id < position_steps.size() else [])
 				lookahead_buffer.layout = "nested"
 				lookahead_buffer.frames = unconsumed_frames
-				lookahead_buffer.cursor = 0
+				lookahead_buffer.cursor = mini(maxi(0, replaced_held), maxi(0, unconsumed_frames.size() - 1))
 				lookahead_buffer.mi_steps = unconsumed_mi
 				lookahead_buffer.bloch_steps = unconsumed_bloch
 				lookahead_buffer.purity_steps = unconsumed_purity

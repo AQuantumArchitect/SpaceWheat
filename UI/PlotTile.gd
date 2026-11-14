@@ -561,7 +561,7 @@ func _update_entanglement_display():
 
 func _update_lindblad_indicator() -> void:
 	# Update persistent Lindblad pump/drain indicator.
-	# Closed ground: no standing channel ticks there, so the indicator is blank even
+	# Closed ground: no Merchant channel ticks there, so the indicator is blank even
 	# if a flag survives. Open ground (per biome — PlotGridDisplay's lindblad_open)
 	# shows the contracts that are running.
 	if plot_ui_data == null or not plot_ui_data.get("is_planted", false):
