@@ -1161,7 +1161,7 @@ func time_skip_phrames(phrames: int, delta: float = PhysicsConfig.PHRAME_DT) -> 
 
 
 func _process_lindblad_effects(delta: float) -> void:
-	# Persistent Lindblad pump/drain (the Merchant frame's standing contracts) runs
+	# Persistent Lindblad pump/drain (the Merchant frame's channels) runs
 	# wherever the biome's regime is open — per biome, below (is_open_here). The
 	# world switch is NOT a gate here: What Fades opens biomes one at a time long
 	# before the endgame door, and a contract signed in open country must tick
@@ -1182,7 +1182,7 @@ func _process_lindblad_effects(delta: float) -> void:
 		var qc = biome.quantum_computer
 		if not ("register_infrastructure" in qc) or qc.register_infrastructure.is_empty():
 			continue
-		# Openness is a place: standing channels run only where the regime is
+		# Openness is a place: Merchant channels run only where the regime is
 		# open. Flags may survive on sealed ground (old saves, later regime
 		# flips) — they simply never tick there. The enclave holds.
 		if not qc.is_open_here():
@@ -1377,6 +1377,9 @@ func _accumulate_lindblad_harvest_infra(qc, register_id: int, emoji: String, dra
 
 	accum -= whole_credits
 	qc.set_register_infra_field(register_id, "lindblad_drain_accumulator", accum)
+	# The channel's running total, read by its row on Commitments.
+	qc.set_register_infra_field(register_id, "lindblad_credited_total",
+			int(qc.get_register_infra_field(register_id, "lindblad_credited_total", 0)) + whole_credits)
 	economy.add_resource(emoji, whole_credits, "lindblad_drain", biome_name)
 
 

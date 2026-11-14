@@ -209,7 +209,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 |----:|-----|---------------|-------|
 | 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | unlocks in Act 5 (`edge_of_the_enclave`); fires only on open ground |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
-| 6 | **Merchant** 🤝 | import / price / export / tip | unlocks in Act 1 (`village_stirs`) |
+| 6 | **Merchant** 🤝 | Export / Price (order book) / Import / Settle — channels, wet ground only | unlocks in Act 1 (`village_stirs`) |
 | 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
@@ -328,9 +328,17 @@ incorporation** — do not confuse the two economies.
   so pausing stops it). Locks survive a re-deal and a save (GameState v8
   `market_state`). **Accept** (R) takes the quote on the row; delivery settles
   on the contract's own biome, collapsing it per that biome's regime.
-- Campaign supply trades are table-priced and never requote. Merchant channels
-  are still separate (charged once at signing); folding them into the same
-  contract record is the next step.
+- **Channels** (the Merchant hat, 6) are contracts in the same lattice: they
+  settle by *flow* instead of one delivery. The biome's native faction issues
+  them, and the stake is `MarketLattice.channel_quote()`: quote() on the
+  driven pole, plus the 📜/🧺 fee. The physical counterparty is still the Bath.
+  Held channels show on Commitments with their flow, and Q there (or Merchant
+  F) closes one, free and standing-neutral. On open ground the Market tab
+  offers them, live and lockable; Merchant E shows the same quote.
+- **Trades** (the campaign's supply `trades`) are table-priced, never requote,
+  can't be locked, and stand on the board only while you're short.
+- "Standing" means reputation only: channel, trade and offer are the three
+  kinds of contract.
 
 **Ambient life:** six faction *socialites* speak by **measuring** a biome they are
 native to and emitting the outcome emojis. Cadence and biome-choice are now driven

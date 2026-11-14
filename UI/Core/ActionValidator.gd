@@ -194,7 +194,7 @@ static func _can_execute_tool_action(
 			return true  # Never sealed — the span is the anti-Lindblad artifact
 
 		# ═══════════════════════════════════════════════════════════════
-		# Merchant frame — standing contracts (wet country only)
+		# Merchant frame — channels (wet country only)
 		# ═══════════════════════════════════════════════════════════════
 		"drain", "pump":
 			return _any_open_plot(farm, selected_plots)
@@ -352,7 +352,7 @@ static func _any_open_plot(farm, selected_plots: Array[Vector2i]) -> bool:
 
 
 static func _any_active_channel(farm, selected_plots: Array[Vector2i]) -> bool:
-	# Settle is live if any selected plot's register carries a standing channel.
+	# Settle is live if any selected plot's register carries a channel.
 	var grid = farm.get("grid") if farm else null
 	if not grid:
 		return false

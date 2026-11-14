@@ -26,6 +26,7 @@ const LOCK_SECONDS: float = 60.0
 const LOCK_SLOTS: int = 3
 
 signal locks_changed
+signal channels_changed
 
 
 var _farm = null                          # weak ref; market doesn't own farm
@@ -956,20 +957,282 @@ func tick_locks(dt: float) -> Array:
 	return expired
 
 
+# ---------------- channels (flow contracts) ----------------
+#
+# A Merchant channel is a contract like any other: issued by the biome's native
+# faction, priced by quote() on the pole it drives, held once signed. It settles
+# by FLOW — the register's infra flags tick in Farm._process_lindblad_effects —
+# instead of by one delivery. The physical counterparty is still the Bath (a
+# Lindblad channel's other end is the environment); the faction brokers it, so
+# its standing moves the price. Channels exist only where the biome's regime
+# is open (qc.is_open_here()): openness is a place.
+
+const CHANNEL_KINDS: Array = ["thermal", "dephase", "damp"]
+const DIRECTION_IMPORT: String = "import"
+const DIRECTION_EXPORT: String = "export"
+
+
+## One channel per register: its held contract's id.
+static func channel_id(biome_name: String, register_id: int) -> int:
+	return hash(["channel", biome_name, register_id])
+
+
+## A channel OFFER on the board: one per register, direction and kind.
+static func channel_offer_id(biome_name: String, register_id: int, direction: String, kind: String) -> int:
+	return hash(["channel_offer", biome_name, register_id, direction, kind])
+
+
+## The faction that issues channels in this biome: its first real native
+## faction ("" when it has none — the price then carries no standing factor).
+func channel_issuer(biome) -> String:
+	for f in _native_factions_of(biome):
+		var fname := str(f)
+		if fname != "" and fname != "orphaned_icons":
+			return fname
+	return ""
+
+
+## The driven pole of a channel: import pumps toward north, export drains
+## toward south. Returns {emoji, pole, north, south} ({} if the axis is unknown).
+func _channel_pole(biome, register_id: int, direction: String) -> Dictionary:
+	var qc = biome.quantum_computer if biome != null and "quantum_computer" in biome else null
+	if qc == null or qc.register_map == null or register_id < 0 or register_id >= int(qc.register_map.num_qubits):
+		return {}
+	var pair: Dictionary = qc.get_emoji_pair_for_qubit(register_id) if qc.has_method("get_emoji_pair_for_qubit") else {}
+	var north := str(pair.get("north", ""))
+	var south := str(pair.get("south", ""))
+	if north == "" and south == "":
+		return {}
+	if direction == DIRECTION_IMPORT:
+		return {"emoji": north, "pole": 0, "north": north, "south": south}
+	return {"emoji": south, "pole": 1, "north": north, "south": south}
+
+
+## An unregistered contract describing a channel on one register.
+func _make_channel_contract(biome, register_id: int, direction: String, kind: String):
+	var axis := _channel_pole(biome, register_id, direction)
+	if axis.is_empty() or str(axis.emoji) == "":
+		return null
+	var bname := _biome_name(biome)
+	var c = MarketContract.make(str(axis.emoji), channel_issuer(biome), bname, int(axis.pole),
+			_current_phrame, 0.0, _current_phrame, str(axis.emoji), 0.0)
+	c.settle = MarketContract.SETTLE_FLOW
+	c.channel_kind = kind
+	c.channel_direction = direction
+	c.channel_rate = 0.5
+	c.register_id = register_id
+	c.id = channel_offer_id(bname, register_id, direction, kind)
+	c.set_meta("pair_a", bname)
+	c.set_meta("pair_b", str(axis.north) + str(axis.south))
+	return c
+
+
+## What signing a channel on this register costs right now, by the market's
+## one law: the stake is quote() on the driven pole (−kT·log p × the issuer's
+## standing factor), plus the flat social fee (📜 import, 🧺 export).
+## Dephasing moves no population, so it stakes nothing: fee only. A LOCKED
+## channel offer for the same register, direction and kind holds its stake —
+## the Merchant hat honours a lock taken on the board.
+## Returns {ok, cost, stake, emoji, p, kT, faction, locked}.
+func channel_quote(biome, register_id: int, direction: String, kind: String) -> Dictionary:
+	if biome == null or _farm == null:
+		return {"ok": false, "error": "no_farm"}
+	var axis := _channel_pole(biome, register_id, direction)
+	if axis.is_empty():
+		return {"ok": false, "error": "no_axis"}
+	var action := ActionIds.LINDBLAD_PUMP if direction == DIRECTION_IMPORT else ActionIds.LINDBLAD_DRAIN
+	var out := {"ok": true, "emoji": str(axis.emoji), "north": str(axis.north), "south": str(axis.south),
+			"faction": channel_issuer(biome), "locked": false, "stake": 0, "p": 0.0, "kT": 0.0}
+	if direction == DIRECTION_EXPORT and kind == "dephase":
+		out["cost"] = EconomyConstants.get_lindblad_injection_cost(action, {})
+		return out
+	var offer = _contracts.get(channel_offer_id(_biome_name(biome), register_id, direction, kind), null)
+	var stake: int
+	if offer != null and offer.is_locked() and offer.status == MarketContract.STATUS_OPEN:
+		stake = offer.ask()
+		out["locked"] = true
+		out["p"] = offer.quote_p
+		out["kT"] = offer.quote_kT
+	else:
+		var probe = _make_channel_contract(biome, register_id, direction, kind)
+		var q := quote(probe) if probe != null else {"ok": false}
+		if not bool(q.get("ok", false)):
+			return {"ok": false, "error": str(q.get("error", "no_quote"))}
+		stake = int(q.ask)
+		out["p"] = float(q.p)
+		out["kT"] = float(q.kT)
+	out["stake"] = stake
+	out["cost"] = EconomyConstants.get_lindblad_injection_cost(action, {
+		"north_emoji": str(axis.north), "south_emoji": str(axis.south), "drive_units": stake})
+	return out
+
+
+## Channel offers for the board: one per register with no channel yet, for
+## each direction the kind allows (dephase is export only — no contract sells
+## phase back). Only on open ground. Each is a live contract (requoted on the
+## heartbeat, lockable); signing goes through the Merchant hat's own path.
+func propose_channel_offers(biome, kind: String) -> Array:
+	var out: Array = []
+	var qc = biome.quantum_computer if biome != null and "quantum_computer" in biome else null
+	if qc == null or qc.register_map == null or not _qc_open(qc) or not (kind in CHANNEL_KINDS):
+		return out
+	var directions: Array = [DIRECTION_EXPORT] if kind == "dephase" else [DIRECTION_EXPORT, DIRECTION_IMPORT]
+	for reg in range(int(qc.register_map.num_qubits)):
+		var infra: Dictionary = qc.register_infrastructure.get(reg, {}) if "register_infrastructure" in qc else {}
+		if bool(infra.get("lindblad_pump_active", false)) or bool(infra.get("lindblad_drain_active", false)):
+			continue
+		for direction in directions:
+			var c = _make_channel_contract(biome, reg, direction, kind)
+			if c == null:
+				continue
+			if not (direction == DIRECTION_EXPORT and kind == "dephase"):
+				if not _apply_quote(c):
+					continue
+			else:
+				c.pricing = MarketContract.PRICING_TABLE   # fee only: nothing to requote
+				c.cost_amount = 0.0
+			out.append(register_offer(c))
+	return out
+
+
+## Record the channel the Merchant handler just signed (its flags are set).
+## `quote` is channel_quote()'s result at signing; `cost` what was taken.
+func record_channel(biome, register_id: int, direction: String, kind: String, rate: float,
+		quoted: Dictionary, cost: Dictionary):
+	var bname := _biome_name(biome)
+	var axis := _channel_pole(biome, register_id, direction)
+	var emoji := str(axis.get("emoji", quoted.get("emoji", "")))
+	var c = MarketContract.make(emoji, str(quoted.get("faction", channel_issuer(biome))), bname,
+			int(axis.get("pole", 1)), _current_phrame, 0.0, _current_phrame, emoji, 0.0)
+	c.id = channel_id(bname, register_id)
+	c.settle = MarketContract.SETTLE_FLOW
+	c.status = MarketContract.STATUS_OWNED
+	c.channel_kind = kind
+	c.channel_direction = direction
+	c.channel_rate = rate
+	c.register_id = register_id
+	c.signed_cost = cost.duplicate(true)
+	c.signed_at = int(Time.get_unix_time_from_system())
+	c.cost_amount = float(quoted.get("stake", 0))
+	c.price_paid = c.cost_amount
+	c.quote_p = float(quoted.get("p", 0.0))
+	c.quote_kT = float(quoted.get("kT", 0.0))
+	_contracts[c.id] = c
+	# The board's offer for this channel is taken: it leaves the lattice (and
+	# frees its lock slot). Only the held record above is the channel.
+	var offer_id := channel_offer_id(bname, register_id, direction, kind)
+	var offer = _contracts.get(offer_id, null)
+	if offer != null:
+		var was_locked: bool = offer.is_locked()
+		_contracts.erase(offer_id)
+		if was_locked:
+			locks_changed.emit()
+	channels_changed.emit()
+	return c
+
+
+## The channel on this register was closed (its flags are cleared).
+func close_channel(biome_name: String, register_id: int) -> bool:
+	var cid := channel_id(biome_name, register_id)
+	if not _contracts.has(cid):
+		return false
+	_contracts.erase(cid)
+	channels_changed.emit()
+	return true
+
+
+func get_channels() -> Array:
+	var out: Array = []
+	for c in _contracts.values():
+		if c.settle == MarketContract.SETTLE_FLOW and c.status == MarketContract.STATUS_OWNED:
+			out.append(c)
+	return out
+
+
+func get_channel(biome_name: String, register_id: int):
+	return _contracts.get(channel_id(biome_name, register_id), null)
+
+
+## Make the records agree with the physics: every register whose channel flags
+## are set has a channel contract (one synthesized for a save that predates
+## them: issuer = the native faction, nothing recorded as paid), and no record
+## outlives its flags. Returns how many records it added or dropped.
+func sync_channels() -> int:
+	if _farm == null or not ("grid" in _farm) or _farm.grid == null:
+		return 0
+	var changed := 0
+	var live: Dictionary = {}
+	for bkey in _farm.grid.get_all_biomes():
+		var biome = _farm.grid.get_all_biomes()[bkey]
+		var qc = biome.quantum_computer if biome != null and "quantum_computer" in biome else null
+		if qc == null or not ("register_infrastructure" in qc):
+			continue
+		var bname := _biome_name(biome)
+		for reg in qc.register_infrastructure.keys():
+			var infra: Dictionary = qc.register_infrastructure[reg]
+			var pump := bool(infra.get("lindblad_pump_active", false))
+			var drain := bool(infra.get("lindblad_drain_active", false))
+			if not pump and not drain:
+				continue
+			var cid := channel_id(bname, int(reg))
+			live[cid] = true
+			if _contracts.has(cid):
+				continue
+			var direction := DIRECTION_IMPORT if pump else DIRECTION_EXPORT
+			var kind := str(infra.get("lindblad_channel_kind", "damp"))
+			var rate := float(infra.get("lindblad_pump_rate" if pump else "lindblad_drain_rate", 0.5))
+			var c = record_channel(biome, int(reg), direction, kind, rate,
+					{"faction": channel_issuer(biome)}, {})
+			c.signed_at = 0
+			changed += 1
+	for cid in _contracts.keys():
+		var c = _contracts[cid]
+		if c.settle == MarketContract.SETTLE_FLOW and c.status == MarketContract.STATUS_OWNED and not live.has(cid):
+			_contracts.erase(cid)
+			changed += 1
+	if changed > 0:
+		channels_changed.emit()
+	return changed
+
+
+## A held channel as it stands now: rate, what it has credited, and what the
+## same channel would cost to sign at this moment (the live unit price).
+func channel_status(c) -> Dictionary:
+	var biome = _resolve_biome_by_name(c.biome_name)
+	var qc = biome.quantum_computer if biome != null and "quantum_computer" in biome else null
+	var out := {"open": _qc_open(qc), "credited": 0, "p": -1.0, "live_stake": -1}
+	if qc == null or c.register_id < 0:
+		return out
+	out["credited"] = int(qc.get_register_infra_field(c.register_id, "lindblad_credited_total", 0)) \
+			if qc.has_method("get_register_infra_field") else 0
+	if c.resource != "" and qc.has(c.resource):
+		out["p"] = _live_marginal(qc, c.resource)
+	var q := channel_quote(biome, c.register_id, c.channel_direction, c.channel_kind)
+	if bool(q.get("ok", false)):
+		out["live_stake"] = int(q.get("stake", 0))
+	return out
+
+
 # ---------------- save ----------------
 
-## Only locks persist. An unheld offer requotes from the saved ρ, and a held
-## one is a quest (QuestManager.to_save_dict).
+## Locks and channels persist. An unheld offer requotes from the saved ρ, and a
+## held delivery is a quest (QuestManager.to_save_dict). A channel's physics is
+## in the saved register infra; its record here carries the deal (issuer,
+## direction, kind, what was paid).
 func to_save_dict() -> Dictionary:
 	var locks: Array = []
 	for c in get_locked_offers():
 		locks.append(c.to_dict())
-	return {"locks": locks}
+	var channels: Array = []
+	for c in get_channels():
+		channels.append(c.to_dict())
+	return {"locks": locks, "channels": channels}
 
 
 func from_save_dict(d: Dictionary) -> void:
 	for cid in _contracts.keys():
-		if _contracts[cid].is_locked():
+		var held = _contracts[cid]
+		if held.is_locked() or held.settle == MarketContract.SETTLE_FLOW:
 			_contracts.erase(cid)
 	var rows = d.get("locks", []) if d is Dictionary else []
 	if rows is Array:
@@ -979,7 +1242,16 @@ func from_save_dict(d: Dictionary) -> void:
 			var c = MarketContract.from_dict(row)
 			if c.is_locked() and c.status == MarketContract.STATUS_OPEN:
 				_contracts[c.id] = c
+	var chans = d.get("channels", []) if d is Dictionary else []
+	if chans is Array:
+		for row in chans:
+			if not (row is Dictionary):
+				continue
+			var c = MarketContract.from_dict(row)
+			if c.settle == MarketContract.SETTLE_FLOW and c.status == MarketContract.STATUS_OWNED:
+				_contracts[c.id] = c
 	locks_changed.emit()
+	channels_changed.emit()
 
 
 # ---------------- buy / exercise / expire ----------------

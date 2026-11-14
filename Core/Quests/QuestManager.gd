@@ -1881,7 +1881,7 @@ func complete_quest(quest_id: int) -> bool:
 		return false
 
 	var quest = active_quests[quest_id]
-	# Standing supply trades settle at their table price — never through the
+	# Supply trades settle at their table price — never through the
 	# lattice exercise, which may refuse to price (and would make the rescue
 	# trade a coin flip).
 	if bool(quest.get("supply_trade", false)):

@@ -26,6 +26,8 @@ signal quest_abandoned(quest_id: int)
 # =============================================================================
 
 const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
+const LindbladHandler = preload("res://Core/Instrumentation/Handlers/LindbladHandler.gd")
+const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const FRAME_MANIFOLD := "manifold"
 const FRAME_MARKET := "market"
 const FRAME_COMMITMENTS := "commitments"
@@ -51,6 +53,7 @@ const MARKET_FETCH_LIMIT: int = 24
 
 # Armed-abandon quest id (confirm-chord law: Q arms, F confirms, else cancels).
 var _abandon_arm_qid: int = -1
+var _abandon_arm_channel: Dictionary = {}   # the channel row Q armed to close (F confirms)
 
 # Sort modes inside Market — chord 1/2/3 toggles within the tab.
 const MARKET_SORT_BY_KEY := {
@@ -174,7 +177,7 @@ func set_biome(biome: Node) -> void:
 			_render_all()
 
 ## The supply door (OverlayManager.open_board_on_supply): land on Market with
-## the standing trade that pays `emoji` selected. Navigation ONLY — the row is
+## the trade that pays `emoji` selected. Navigation ONLY — the row is
 ## left disarmed, so the player still taps it twice (or presses R) to accept.
 func show_supply_focused(emoji: String) -> void:
 	if frame_id != FRAME_MARKET:
@@ -378,13 +381,18 @@ func _on_activated() -> void:
 	# Opening the board reads the live list: History is a look back you chose,
 	# not a state the next visit should inherit (R acts on Active only).
 	_commitments_view = "active"
+	# Channel records follow the register flags (a rig driver or an old save
+	# can set a flag with no contract): reconcile before listing them.
+	var lattice = _market_lattice()
+	if lattice != null and lattice.has_method("sync_channels"):
+		lattice.sync_channels()
 	_ensure_biome()
 	var here := _board_biome_name()
 	if _offer_pool.is_empty() or here != _pool_biome or _signature_stamp() != _pool_signature:
 		_refresh_pool()
 		_pool_biome = here
 	else:
-		# Standing trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
+		# Trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
 		# only while asked for) — re-sync them on every open.
 		_sync_supply_offers()
 	_render_all()
@@ -503,6 +511,8 @@ func _market_inspect_text() -> String:
 	var offer: Dictionary = mrow.get("data", {})
 	if offer.is_empty():
 		return ""
+	if _is_channel_offer(offer):
+		return _channel_inspect_text(offer)
 	var proj: Dictionary = offer.get("market_projection", {})
 	var lines: Array[String] = []
 	lines.append("%s · %s × %d" % [
@@ -571,6 +581,8 @@ func _commitments_inspect_text() -> String:
 func _commitments_inspect_text_for(quest: Dictionary) -> String:
 	if quest.is_empty():
 		return ""
+	if _is_channel(quest):
+		return _channel_inspect_text(quest)
 	var farm = InstrumentLocator.resolve_active_farm(self)
 	# Face is faction + ask + bar. E holds the what, the how, and the math.
 	var lines: Array[String] = []
@@ -652,6 +664,8 @@ func _requote_pool() -> void:
 	for o in _offer_pool:
 		if not (o is Dictionary) or _is_supply(o) or not o.has("market_offer_id"):
 			continue
+		if bool(o.get("fee_only", false)):
+			continue   # a dephase channel stakes nothing: its fee never moves
 		var c = lattice.get_contract(int(o["market_offer_id"]))
 		if c == null:
 			continue
@@ -668,6 +682,11 @@ func _requote_pool() -> void:
 		o.erase("lock_seconds_left")
 		o.erase("live_ask")
 		_set_offer_ask(o, c.ask(), c.cost_amount, int(q.get("moved", 0)))
+		if _is_channel_offer(o):
+			var cq: Dictionary = lattice.channel_quote(_resolve_live_biome(str(o.get("biome", ""))),
+					int(o.get("register_id", -1)), str(o.get("direction", "")), str(o.get("channel_kind", "")))
+			if bool(cq.get("ok", false)):
+				o["cost"] = cq.get("cost", {})
 	MarketView.annotate(_offer_pool, _get_inventory())
 	if keep_id != null:
 		_reselect_offer(keep_id)
@@ -737,6 +756,9 @@ func _toggle_lock_selected() -> void:
 		return
 	if _is_supply(offer):
 		_toast_feedback("• a trade's price is fixed — nothing to lock")
+		return
+	if bool(offer.get("fee_only", false)):
+		_toast_feedback("• a dephase channel costs only its fee — nothing to lock")
 		return
 	var lattice = _market_lattice()
 	var cid := int(offer.get("market_offer_id", -1))
@@ -884,9 +906,13 @@ func _current_verb_labels() -> Dictionary:
 
 func _held_verb_labels(hq: Dictionary) -> Dictionary:
 	if _abandon_arm_qid >= 0:
+		if _is_channel(hq) and int(hq.get("id", -1)) == _abandon_arm_qid:
+			return {"Q": "Cancel", "E": "—", "R": "—", "F": "⚠ Confirm Close"}
 		return {"Q": "Cancel", "E": "—", "R": "—", "F": "⚠ Confirm Abandon"}
 	if hq.is_empty():
 		return {"Q": "—", "E": "Inspect", "R": "—", "F": "—"}
+	if _is_channel(hq):
+		return {"Q": "Close", "E": "Inspect", "R": "—", "F": "—"}
 	var r_label := "Complete"
 	var h_status := str(hq.get("status", "")).to_lower()
 	var h_type = hq.get("type", 0)
@@ -1298,6 +1324,15 @@ func _build_market_body() -> void:
 ## What the contract PAYS, in player language. Icon contracts teach a word;
 ## resource contracts pay their pre-rolled bundle (top entries, biggest first).
 func _offer_reward_text(offer: Dictionary) -> String:
+	if _is_channel_offer(offer):
+		var north := str(offer.get("north", ""))
+		var flow := "sells phase for heat"
+		if str(offer.get("direction", "")) == "import":
+			flow = "pumps %s in" % north
+		elif not bool(offer.get("fee_only", false)):
+			flow = "pays %s as it drains" % north
+		return "%s %s channel · %s · takes %s" % [str(KIND_ICON.get(str(offer.get("channel_kind", "")), "")),
+				str(offer.get("channel_kind", "")), flow, _cost_words(offer.get("cost", {}))]
 	var icon_n := str(offer.get("reward_icon_north", offer.get("reward_north", "")))
 	var icon_s := str(offer.get("reward_icon_south", offer.get("reward_south", "")))
 	if icon_n != "" and icon_s != "":
@@ -1391,6 +1426,14 @@ func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Cont
 		"🔒 " if bool(offer.get("locked", false)) else "",
 		str(offer.get("resource", "?")), int(offer.get("quantity", 0)),
 		_quote_arrow(offer)]
+	if _is_channel_offer(offer):
+		var stake_txt := "fee only"
+		if not bool(offer.get("fee_only", false)):
+			stake_txt = "%s × %d" % [str(offer.get("resource", "?")), int(offer.get("quantity", 0))]
+		ask_lbl.text = "%s%s %s%s" % [
+			"🔒 " if bool(offer.get("locked", false)) else "",
+			str(DIRECTION_ICON.get(str(offer.get("direction", "")), "⇄")),
+			stake_txt, _quote_arrow(offer)]
 	ask_lbl.add_theme_font_size_override("font_size", 16)
 	ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
 	ask_lbl.custom_minimum_size = Vector2(130, 0)
@@ -1420,6 +1463,9 @@ func _make_offer_row(offer: Dictionary, key_str: String, selected: bool) -> Cont
 	prov_lbl.add_theme_color_override("font_color", _tension_color(tension))
 	if _is_supply(offer):
 		prov_lbl.text = "    ⇄ trade · table price, it doesn't move — on the %s board while you're short" % str(offer.get("biome", ""))
+	elif _is_channel_offer(offer):
+		prov_lbl.text = "    ⇄ channel on %s Q%d · open ground · runs until you close it (Merchant F, or Q on Commitments)" % [
+			str(offer.get("biome", "")), int(offer.get("register_id", -1))]
 	elif biome_a != "" and biome_b != "":
 		prov_lbl.text = "    from %s ⊗ %s · τ=%.2f" % [biome_a, biome_b, tension]
 	else:
@@ -1480,6 +1526,8 @@ func _build_commitments_body() -> void:
 		_body_box.add_child(_make_item_pager(rows.size(), "contracts"))
 
 func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) -> Control:
+	if _is_channel(quest):
+		return _make_channel_row(quest, key_str, selected)
 	var row := PanelContainer.new()
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(0.10, 0.10, 0.13, 0.85) if not selected else Color(0.18, 0.16, 0.10, 0.95)
@@ -1588,6 +1636,283 @@ func _make_commitment_row(quest: Dictionary, key_str: String, selected: bool) ->
 
 	return row
 
+# =============================================================================
+# CHANNELS — Merchant channels are contracts on this board (settle by flow)
+# =============================================================================
+
+static func _is_channel(q) -> bool:
+	return q is Dictionary and bool(q.get("channel", false))
+
+
+static func _is_channel_offer(q) -> bool:
+	return q is Dictionary and bool(q.get("channel_offer", false))
+
+
+const DIRECTION_ICON := {"import": "📥", "export": "📤"}
+const KIND_ICON := {"thermal": "🌡", "dephase": "💨", "damp": "🌊"}
+
+
+## The plot whose binding resolves to this register — the position the
+## Merchant hat's own verbs (sign, settle) act on. INVALID when none does.
+func _plot_for_register(biome_name: String, register_id: int) -> Vector2i:
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	if farm == null or not ("grid" in farm) or farm.grid == null or register_id < 0:
+		return GridSentinel.INVALID_POSITION
+	var biome = farm.grid.get_biome(biome_name) if farm.grid.has_biome(biome_name) else null
+	if biome == null:
+		return GridSentinel.INVALID_POSITION
+	for pos in farm.grid.get_plot_positions_for_biome(biome_name):
+		var binding: Dictionary = LindbladHandler._resolve_axis_binding(farm, pos, biome)
+		if int(binding.get("register_id", -1)) == register_id:
+			return pos
+	return GridSentinel.INVALID_POSITION
+
+
+## Held channels, as Commitments rows. They take no hand: a channel is
+## infrastructure on one register, at most one per register.
+func _channel_rows() -> Array:
+	var out: Array = []
+	var lattice = _market_lattice()
+	if lattice == null or not lattice.has_method("get_channels"):
+		return out
+	for c in lattice.get_channels():
+		var st: Dictionary = lattice.channel_status(c)
+		var axis: Dictionary = lattice._channel_pole(_resolve_live_biome(c.biome_name), c.register_id, c.channel_direction)
+		out.append({
+			"north": str(axis.get("north", "")),
+			"south": str(axis.get("south", "")),
+			"id": c.id,
+			"channel": true,
+			"status": "flowing" if bool(st.get("open", false)) else "sealed",
+			"faction": c.faction if c.faction != "" else "the Bath",
+			"resource": c.resource,
+			"biome": c.biome_name,
+			"biome_name": c.biome_name,
+			"register_id": c.register_id,
+			"direction": c.channel_direction,
+			"channel_kind": c.channel_kind,
+			"rate": c.channel_rate,
+			"credited": int(st.get("credited", 0)),
+			"p": float(st.get("p", -1.0)),
+			"live_stake": int(st.get("live_stake", -1)),
+			"signed_cost": c.signed_cost.duplicate(true),
+			"plot_pos": _plot_for_register(c.biome_name, c.register_id),
+		})
+	return out
+
+
+static func _cost_words(cost) -> String:
+	var parts: PackedStringArray = []
+	if cost is Dictionary:
+		for k in cost:
+			if int(cost[k]) > 0:
+				parts.append("%d%s" % [int(cost[k]), str(k)])
+	return " + ".join(parts) if not parts.is_empty() else "nothing"
+
+
+## "📤 export 🌾→🌊 · 🌡 thermal · Village": export drains the north pole
+## toward the south (and pays the north into the wallet), import pumps north.
+func _channel_line(q: Dictionary) -> String:
+	var n := str(q.get("north", ""))
+	var s := str(q.get("south", ""))
+	var flow := "%s→%s" % [n, s] if str(q.get("direction", "")) == "export" else "%s→%s" % [s, n]
+	return "%s %s %s · %s %s · %s" % [
+		str(DIRECTION_ICON.get(str(q.get("direction", "")), "⇄")),
+		str(q.get("direction", "?")), flow,
+		str(KIND_ICON.get(str(q.get("channel_kind", "")), "")), str(q.get("channel_kind", "?")),
+		str(q.get("biome", "?"))]
+
+
+func _make_channel_row(q: Dictionary, key_str: String, selected: bool) -> Control:
+	var row := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.11, 0.14, 0.85) if not selected else Color(0.12, 0.16, 0.18, 0.95)
+	sb.border_color = Color(0.35, 0.5, 0.6, 0.5) if not selected else UIStyleFactory.COLOR_TAB_ACTIVE
+	sb.border_width_left = 4 if selected else 1
+	sb.border_width_top = 1
+	sb.border_width_right = 1
+	sb.border_width_bottom = 1
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
+	row.add_theme_stylebox_override("panel", sb)
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 2)
+	row.add_child(vbox)
+	var hbox := HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
+	vbox.add_child(hbox)
+	hbox.add_child(_make_key_chip(key_str, selected))
+	var status_lbl := Label.new()
+	status_lbl.text = "[%s]" % str(q.get("status", "flowing")).to_upper()
+	status_lbl.add_theme_font_size_override("font_size", 11)
+	status_lbl.add_theme_color_override("font_color", Color(0.55, 0.85, 1.0) if str(q.get("status", "")) == "flowing" else UIStyleFactory.COLOR_MUTED)
+	status_lbl.custom_minimum_size = Vector2(70, 0)
+	hbox.add_child(status_lbl)
+	var faction_lbl := Label.new()
+	faction_lbl.text = str(q.get("faction", "?"))
+	faction_lbl.add_theme_font_size_override("font_size", 13)
+	faction_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	faction_lbl.custom_minimum_size = Vector2(170, 0)
+	faction_lbl.clip_text = true
+	hbox.add_child(faction_lbl)
+	var what := Label.new()
+	what.name = "ChannelWhat"
+	what.text = _channel_line(q)
+	what.add_theme_font_size_override("font_size", 15)
+	what.add_theme_color_override("font_color", UIStyleFactory.COLOR_VALUE)
+	what.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(what)
+	var flow := Label.new()
+	flow.name = "ChannelFlow"
+	var p := float(q.get("p", -1.0))
+	var credited := int(q.get("credited", 0))
+	var parts: PackedStringArray = ["rate %.2f" % float(q.get("rate", 0.0))]
+	if p >= 0.0:
+		parts.append("p(%s) %.2f" % [str(q.get("resource", "")), p])
+	if str(q.get("direction", "")) == "export" and str(q.get("channel_kind", "")) != "dephase":
+		parts.append("credited %s×%d" % [str(q.get("north", "")), credited])
+	var stake := int(q.get("live_stake", -1))
+	if stake >= 0:
+		parts.append("signing now %d%s" % [stake, str(q.get("resource", ""))])
+	if str(q.get("status", "")) == "sealed":
+		parts.append("sealed ground — it doesn't tick here")
+	flow.text = "    " + " · ".join(parts)
+	flow.add_theme_font_size_override("font_size", 11)
+	flow.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+	vbox.add_child(flow)
+	return row
+
+
+## Channel offers for the board's biome, on open ground only: one per
+## register with no channel, both directions (export only for dephase), at
+## the Merchant hat's current kind. Live contracts — the heartbeat requotes
+## them and F locks them like any offer. Locked ones are injected separately.
+func _inject_channel_offers() -> void:
+	_ensure_biome()
+	var lattice = _market_lattice()
+	if lattice == null or current_biome == null or not lattice.has_method("propose_channel_offers"):
+		return
+	var have := {}
+	for o in _offer_pool:
+		if o is Dictionary:
+			have[o.get("id", null)] = true
+	for c in lattice.propose_channel_offers(current_biome, _merchant_kind()):
+		if c == null or c.is_locked() or have.has(c.id):
+			continue
+		var row := _channel_offer_row(c)
+		if not row.is_empty():
+			_offer_pool.append(row)
+	MarketView.annotate(_offer_pool, _get_inventory())
+
+
+func _merchant_kind() -> String:
+	var kind := ToolConfig.get_frame_mode_name(ToolConfig.FRAME_MERCHANT)
+	return kind if kind in ["thermal", "dephase", "damp"] else "thermal"
+
+
+func _channel_offer_row(c) -> Dictionary:
+	var pos := _plot_for_register(c.biome_name, c.register_id)
+	if pos == GridSentinel.INVALID_POSITION:
+		return {}
+	var lattice = _market_lattice()
+	var biome = _resolve_live_biome(c.biome_name)
+	var q: Dictionary = lattice.channel_quote(biome, c.register_id, c.channel_direction, c.channel_kind) if lattice and biome else {}
+	var fee_only: bool = c.channel_kind == "dephase"
+	var row := {
+		"north": str(q.get("north", "")),
+		"south": str(q.get("south", "")),
+		"id": c.id,
+		"market_offer_id": c.id,
+		"channel_offer": true,
+		"status": "offered",
+		"faction": c.faction if c.faction != "" else "the Bath",
+		"resource": c.resource,
+		"quantity": 0 if fee_only else c.ask(),
+		"cost": q.get("cost", {}),
+		"biome": c.biome_name,
+		"biome_name": c.biome_name,
+		"register_id": c.register_id,
+		"plot_pos": pos,
+		"direction": c.channel_direction,
+		"channel_kind": c.channel_kind,
+		"fee_only": fee_only,
+		"reward_resources": {},
+		"source": "channel",
+		"pair_a": c.biome_name,
+		"tension": 0.0,
+	}
+	row["body"] = "%s — signing takes %s; it runs until you close it" % [_channel_line(row), _cost_words(row["cost"])]
+	return row
+
+
+## R on a channel offer signs it through the Merchant hat's own verbs
+## (QuantumInstrument.action_drain / action_pump on the register's plot): the
+## same price (MarketLattice.channel_quote, the lock honoured), the same
+## refusals. A channel takes no hand.
+func _sign_channel_offer(offer: Dictionary) -> void:
+	var inst = InstrumentLocator.resolve_quantum_instrument(self)
+	var pos: Vector2i = offer.get("plot_pos", GridSentinel.INVALID_POSITION)
+	if inst == null or pos == GridSentinel.INVALID_POSITION:
+		_toast_feedback("✗ no plot carries this register — sign it from the Merchant hat [6]")
+		return
+	var ps: Array[Vector2i] = [pos]
+	var kind := str(offer.get("channel_kind", "thermal"))
+	var result: Dictionary
+	if str(offer.get("direction", "")) == "import":
+		result = inst.action_pump(ps, kind)
+	else:
+		result = inst.action_drain(ps, kind)
+	if bool(result.get("success", false)):
+		_drop_from_pool(offer.get("id", -1))
+		_render_all()
+		_toast_feedback("✓ channel signed — %s. It runs on Commitments [U] until you close it" % _channel_line(offer))
+	else:
+		_toast_feedback("✗ %s" % str(result.get("message", "couldn't sign this channel")))
+
+
+## Close a held channel through the Merchant hat's own settle (free,
+## standing-neutral, regime-blind). What already moved stays in the wallet.
+func _close_channel_row(q: Dictionary) -> void:
+	var inst = InstrumentLocator.resolve_quantum_instrument(self)
+	var pos: Vector2i = q.get("plot_pos", GridSentinel.INVALID_POSITION)
+	var ok := false
+	if inst != null and pos != GridSentinel.INVALID_POSITION:
+		var ps: Array[Vector2i] = [pos]
+		ok = bool(inst.action_settle(ps).get("success", false))
+	if not ok:
+		# No plot maps to the register any more: clear the flags directly.
+		var biome = _resolve_live_biome(str(q.get("biome", "")))
+		var reg := int(q.get("register_id", -1))
+		if biome != null and biome.quantum_computer != null and reg >= 0:
+			var infra: Dictionary = biome.quantum_computer._ensure_register_infra(reg)
+			infra["lindblad_pump_active"] = false
+			infra["lindblad_drain_active"] = false
+			infra["lindblad_harvest_visible"] = false
+			infra.erase("lindblad_channel_kind")
+		var lattice = _market_lattice()
+		if lattice != null:
+			lattice.close_channel(str(q.get("biome", "")), reg)
+		ok = true
+	_toast_feedback("✓ channel closed — %s. What moved stays in your wallet" % _channel_line(q))
+	_render_all()
+
+
+func _channel_inspect_text(q: Dictionary) -> String:
+	var lines: Array[String] = []
+	lines.append("%s · %s channel" % [str(q.get("faction", "?")), str(q.get("channel_kind", "?"))])
+	lines.append(_channel_line(q))
+	if _is_channel_offer(q):
+		lines.append("signing takes %s · the stake moves with p (−kT·log p × standing)" % _cost_words(q.get("cost", {})))
+	else:
+		lines.append("signed for %s · rate %.2f · closing is free and leaves standing alone" % [
+			_cost_words(q.get("signed_cost", {})), float(q.get("rate", 0.0))])
+	lines.append("the physics is a Lindblad channel to the Bath; %s issues the contract" % str(q.get("faction", "?")))
+	return "\n".join(lines)
+
+
 ## The "ask" line for a commitment row: delivery shows held/asked progress; quantum quests show
 ## the steerable objective (observable → target) so the player sees what they're aiming the state at.
 func _commitment_ask_text(quest: Dictionary, show_held: bool = false) -> String:
@@ -1596,7 +1921,7 @@ func _commitment_ask_text(quest: Dictionary, show_held: bool = false) -> String:
 	if ti == int(QuestTypes.Type.DELIVERY):
 		var emoji := str(quest.get("resource", "?"))
 		var qty := int(quest.get("quantity", 0))
-		# A standing trade names its fixed payout on the stall itself.
+		# A trade names its fixed payout on the stall itself.
 		var pays := ""
 		if _is_supply(quest):
 			var rr = quest.get("reward_resources", {})
@@ -1714,6 +2039,9 @@ func _commitments_rows() -> Array:
 	elif quest_manager and "active_quests" in quest_manager and quest_manager.active_quests is Dictionary:
 		for q in quest_manager.active_quests.values():
 			rows.append(q)
+	# Merchant channels you hold ride after the deliveries (they take no hand;
+	# appending keeps the quest rows' index contract above).
+	rows.append_array(_channel_rows())
 	return rows
 
 # =============================================================================
@@ -1722,11 +2050,12 @@ func _commitments_rows() -> Array:
 
 func _refresh_pool() -> void:
 	# Every branch of the market build (pair scope, neighborhood, live-pair
-	# fallback, and the early-outs) ends with the standing trades: they sit on
+	# fallback, and the early-outs) ends with the trades: they sit on
 	# the current biome's board ALWAYS, regardless of the lattice's RNG.
 	_refresh_market_pool()
 	_inject_supply_offers()
 	_inject_locked_offers()
+	_inject_channel_offers()
 	_pool_signature = _signature_stamp()
 
 
@@ -1744,7 +2073,7 @@ func _signature_stamp() -> int:
 	return n
 
 
-## Standing supply trades (campaign `resources` table) for the biome this
+## Supply trades (campaign `resources` table) for the biome this
 ## board is scoped to, built through QuestPipeline.supply_offer. An accepted
 ## trade is already a held stall — it is not re-offered (stable ids).
 func _supply_offers() -> Array:
@@ -2024,9 +2353,10 @@ func _on_quest_completed(quest_id: int, _rewards: Dictionary = {}) -> void:
 		return
 	var kept: Array = []
 	for o in _offer_pool:
-		# A locked offer is not re-dealt: the player froze that quote.
+		# A locked offer is not re-dealt: the player froze that quote. Nor is a
+		# channel offer: it belongs to a register, not to the delivery.
 		if o is Dictionary and not _is_supply(o) and not bool(o.get("locked", false)) \
-				and str(o.get("faction", "")) == faction:
+				and not _is_channel_offer(o) and str(o.get("faction", "")) == faction:
 			continue
 		kept.append(o)
 	_offer_pool = kept
@@ -2110,7 +2440,7 @@ func _offer_is_keepable(o: Dictionary) -> bool:
 
 func _get_visible_offers() -> Array:
 	var all_sorted: Array = MarketView.sort_view(_offer_pool, _get_inventory(), _market_sort_mode)
-	# Standing supply trades ride at the end (urgent first) and never join the
+	# Supply trades ride at the end (urgent first) and never join the
 	# live-faction ordering below — a Millwright supply trade is not the mill.
 	var sorted: Array = []
 	var supply: Array = []
@@ -2324,7 +2654,7 @@ func claim_walk_cue(q: Dictionary) -> String:
 
 
 ## Supply walk while this board is open (UIProgression._supply_walk_line):
-## ONE next key toward the standing trade that pays `emoji` — Market [Y],
+## ONE next key toward the trade that pays `emoji` — Market [Y],
 ## the row key, then [R] Accept / [R] Deliver. "" when this board does not
 ## carry that trade. Never accepts or delivers for them.
 func supply_walk_cue(emoji: String) -> String:
@@ -2375,7 +2705,7 @@ func _market_rows() -> Array:
 	# Fillable held stalls first, then as many offers as free hands. The
 	# offer pool itself can be 24 deep — we only pin the top-sorted free_n
 	# onto the ring. Arc quests are not stalls.
-	# Standing supply trades are ALWAYS on the ring (in addition to the free-
+	# Supply trades that stand are on the ring (in addition to the free-
 	# hand offers, paged past six): urgent ones right after the live faction's
 	# lead stalls, the rest at the tail. They never spend a hand.
 	var rows: Array = []
@@ -2384,6 +2714,7 @@ func _market_rows() -> Array:
 	var normal: Array = []
 	var urgent: Array = []
 	var calm: Array = []
+	var channels: Array = []   # channel offers (open ground) ride after the deliveries
 	for o in _get_visible_offers():
 		if not (o is Dictionary):
 			continue
@@ -2392,6 +2723,8 @@ func _market_rows() -> Array:
 				urgent.append(o)
 			else:
 				calm.append(o)
+		elif _is_channel_offer(o):
+			channels.append(o)
 		else:
 			normal.append(o)
 	var want := _live_board_faction()
@@ -2408,6 +2741,8 @@ func _market_rows() -> Array:
 		rows.append({"kind": "offer", "data": o})
 	for i in range(lead_n, normal.size()):
 		rows.append({"kind": "offer", "data": normal[i]})
+	for o in channels:
+		rows.append({"kind": "offer", "data": o})
 	for o in _staples_first(calm):
 		rows.append({"kind": "offer", "data": o})
 	return rows
@@ -2522,7 +2857,12 @@ func _ensure_biome() -> void:
 
 func _accept_selected() -> void:
 	var offer: Dictionary = _get_selected_offer()
-	if offer.is_empty() or quest_manager == null:
+	if offer.is_empty():
+		return
+	if _is_channel_offer(offer):
+		_sign_channel_offer(offer)
+		return
+	if quest_manager == null:
 		return
 	if quest_manager.has_method("accept_quest"):
 		# The lattice can re-propose a contract the player already holds —
@@ -2571,6 +2911,9 @@ func _complete_selected() -> void:
 	var quest: Dictionary = _selected_held_quest()
 	if quest.is_empty():
 		return
+	if _is_channel(quest):
+		_toast_feedback("• a channel settles as it flows — nothing to deliver. [Q] closes it")
+		return
 	var qid: int = int(quest.get("id", -1))
 	if qid < 0:
 		return
@@ -2602,7 +2945,7 @@ func _complete_selected() -> void:
 		if quest_manager.has_method("complete_quest") and quest_manager.complete_quest(qid):
 			quest_completed.emit(qid, {})
 			if _is_supply(quest):
-				# The standing trade re-opens on the board at once.
+				# The trade re-opens on the board at once.
 				_sync_supply_offers()
 			_render_all()
 			if _is_supply(quest):
@@ -2669,8 +3012,13 @@ func _abandon_selected() -> void:
 		_disarm_abandon()
 		return
 	_abandon_arm_qid = qid
-	_toast_feedback("⚠ abandon %s — counts as FAILED. F confirms · any other key cancels" \
-			% str(quest.get("faction", "this commitment")))
+	_abandon_arm_channel = quest.duplicate(true) if _is_channel(quest) else {}
+	if _is_channel(quest):
+		_toast_feedback("⚠ close %s — free, standing unchanged. F confirms · any other key cancels" \
+				% _channel_line(quest))
+	else:
+		_toast_feedback("⚠ abandon %s — counts as FAILED. F confirms · any other key cancels" \
+				% str(quest.get("faction", "this commitment")))
 	_refresh_verb_chips()
 
 
@@ -2678,6 +3026,7 @@ func _disarm_abandon(silent: bool = false) -> void:
 	if _abandon_arm_qid < 0:
 		return
 	_abandon_arm_qid = -1
+	_abandon_arm_channel = {}
 	if not silent:
 		_toast_feedback("abandon cancelled")
 	_refresh_verb_chips()
@@ -2686,6 +3035,12 @@ func _disarm_abandon(silent: bool = false) -> void:
 func _abandon_confirmed() -> void:
 	var qid: int = _abandon_arm_qid
 	_abandon_arm_qid = -1
+	if not _abandon_arm_channel.is_empty():
+		# A channel is closed, not failed: free and standing-neutral.
+		var ch: Dictionary = _abandon_arm_channel
+		_abandon_arm_channel = {}
+		_close_channel_row(ch)
+		return
 	if quest_manager != null and quest_manager.has_method("fail_quest"):
 		quest_manager.fail_quest(qid, "player_action")
 		quest_abandoned.emit(qid)

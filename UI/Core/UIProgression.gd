@@ -2527,7 +2527,7 @@ static func _plant_walk_line() -> String:
 	if _sprout_short():
 		return _sprout_gather_line()
 	# The word they tried to plant needs 13 of its south pole (🪓 for 🪵/🪓,
-	# 🌊 for 💧/🌊) — those come from a standing trade, not a plot.
+	# 🌊 for 💧/🌊) — those come from a trade, not a plot.
 	if not _in_icon_submenu() and _plant_south_short():
 		var south_walk := _supply_walk_line(_plant_south_current())
 		if south_walk != "":
@@ -2694,7 +2694,7 @@ static func _chart_eagles() -> int:
 
 # =============================================================================
 # SUPPLY WALK — generated from the campaign resource table
-# (CampaignRuntime.resources(): low_water, plots, standing trades). One next
+# (CampaignRuntime.resources(): low_water, plots, trades). One next
 # key, never a trade made for them. _basket_* below are the 🧺 instances.
 # =============================================================================
 
@@ -2751,7 +2751,7 @@ static func _trade_affordable(t: Dictionary) -> bool:
 	return true
 
 
-## The standing trade the walk takes for `emoji`: the one on the board the
+## The trade the walk takes for `emoji`: the one on the board the
 ## player stands at when its ask is in hand, else the Village rescue. When
 ## that ask is itself short and has an affordable Village trade, walk THAT
 ## first (one level: 🧺 asks 👥, 👥 trades for 🌾). {} = no trade anywhere.
