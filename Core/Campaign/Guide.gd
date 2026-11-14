@@ -254,23 +254,113 @@ static func _t(what: String) -> void:
 		trace.append(what)
 
 
+## The resource the last step is a supply walk for, "" when none (#87).
+static var shortage: String = ""
+
+
 static func next_step() -> Dictionary:
 	trace = []
+	shortage = ""
 	if UIP.current_tutorial_step() != UIP.NO_TUTORIAL_SENTINEL:
-		return _tutorial_step()
+		return _afford(_tutorial_step(), {})
 	var ranked := ranked_beats()
 	var stall := _clock_stalled(ranked[0] if not ranked.is_empty() else {})
 	if not stall.is_empty():
 		return stall
 	if ranked.is_empty():
-		return _auto_beat_step()
+		return _afford(_auto_beat_step(), {})
 	# The best beat first; a beat the guide has no step for (its way in is
 	# closed right now) hands the banner to the next, never to silence.
 	for q in ranked:
 		var step := _beat_step(q)
 		if not step.is_empty():
-			return step
+			return _afford(step, q)
 	return {}
+
+
+# ---------------------------------------------------------------- shortage
+
+## The verb a step's last key fires, by the step's `why`.
+const STEP_VERB := {"gather": "pop", "strike": "measure", "strike again": "measure",
+		"strike known": "measure", "explore": "explore", "reveal": "explore",
+		"superpose": "hadamard", "gate word hadamard": "hadamard"}
+
+
+## Guidance follows state, not path (#87). A step whose fee the wallet can't
+## pay is not the next step: the way to that fee is. This runs on every
+## next_step, so the cue stands for as long as the shortage does (opening
+## the Market and leaving without buying changes nothing) and goes the
+## moment the wallet can pay. A lap (explore, strike, gather) ends in a
+## Gather, so its first key already turns toward the basket. A fee
+## StapleRescue waives for a stranded wallet is no shortage: the step
+## stands and says it is free.
+static func _afford(step: Dictionary, q: Dictionary) -> Dictionary:
+	if step.is_empty() or bool(step.get("wait", false)):
+		return step
+	var why := str(step.get("why", ""))
+	var verb := str(STEP_VERB.get(why, ""))
+	if why.begins_with("verb "):
+		verb = ToolConfig.get_action_name(ToolConfig.get_current_frame(), why.substr(5))
+	var lap := bool(step.get("lap", false))
+	if verb == "" and not lap:
+		return step
+	# A lap's trip or hat is its first key: the basket at its end counts now.
+	var verbs: Array = [] if verb == "" else [verb]
+	if lap and verb != "pop":
+		verbs.append("pop")
+	var free := ""
+	for v in verbs:
+		var cost := _fee(v)
+		for res in cost:
+			if UIP._wallet(str(res)) >= float(cost[res]):
+				continue
+			_t("short %s for %s" % [str(res), v])
+			var sup := _supply(str(res), q, 1)
+			if not sup.is_empty():
+				return _short_of(str(res), sup)
+		var staple := StapleRescue.staple_for(v)
+		if staple != "" and not cost.has(staple) and _listed_fee(v).has(staple):
+			free = staple
+	if free != "":
+		var out := step.duplicate()
+		out["text"] = "%s (free: %s lent until you can buy some)" % [str(step.get("text", "")), StapleRescue.named(free)]
+		return out
+	return step
+
+
+## What `verb` costs now (a stranded staple's fee already waived).
+static func _fee(verb: String) -> Dictionary:
+	var farm = UIP._active_farm()
+	return ActionCostRuntime.get_action_cost(farm, verb, {}) if farm != null else {}
+
+
+## What `verb` costs by the table, before any waiver.
+static func _listed_fee(verb: String) -> Dictionary:
+	var farm = UIP._active_farm()
+	if farm == null or not ("economy" in farm) or farm.economy == null \
+			or not farm.economy.has_method("get_overridden_action_cost"):
+		return {}
+	return farm.economy.get_overridden_action_cost(verb, {})
+
+
+## The supply walk, saying why it is there: "out of 🧺 baskets — …".
+static func _short_of(res: String, sup: Dictionary) -> Dictionary:
+	var out := sup.duplicate()
+	var text := str(sup.get("text", ""))
+	if text.begins_with("▸ "):
+		text = text.substr(2)
+	out["text"] = "▸ out of %s — %s" % [StapleRescue.named(res), text]
+	out["short"] = res
+	shortage = res
+	return out
+
+
+## A step of the explore → strike → gather lap: it pays off only through a
+## Gather, so _afford checks the basket for it too.
+static func _lap(step: Dictionary) -> Dictionary:
+	if not step.is_empty():
+		step["lap"] = true
+	return step
 
 
 ## The clock must not outrun the machine. At ×32 the three 0.02-step
@@ -1082,13 +1172,13 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 					return pre
 	var t := _travel(where, q)
 	if not t.is_empty():
-		return t
+		return _lap(t)
 	var tip := _tip_toward(res, q)
 	if not tip.is_empty():
 		return tip
 	var h := _hat("ace", q)
 	if not h.is_empty():
-		return h
+		return _lap(h)
 	var col := _live_col()
 	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
 	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
@@ -1107,7 +1197,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			# A lap counter: "Strike again" ×5 with nothing visible read as a loop to
 			# every memoryless sensor (lost-lamb w14, w31; masher). Then Q gathers.
 			var lap := "strike %d of %d, then Gather" % [term.strikes.size() + 1, STRIKE_TRIES]
-			return _chord(_close_first() + [label, lap, ["Strike again", _verb("strike")]], q, "strike again")
+			return _lap(_chord(_close_first() + [label, lap, ["Strike again", _verb("strike")]], q, "strike again"))
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
 		# Strike-bank model: a plot holding banked strikes is not "measured",
 		# so measured_outcome is "" and no miss was ever counted — MISS_CAP's
@@ -1124,7 +1214,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 		return _cost_or(["gather", "🧺"], _chord(_close_first() + [label, ["Gather", _verb("gather")]], q, "gather"), q, depth)
 	_counted[res] = false
 	if col >= 0 and UIP._plot_bound(col):
-		return _cost_or(["strike", "👥"], _chord(_close_first() + [label, ["Strike", _verb("strike")]], q, "strike"), q, depth)
+		return _cost_or(["strike", "👥"], _lap(_chord(_close_first() + [label, ["Strike", _verb("strike")]], q, "strike")), q, depth)
 	var fr := _free_terminal(q)
 	if not fr.is_empty():
 		return fr
@@ -1141,7 +1231,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	if col < 0 or _plot_key(col) != key:
 		parts.append(["plot", key])
 	parts.append(["Explore", _verb("explore")])
-	return _cost_or(["explore", "🍞"], _chord(parts, q, "explore"), q, depth)
+	return _cost_or(["explore", "🍞"], _lap(_chord(parts, q, "explore")), q, depth)
 
 
 ## A loaded biome whose register carries `glyph` (active biome first).
@@ -1181,7 +1271,14 @@ static var _no_trade_until := {}
 const NO_TRADE_MS := 90000
 
 ## With a biome: that one trade. Without: every trade for `res`.
+## A staple rescue the board guarantees right now (QuestBoard._rescue_open)
+## is never ruled out: it is on the ring, and a visit that found it once
+## must not hide it for the next 90 s (#87).
 static func _trade_ruled_out(res: String, biome: String = "") -> bool:
+	if res in StapleRescue.VERB_STAPLE.values():
+		var board = UIP._quest_board()
+		if board != null and board.has_method("_rescue_open") and bool(board._rescue_open(res)):
+			return false
 	if biome != "":
 		return Time.get_ticks_msec() < int(_no_trade_until.get(res + "|" + biome, 0))
 	for tr in CampaignRuntime.supply_trades(res):
@@ -1490,10 +1587,10 @@ static func _take_any_door(ids: Array, q: Dictionary) -> Dictionary:
 static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	var t := _travel(biome, q)
 	if not t.is_empty():
-		return t
+		return _lap(t)
 	var h := _hat("ace", q)
 	if not h.is_empty():
-		return h
+		return _lap(h)
 	var col := _live_col()
 	# Nothing focused: name the plot we are about to pick, and judge THAT plot.
 	# (Ace F on an explored plot fast-forwards and drops the focus, so "plot
@@ -1503,7 +1600,7 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	if UIP._plot_measured(pick):
 		return _chord(_close_first() + pre + [["Gather", _verb("gather")]], q, "gather")
 	if UIP._plot_bound(pick):
-		return _chord(_close_first() + pre + [["Strike", _verb("strike")]], q, "strike")
+		return _lap(_chord(_close_first() + pre + [["Strike", _verb("strike")]], q, "strike"))
 	var stop := _release_tracking(pick, q)
 	if not stop.is_empty():
 		return stop
@@ -1511,7 +1608,7 @@ static func _strike_once(biome: String, q: Dictionary) -> Dictionary:
 	if col < 0:
 		parts.append_array(_pick_plot(pick))
 	parts.append(["Explore", _verb("explore")])
-	return _chord(parts, q, "explore")
+	return _lap(_chord(parts, q, "explore"))
 
 
 ## The plot a banner picks when none is focused: one already explored in

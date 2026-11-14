@@ -47,6 +47,10 @@ static func speaks(qm, farm) -> bool:
 static func delay_s(qm, farm) -> float:
 	if UIProgression.current_tutorial_step() != UIProgression.NO_TUTORIAL_SENTINEL:
 		return 0.0
+	# A shortage is a wall, not progress: the way out shows at once and for
+	# as long as it holds (#87). Guide.shortage is what its last step read.
+	if str(load("res://Core/Campaign/Guide.gd").shortage) != "":
+		return 0.0
 	var table = CampaignRuntime.guide().get("fade_after_s", DEFAULT_FADE_AFTER_S)
 	if not (table is Array) or table.is_empty():
 		table = DEFAULT_FADE_AFTER_S
