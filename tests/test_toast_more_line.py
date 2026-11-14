@@ -43,3 +43,24 @@ def test_more_path_never_accepts():
                _func(BANNER, "expand_more"), _func(BANNER, "collapse_more"),
                _func(PROG, "objective_more")):
         assert not re.search(r"accept|complete|claim|submit", fn, re.I), fn
+
+
+def test_held_lesson_line_reads_u_then_e_after_charge_attended():
+    hint = _func(PROG, "objective_more_hint")
+    assert '"[%s] then [E] for more" % SurfaceRooms.KEY_HELD' in hint
+    assert '"[E] more about this"' in hint
+    assert "charge_attended" in hint and "is_charge_hold" in hint
+    assert '!= "ready"' in hint  # a claimable lesson keeps the plain line
+    assert "objective_more_hint()" in BANNER and "_more_label.text = hint" in BANNER
+
+
+def test_claim_on_charge_always_shows_the_line():
+    more = _func(PROG, "objective_more")
+    assert "_is_charge_ready(best)" in more and "_charge_route(best)" in more
+    assert '"ready"' in _func(PROG, "_is_charge_ready")
+    assert "route_claim(q)" in _func(PROG, "_charge_route")
+
+
+def test_hint_never_accepts():
+    for fn in (_func(PROG, "objective_more_hint"), _func(PROG, "_is_charge_ready")):
+        assert not re.search(r"accept|submit", fn, re.I), fn

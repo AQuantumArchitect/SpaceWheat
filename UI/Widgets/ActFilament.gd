@@ -39,6 +39,7 @@ var _label: Label = null
 var _more_label: Label = null    # the small gold "[E] more about this" line
 var _detail_label: Label = null  # the opened detail (E pauses and shows it)
 var _more_text: String = ""
+var _hint_text: String = HINT_TEXT
 var _expanded: bool = false
 var _accum: float = 0.0
 var _text: String = ""
@@ -164,13 +165,17 @@ func _refresh() -> void:
 	if obj != "" and not _GUIDE_FADE.speaks(UIProgression._quest_manager(), UIProgression._active_farm()):
 		obj = ""
 	var more := UIProgression.objective_more() if obj != "" else ""
-	if obj == _text and (obj != "") == visible and more == _more_text:
+	var hint := UIProgression.objective_more_hint() if more != "" else HINT_TEXT
+	if obj == _text and (obj != "") == visible and more == _more_text and hint == _hint_text:
 		return
 	if obj != _text:
 		_ladder.reset()
 		_expanded = false
 	_text = obj
 	_more_text = more
+	_hint_text = hint
+	if _more_label != null:
+		_more_label.text = hint
 	if more == "":
 		_expanded = false
 	if obj == "":
