@@ -40,7 +40,7 @@ func _ready():
 
 
 ## Frames actually rendered this rebuild (progressive disclosure). Button id i
-## maps to _visible_frames[i]; hat KEYS for hidden frames still work.
+## maps to _visible_frames[i]; hat KEYS for hidden frames do nothing.
 var _visible_frames: Array = []
 
 

@@ -24,7 +24,7 @@ const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 ## a beat's on_open.unlock, plus legacy_unlocks for old saves) and compiled into
 ## Core/Quests/data/campaign_runtime.json. Read here through CampaignRuntime —
 ## no flag ids live in UI code. A name absent from a table is always available
-## (fail-open); Ace + Icon + Druid are the starter kit because no beat gates them.
+## (fail-open); Ace is the starter kit because no beat gates it.
 static func hat_unlock_flags() -> Dictionary:
 	return CampaignRuntime.unlocks("hats")
 

@@ -43,14 +43,15 @@ def test_tutorial_step_numbers_match_array_position():
         )
 
 
-def test_exactly_one_unlock_flags_handoff_and_it_resolves():
+def test_unlock_flags_handoffs_are_the_two_hat_reveals_and_resolve():
     steps = _steps()
     known = _flag_ids()
     handoffs = [(s["tutorial_step"], list(s["unlock_flags"]))
                 for s in steps if s.get("unlock_flags")]
-    assert len(handoffs) == 1, (
-        "the tutorial hands the spine forward exactly once (Break #2 — the "
-        "superposition step unlocks the Operator hat); found %r" % (handoffs,)
+    assert handoffs == [(2, ["druid_opens"]), (3, ["loom_opens"])], (
+        "the tutorial hands the spine forward twice: wayfinding reveals the "
+        "Druid hat, superposition reveals the Operator hat (Break #2); "
+        "found %r" % (handoffs,)
     )
     for step, flag_list in handoffs:
         for fid in flag_list:

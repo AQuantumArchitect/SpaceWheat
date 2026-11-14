@@ -43,6 +43,25 @@
     "fired_by": "tutorial"
   },
   {
+    "id": "druid_opens",
+    "display_name": "The Druid Answers",
+    "act": 0,
+    "campaign": "demos",
+    "campaign_act": 0,
+    "act_title": "The Loop",
+    "chapter": "first_fruits",
+    "chapter_title": "First Fruits",
+    "arc_beat": "You crossed the hedge and opened the whole forest. A qubit there need not pick a side: the Druid spreads it across both poles.",
+    "predicates": [],
+    "standing_grants": {
+      "Hearth Keepers": {
+        "trust": 0.02
+      }
+    },
+    "arc_quest": null,
+    "fired_by": "tutorial"
+  },
+  {
     "id": "arc_handover",
     "display_name": "The Wheel Is Yours",
     "act": 1,
