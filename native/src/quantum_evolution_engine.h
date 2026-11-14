@@ -5,22 +5,20 @@
 #include <godot_cpp/variant/packed_float64_array.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/array.hpp>
+#include "../kernel/include/swk/swk.hpp"
 #include <Eigen/Dense>
-#include <Eigen/Sparse>
 #include <vector>
 #include <complex>
 
 namespace godot {
 
 /**
- * QuantumEvolutionEngine - Batched native quantum evolution
+ * QuantumEvolutionEngine - Godot wrapper over the swk density-matrix kernel.
  *
- * Solves the performance problem of GDScript ↔ C++ bridge overhead by:
- * 1. Registering all operators ONCE at setup time
- * 2. Precomputing L†, L†L for each Lindblad operator
- * 3. Doing complete evolution step in single native call
- *
- * Expected speedup: 10-20× for typical biomes (Forest: 130ms → 7ms)
+ * All maths lives in native/kernel (swk::EvolutionEngine, density.hpp). This
+ * class only converts between Godot types and Eigen, forwards kernel
+ * diagnostics to push_warning / push_error, and keeps the bound API stable.
+ * Operators are registered once at setup, then each evolve is one native call.
  */
 class QuantumEvolutionEngine : public RefCounted {
     GDCLASS(QuantumEvolutionEngine, RefCounted)
@@ -66,12 +64,12 @@ public:
         double biome_purity, bool force_full_scan = false);
 
     // Clear MI candidates (call when biome state changes significantly)
-    void clear_mi_candidates() { m_mi_candidates.clear(); }
+    void clear_mi_candidates() { m_mi_screen.clear(); }
 
     // Combined evolution + MI computation (single call for both)
     // Returns Dictionary with "rho" (evolved state), "mi" (mutual information array),
     // "purity" (Tr(rho^2)), "trace_re"/"trace_im" (Tr(rho)),
-    // and "bloch" (PackedFloat64Array of [p0,p1,x,y,z,r,theta,phi] per qubit)
+    // and "bloch" (PackedFloat64Array of [p0,p1,x,y,z,r,theta,phi,r_xy] per qubit (stride 9))
     Dictionary evolve_with_mi(const PackedFloat64Array& rho_data, float dt, float max_dt, int num_qubits);
 
     // Basic observables
@@ -112,88 +110,12 @@ protected:
     static void _bind_methods();
 
 private:
-    int m_dim;
-    bool m_finalized;
-    int m_num_qubits;  // Cached for MI computation
+    swk::EvolutionEngine m_engine;
+    swk::MiScreen m_mi_screen;       // adaptive-MI candidate list
+    swk::DiagnosticSink m_sink;      // forwards kernel diagnostics to Godot
 
-    // Sparse Hamiltonian (optional) - exploits ~99% sparsity in quantum coupling matrices
-    Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor> m_hamiltonian;
-    bool m_has_hamiltonian;
-
-    // Coherent generator switch. When false the -i[H,ρ] term is skipped (pure Lindbladian).
-    bool m_coherent;
-
-    // EXACT UNITARY PROPAGATOR (coherent + no dissipation): U = exp(-iH·dt) built from the
-    // eigendecomposition of the Hermitian H, H = VΛV† ⇒ U = V·diag(e^{-iλdt})·V†. This is
-    // purity-exact (r=1 by construction) — no Euler integration, no enforce_density_matrix.
-    Eigen::MatrixXcd m_eig_vecs;  // V (columns = eigenvectors of H)
-    Eigen::VectorXd  m_eig_vals;  // λ (real eigenvalues of H)
-    bool m_eig_valid;
-    Eigen::MatrixXcd m_U;         // cached propagator for m_U_dt
-    double m_U_dt;
-    bool m_U_valid;
-
-    // Sparse Lindblad operators
-    std::vector<Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor>> m_lindblads;
-
-    // Cached values for efficiency
-    std::vector<Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor>> m_lindblad_dags;  // L†
-    std::vector<Eigen::SparseMatrix<std::complex<double>, Eigen::RowMajor>> m_LdagLs;        // L†L
-
-    // Pre-allocated scratch buffers for evolution (avoid per-frame allocation)
-    Eigen::MatrixXcd m_drho_buffer;      // Scratch for drho computation
-    Eigen::MatrixXcd m_temp_buffer;      // Scratch for intermediate results
-
-    // Adaptive MI optimization
-    std::vector<int> m_mi_candidates;    // Pair indices with significant MI
-    static constexpr double MI_SCREEN_THRESHOLD = 0.001;   // Product deviation threshold
-    static constexpr double PURITY_HIGH_THRESHOLD = 0.9;   // Use linear approx above this
-
-    // === Integrator (see evolve()) ==========================================
-    // Bound on ||h·dρ/dt|| / ||ρ|| per substep — an accuracy criterion. Measured
-    // against a 20k-step reference at dim 32: 0.1 costs ONE RK4 substep for a
-    // 0.1s phrame at both Tr(ρ²)=0.5 and Tr(ρ²)=0.999, with max|Δρ| ≈ 1e-7.
-    static constexpr double REL_CHANGE_PER_SUBSTEP = 0.1;
-
-    // Hard ceiling on substeps per evolve() call. This is the guarantee that one
-    // phrame costs bounded work no matter what state the player builds — the old
-    // 1e-6s step floor allowed 100k substeps for the same phrame.
-    static constexpr int MAX_SUBSTEPS = 16;
-
-    int m_last_substeps = 0;
-
-    // Helper methods
     Eigen::MatrixXcd unpack_dense(const PackedFloat64Array& data) const;
     PackedFloat64Array pack_dense(const Eigen::MatrixXcd& mat) const;
-
-    // dρ/dt = -i[H,ρ] + Σ_k D[L_k](ρ) — the single generator, evaluated at each RK4 stage.
-    Eigen::MatrixXcd liouvillian(const Eigen::MatrixXcd& rho) const;
-
-    // Exact-unitary path: eligible when coherent, has H, eigendecomposition valid, no Lindblad.
-    bool can_unitary() const;
-    const Eigen::MatrixXcd& propagator_for(double dt);  // builds/caches U = exp(-iH·dt)
-
-    // MI computation helpers (original)
-    Eigen::MatrixXcd partial_trace_single(const Eigen::MatrixXcd& rho, int qubit, int num_qubits) const;
-    Eigen::MatrixXcd partial_trace_complement(const Eigen::MatrixXcd& rho, int qubit_a, int qubit_b, int num_qubits) const;
-    double von_neumann_entropy(const Eigen::MatrixXcd& reduced_rho) const;
-    double mutual_information(const Eigen::MatrixXcd& rho, int qubit_a, int qubit_b, int num_qubits) const;
-
-    // Adaptive MI helpers (new - optimized)
-    double screen_product_deviation(
-        const Eigen::Matrix<std::complex<double>, 4, 4>& rho_ab,
-        const Eigen::Matrix<std::complex<double>, 2, 2>& rho_a,
-        const Eigen::Matrix<std::complex<double>, 2, 2>& rho_b) const;
-    double compute_mi_linear(
-        const Eigen::Matrix<std::complex<double>, 4, 4>& rho_ab,
-        const Eigen::Matrix<std::complex<double>, 2, 2>& rho_a,
-        const Eigen::Matrix<std::complex<double>, 2, 2>& rho_b) const;
-    double trace_rho_squared_2x2(const Eigen::Matrix<std::complex<double>, 2, 2>& rho) const;
-    double trace_rho_squared_4x4(const Eigen::Matrix<std::complex<double>, 4, 4>& rho) const;
-    Eigen::Matrix<std::complex<double>, 2, 2> partial_trace_single_2x2(
-        const Eigen::MatrixXcd& rho, int qubit, int num_qubits) const;
-    Eigen::Matrix<std::complex<double>, 4, 4> partial_trace_pair_4x4(
-        const Eigen::MatrixXcd& rho, int qa, int qb, int num_qubits) const;
 };
 
 }  // namespace godot
