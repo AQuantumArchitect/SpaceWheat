@@ -467,6 +467,10 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 
 	# Restore biome unlock/exploration progression before grid refresh so layout sync is correct.
 	_restore_biome_progression_state(state)
+	# Inner worlds the save carries come back before the grid refresh, so their
+	# plots have positions to restore into and their ρ has a biome to land in.
+	if state.biome_states:
+		_rematerialize_fractal_worlds(farm, state.biome_states)
 
 	var grid = farm.grid
 	if farm.has_method("refresh_grid_for_biomes"):
@@ -984,6 +988,12 @@ func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary
 		# drift check uses) — not a second, separately-computed signature.
 		state_dict["physics_signature"] = str(biome.quantum_computer.physics_signature) if biome.quantum_computer else ""
 
+	# Inner (fractal) worlds are not authored biomes: boot cannot rebuild them.
+	# The seed is all ProceduralIconBiome.materialize needs to rebuild the same
+	# closed world (same icons, same H) on load.
+	if biome.has_meta("fractal_seed"):
+		state_dict["fractal_seed"] = (biome.get_meta("fractal_seed") as Dictionary).duplicate(true)
+
 	# Snapshot register axes so Python lab can reconstruct RegisterMap.
 	if biome.quantum_computer and biome.quantum_computer.register_map:
 		var rm = biome.quantum_computer.register_map
@@ -994,6 +1004,48 @@ func _capture_single_biome_state(biome: Node, _biome_name: String) -> Dictionary
 		state_dict["register_axes"] = axes
 
 	return state_dict
+
+
+## Rebuild every saved inner (FX_*) world that boot did not create. The world is
+## rematerialized from its seed (saves from before the seed was written fall
+## back to register 0's axis, where the opening icon always sits), which
+## rebuilds H from the Icon library exactly as entering the world did; the
+## saved ρ is restored onto it afterwards by _restore_all_biome_states.
+func _rematerialize_fractal_worlds(farm: Node, biome_states: Dictionary) -> void:
+	if farm == null or farm.grid == null:
+		return
+	var Proc = load("res://Core/Environment/ProceduralIconBiome.gd")
+	if Proc == null:
+		return
+	for biome_name in biome_states.keys():
+		var bname := str(biome_name)
+		var bstate = biome_states[biome_name]
+		if not bname.begins_with("FX_") or not (bstate is Dictionary) or farm.grid.has_biome(bname):
+			continue
+		var seed: Dictionary = {}
+		if bstate.get("fractal_seed", null) is Dictionary:
+			seed = (bstate["fractal_seed"] as Dictionary).duplicate(true)
+		else:
+			var axes = bstate.get("register_axes", [])
+			for axis in (axes if axes is Array else []):
+				if axis is Dictionary and int(axis.get("qubit", -1)) == 0:
+					var north := str(axis.get("north", ""))
+					seed = Proc.build_seed(north, north, str(axis.get("south", "")))
+					break
+		if seed.is_empty():
+			push_warning("Inner world %s has no seed or register 0 axis - cannot rebuild it" % bname)
+			continue
+		var mat: Dictionary = Proc.materialize(seed, bname, farm)
+		if not bool(mat.get("success", false)):
+			push_warning("Inner world %s failed to rematerialize: %s" % [bname, str(mat.get("error", ""))])
+			continue
+		var biome = mat.get("biome")
+		farm.grid.register_biome(bname, biome)
+		biome.grid = farm.grid
+		if "biome_evolution_batcher" in farm and farm.biome_evolution_batcher != null \
+				and farm.biome_evolution_batcher.has_method("register_biome"):
+			farm.biome_evolution_batcher.register_biome(biome)
+		_log("info", "save", "🌀", "Rebuilt inner world %s from its seed (%d icons)" % [bname, int(mat.get("icon_n", 0))])
 
 
 func _restore_all_biome_states(farm: Node, biome_states: Dictionary) -> void:

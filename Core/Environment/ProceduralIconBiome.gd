@@ -74,9 +74,7 @@ static func materialize(seed: Dictionary, biome_name: String, parent_node: Node)
 			lexicon = IconRegistryCls.new()
 
 	var icon_name: String = str(seed.get("from_icon", pole_0))
-	var physics: Dictionary = {}
-	if lexicon != null and lexicon.has_method("get_icon_physics_by_pair"):
-		physics = lexicon.get_icon_physics_by_pair(pole_0, pole_1)
+	var physics: Dictionary = pair_physics(lexicon, pole_0, pole_1)
 	var icon = IconCls.from_pair_physics(icon_name, pole_0, pole_1, physics, 1.0)
 	var neighborhood_icons: Array = [icon]
 
@@ -102,9 +100,11 @@ static func materialize(seed: Dictionary, biome_name: String, parent_node: Node)
 				if seen.has(key):
 					continue
 				seen[key] = true
-				var ph2: Dictionary = {}
-				if lexicon.has_method("get_icon_physics_by_pair"):
-					ph2 = lexicon.get_icon_physics_by_pair(p0, p1)
+				# A neighbour earns a qubit only if it brings physics: an icon with
+				# no self-energy, no rabi and no couplings is a frozen qubit.
+				var ph2: Dictionary = pair_physics(lexicon, p0, p1)
+				if not has_physics(ph2):
+					continue
 				neighborhood_icons.append(IconCls.from_pair_physics(iname, p0, p1, ph2, 1.0))
 
 	var atom_components: Dictionary = {}
@@ -154,6 +154,12 @@ static func materialize(seed: Dictionary, biome_name: String, parent_node: Node)
 	if QuantumVizCacheCls:
 		biome.viz_cache = QuantumVizCacheCls.new()
 		biome.viz_cache.update_metadata_from_payload(viz_metadata)
+	# Same tail as an outer biome (BiomeBuilder.build_from_spec): the viz cache
+	# carries the icons' H (self-energies + couplings) so the field draws it, and
+	# the evolution granularity comes from the characteristics sweep.
+	if biome.has_method("_seed_viz_couplings"):
+		biome._seed_viz_couplings()
+	BiomeCharacteristics.apply_to_biome(biome)
 
 	if parent_node != null and biome.get_parent() == null:
 		parent_node.add_child(biome)
@@ -167,3 +173,46 @@ static func materialize(seed: Dictionary, biome_name: String, parent_node: Node)
 		"seed": seed,
 		"icon_n": neighborhood_icons.size(),
 	}
+
+
+## The physics an icon brings into an inner world, from the Icon library.
+## The pair's own record wins. A pair whose record carries no physics (an
+## anonymous or data-only pair) is assembled from its two atoms instead: each
+## pole's self-energy and the atoms' Hamiltonian couplings, so the world still
+## gets the physics of the emojis it is made of. No rabi term is invented.
+static func pair_physics(lexicon, pole_0: String, pole_1: String) -> Dictionary:
+	var physics: Dictionary = {}
+	if lexicon != null and lexicon.has_method("get_icon_physics_by_pair"):
+		physics = lexicon.get_icon_physics_by_pair(pole_0, pole_1)
+	if has_physics(physics) or lexicon == null or not lexicon.has_method("get_atom"):
+		return physics
+	var a0 = lexicon.get_atom(pole_0)
+	var a1 = lexicon.get_atom(pole_1)
+	var couplings: Dictionary = {}
+	for atom in [a0, a1]:
+		if atom == null or not ("hamiltonian_couplings" in atom):
+			continue
+		for target in atom.hamiltonian_couplings:
+			if str(target) == pole_0 or str(target) == pole_1:
+				continue
+			if couplings.has(target):
+				continue
+			var v = atom.hamiltonian_couplings[target]
+			couplings[target] = [v.x, v.y] if v is Vector2 else v
+	var out: Dictionary = physics.duplicate(true) if not physics.is_empty() else {}
+	out["self_energy_0"] = float(a0.self_energy) if a0 != null and "self_energy" in a0 else 0.0
+	out["self_energy_1"] = float(a1.self_energy) if a1 != null and "self_energy" in a1 else 0.0
+	out["rabi_coupling"] = float(out.get("rabi_coupling", 0.0))
+	out["hamiltonian_couplings"] = couplings
+	return out
+
+
+## True if this physics dict puts any term into H.
+static func has_physics(physics: Dictionary) -> bool:
+	if physics.is_empty():
+		return false
+	for k in ["self_energy_0", "self_energy_1", "rabi_coupling"]:
+		if absf(float(physics.get(k, 0.0))) > 1e-10:
+			return true
+	var hc = physics.get("hamiltonian_couplings", {})
+	return hc is Dictionary and not (hc as Dictionary).is_empty()

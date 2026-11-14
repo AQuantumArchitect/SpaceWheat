@@ -9,6 +9,30 @@
 | Core/Environment/ProceduralIconBiome.gd | Closed DynamicBiome materialize from icon seed |
 | Core/Visualization/QuantumField3D.gd | Render + input: an indigo descend satellite per register, a cyan ascend portal when the active biome is a fractal child — the real depth mechanic, distinct from the flat sibling-biome portal rail |
 
+## Physics of an inner world
+
+An inner world is closed and pure: no Lindblad terms, ρ starts at the H ground
+state with the dawn kick, and it evolves unitarily in `BiomeEvolutionBatcher`
+like any other biome (same activity gate, same evolution count the music reads).
+Its H comes from the Icon library, the same builder an outer biome uses
+(`BiomeBuilder.build_biome_quantum_system` → `HamiltonianBuilder.build_from_icons`):
+
+- the opening pair plus up to five library icons that share a pole with it;
+  a neighbour whose record has no physics is skipped (it would be a frozen qubit);
+- a pair whose own record has no physics is assembled from its two atoms
+  (`ProceduralIconBiome.pair_physics`: per-pole self-energy plus the atoms'
+  Hamiltonian couplings, no invented rabi term);
+- the viz cache is seeded with those icons' couplings, so the field draws H.
+
+Save/load: every inner world's seed is saved with its biome state
+(`fractal_seed`). Load rematerializes it before the grid refresh (same seed,
+same H, checked by `physics_signature`) and restores the saved ρ onto it.
+The atlas path itself is not in the save yet: after a load the world exists and
+evolves, but the atlas does not know it is a child, so ascend from it reports
+`at_root`.
+
+Coverage: `tests/test_inner_world_hamiltonian.py` (real game boot, 🦅/🐇).
+
 ## Rig actions
 
 ```json
