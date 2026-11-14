@@ -158,11 +158,16 @@ func _run() -> void:
 	var credited: Array = []
 	var statuses: Array = []
 	var wallet_n0 := int(farm.economy.get_resource(north))
-	for _h in range(6):
+	# Watch until the first credit lands (cap 40 s). On the shared clock
+	# (#68) sim time runs at the player's pace; six heartbeats were tuned on
+	# the rig's old 5× clock and saw no credit yet.
+	for _h in range(36):
 		await _heartbeat()
 		var crow := _channel_row(board, ch.id)
 		credited.append(int(crow.get("credited", -1)))
 		statuses.append(str(crow.get("status", "")))
+		if credited.size() >= 6 and credited[-1] > credited[0]:
+			break
 	_trace({"phase": "flow", "on_commitments": not _channel_row(board, ch.id).is_empty(),
 		"credited": credited, "statuses": statuses,
 		"wallet_north_gain": int(farm.economy.get_resource(north)) - wallet_n0,
