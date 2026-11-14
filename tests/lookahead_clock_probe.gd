@@ -143,5 +143,7 @@ func _run() -> void:
 		"live_phrames": int(b.live_phrames_total) - live0,
 		"native_ms_per_packet": (float(b._native_ms_total) - native0) / maxf(1.0, float(packets)),
 		"tick_hz": Engine.physics_ticks_per_second,
+		"native_per_biome_cap": b.lookahead_engine.supports_biome_max_dt() if b.lookahead_engine and b.lookahead_engine.has_method("supports_biome_max_dt") else false,
+		"native_threads_last_packet": b.lookahead_engine.get_last_thread_count() if b.lookahead_engine and b.lookahead_engine.has_method("get_last_thread_count") else 1,
 	}))
 	quit(0)

@@ -359,14 +359,10 @@ PackedFloat64Array QuantumEvolutionEngine::evolve(const PackedFloat64Array& rho_
     }
 
     // =========================================================================
-    // Adaptive Euler with analytic step size from purity constraint.
-    //
-    // After a step ρ' = ρ + h·D (D = dρ/dt):
-    //   Tr(ρ'²) = Tr(ρ²) + 2h·Tr(ρD) + h²·Tr(D²)
-    //
-    // This quadratic in h tells us the EXACT largest step where Tr(ρ'²) ≤ 1.
-    // When dynamics are fast (large ||D||), h shrinks. Near steady-state, h
-    // grows to max_dt. No rejected steps, no fixed granularity.
+    // Two paths. Closed (coherent, no L): one exact unitary step, below. Open:
+    // classical RK4 with a relative-change step size (see the loop), capped at
+    // max_dt and floored at dt / MAX_SUBSTEPS. (This used to be an adaptive
+    // Euler step sized by the purity constraint; see the note in the loop.)
     // =========================================================================
     // EXACT UNITARY PATH (coherent, no dissipation): one exact step ρ → U ρ U† over the
     // whole interval — U = exp(-iH·dt) is exact for any dt, so no substepping is needed.

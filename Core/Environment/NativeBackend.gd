@@ -72,6 +72,23 @@ func set_biome_coherent(biome_id: int, on: bool) -> void:
 		_engine.set_biome_coherent(biome_id, on)
 
 
+# Per-biome substep cap and parallel stepping (native build of 2026-11-14 on;
+# older binaries lack them and keep the call-wide max_dt, one biome at a time).
+func supports_biome_max_dt() -> bool:
+	return _engine != null and _engine.has_method("set_biome_max_dt")
+
+func set_biome_max_dt(biome_id: int, max_dt: float) -> void:
+	if _engine and _engine.has_method("set_biome_max_dt"):
+		_engine.set_biome_max_dt(biome_id, max_dt)
+
+func set_max_threads(threads: int) -> void:
+	if _engine and _engine.has_method("set_max_threads"):
+		_engine.set_max_threads(threads)
+
+func get_last_thread_count() -> int:
+	return int(_engine.get_last_thread_count()) if (_engine and _engine.has_method("get_last_thread_count")) else 1
+
+
 # ── runtime toggles ───────────────────────────────────────────────────────────────
 func set_pacing_delay_ms(ms: int) -> void:
 	if _engine and _engine.has_method("set_pacing_delay_ms"):

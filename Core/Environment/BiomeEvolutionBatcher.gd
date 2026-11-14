@@ -992,6 +992,10 @@ func _create_lookahead_engine_deferred() -> void:
 		lookahead_engine.set_enable_force(false)
 	if lookahead_engine.has_method("set_pacing_delay_ms"):
 		lookahead_engine.set_pacing_delay_ms(_packet_pacing_delay_ms)
+	# Biomes of one packet step on parallel native threads (0 = automatic,
+	# 1 = one at a time). Results don't depend on it.
+	if lookahead_engine.has_method("set_max_threads"):
+		lookahead_engine.set_max_threads(max(0, RuntimeEnv.env_int("SW_NATIVE_THREADS", 0)))
 
 	_log_debug("  MultiBiomeLookaheadEngine: Engine created, processing pending biomes...")
 
@@ -1095,6 +1099,7 @@ func _prime_all_biomes_native(biomes_to_prime: Array) -> void:
 			biome_rhos.append(PackedFloat64Array())  # not in this prime batch → skip
 
 	var max_dt = _get_packet_max_dt_for_biomes(biomes_to_prime)
+	_sync_biome_max_dts()
 
 	# Batched evolution: all biomes × LOOKAHEAD_STEPS in one native call, each
 	# phrame PHRAME_SIM_DT long (the shared clock), substeps capped at max_dt.
@@ -1184,6 +1189,25 @@ func _get_packet_max_dt_for_biomes(packet_biomes: Array) -> float:
 		if _is_valid_biome(biome):
 			cap = minf(cap, _get_biome_max_substep(biome))
 	return MAX_SUBSTEP_DT if cap == INF else cap
+
+
+## Hand every registered biome's resolution to the engine before a batched
+## call, so each caps its own substeps and the call's max_dt is only the
+## fallback (one finely resolved biome no longer makes every open biome in its
+## packet substep finely). Only while the engine is free: the setter is refused
+## during a job. Older native binaries lack it and keep the packet's finest.
+func _sync_biome_max_dts() -> void:
+	if lookahead_engine == null or not lookahead_engine.has_method("supports_biome_max_dt") \
+			or not lookahead_engine.supports_biome_max_dt():
+		return
+	if lookahead_engine.has_method("is_lookahead_job_running") and lookahead_engine.is_lookahead_job_running():
+		return
+	for biome in biomes:
+		if not _is_valid_biome(biome):
+			continue
+		var engine_id: int = int(_biome_engine_ids.get(_get_biome_name(biome), -1))
+		if engine_id >= 0:
+			lookahead_engine.set_biome_max_dt(engine_id, _get_biome_max_substep(biome))
 
 
 func _get_packet_max_dt_for_active_flags(active_flags_arr: Array) -> float:
@@ -3404,6 +3428,8 @@ func get_performance_metrics() -> Dictionary:
 		"phrame_cap_hz": _max_phrame_hz_cap,
 		"min_phrame_interval_ms": _min_phrame_interval_ms,
 		"packet_pacing_delay_ms": _packet_pacing_delay_ms,
+		"native_threads_last_packet": lookahead_engine.get_last_thread_count() if lookahead_engine and lookahead_engine.has_method("get_last_thread_count") else 1,
+		"native_per_biome_cap": lookahead_engine.supports_biome_max_dt() if lookahead_engine and lookahead_engine.has_method("supports_biome_max_dt") else false,
 		"max_packet_steps": _max_packet_steps,
 		"packet_started_ms_ago": Time.get_ticks_msec() - _packet_started_at_ms if _packet_started_at_ms > 0 else -1,
 		"packet_completed_ms_ago": Time.get_ticks_msec() - _packet_completed_at_ms if _packet_completed_at_ms > 0 else -1,
@@ -3551,6 +3577,7 @@ func _process_next_packet_async() -> void:
 	var max_dt: float = _get_packet_max_dt_for_active_flags(_active_packet_request.get("active_flags", []))
 	_active_packet_request["dt"] = PHRAME_SIM_DT
 	_active_packet_request["max_dt"] = max_dt
+	_sync_biome_max_dts()
 	if lookahead_engine.submit_lookahead_job(biome_rhos, num_phrames, PHRAME_SIM_DT, max_dt):
 		return
 
@@ -3571,6 +3598,7 @@ func _compute_packet(packet_req: Dictionary) -> Dictionary:
 	var num_phrames = packet_req["num_steps"]  # Number of phrames (evolution frames) to compute
 
 	var max_dt = _get_packet_max_dt_for_active_flags(packet_req.get("active_flags", []))
+	_sync_biome_max_dts()
 
 	var packet_start = Time.get_ticks_usec()
 	var result = lookahead_engine.evolve_all_lookahead(

@@ -51,6 +51,20 @@ func set_biome_center(_biome_id: int, _center: Vector2) -> void:
 func set_biome_coherent(_biome_id: int, _on: bool) -> void:
 	pass
 
+## Per-biome resolution for batched calls: each biome caps its integrator
+## substep at its own max_evolution_dt, while all share the call's dt (the
+## shared clock). The call's max_dt is then only the fallback.
+func supports_biome_max_dt() -> bool:
+	return false
+func set_biome_max_dt(_biome_id: int, _max_dt: float) -> void:
+	pass
+
+## Threads used to step the biomes of one batched call (0 = automatic).
+func set_max_threads(_threads: int) -> void:
+	pass
+func get_last_thread_count() -> int:
+	return 1
+
 # ── runtime toggles ───────────────────────────────────────────────────────────────
 func set_pacing_delay_ms(_ms: int) -> void:
 	pass
