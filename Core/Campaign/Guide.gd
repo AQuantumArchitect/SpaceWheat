@@ -486,6 +486,10 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _berry(q, _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", ""))))
 		"survey":
 			return _survey(q)
+		"explore_each":
+			return _explore_each(pred, q)
+		"orbit":
+			return _orbit(pred, q)
 		"deliver_to":
 			# A lesson keeps its contract on its own board (lesson_offer).
 			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
@@ -1961,6 +1965,38 @@ static func _entangle(q: Dictionary) -> Dictionary:
 				return _chord([["Bell pair", k]], q, "pick gate")
 		return {}
 	return _pair_gate("", q, "Bell pair")
+
+
+## Wayfinding, first ask: open the bubbles one at a time (select, then explore).
+## Hands off to "orbit" and "survey" once the player has looked around; {} when
+## this is not that phase or nothing here is still fog.
+static func _explore_each(pred: Dictionary, q: Dictionary) -> Dictionary:
+	if str(pred.get("type", "")) != "biome_explored" or _orbit_done():
+		return {}
+	var biome := UIP._active_biome_name()
+	for c in range(_live_cols(biome)):
+		if _is_revealed(biome, c):
+			continue
+		var parts: Array = _close_first()
+		if str(ToolConfig.get_current_frame()) != "ace":
+			parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+		parts.append_array(_pick_plot(c))
+		parts.append(["explore", _verb("explore")])
+		return _cost_or(["explore", "🍞"], _chord(parts, q, "explore each"), q, 0)
+	return {}
+
+
+## Wayfinding, second ask: turn the graph. Click-drag on empty space orbits (the
+## look-around is optional; the lesson credits it after a short grace).
+static func _orbit(pred: Dictionary, q: Dictionary) -> Dictionary:
+	if str(pred.get("type", "")) != "gate_sequence_contains" or str(pred.get("gate", "")) != "orbit":
+		return {}
+	return _wait("click and drag the empty dark to turn the graph", q, "orbit")
+
+
+static func _orbit_done() -> bool:
+	var qm = UIP._quest_manager()
+	return qm != null and qm.has_method("gate_count") and int(qm.gate_count("orbit")) > 0
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.

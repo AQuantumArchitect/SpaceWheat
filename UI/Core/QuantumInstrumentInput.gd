@@ -1928,6 +1928,9 @@ func _mass_explore() -> void:
 		_toast_player("Mass Explore: every plot here is already explored.")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
+	# Quest-visible: wayfinding's last ask is one Mass Explore (gate "batch_explore").
+	if _instrument != null and _instrument.has_method("_notify_quest_projection"):
+		_instrument._notify_quest_projection("batch_explore", {"biome": here, "count": positions.size()})
 
 
 ## The Focus biome follows the biome under the player's feet. A load restores

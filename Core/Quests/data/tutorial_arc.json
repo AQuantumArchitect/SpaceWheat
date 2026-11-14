@@ -56,9 +56,10 @@
       "tutorial_teaches": "wayfinding",
       "faction": "Hearth Keepers",
       "biome": "StarterForest",
-      "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words in fog. Go and stand under its canopy, then open the whole field: mass-explore every bubble.",
-      "tutorial_hint": "Go to the Starter Forest and explore every bubble.",
-      "math_note": "Two structural predicates (smooth_and): active_biome_is scores 1.0 the instant StarterForest is the biome under your feet, and biome_explored scores 1.0 once every plot of the forest is out of the fog. This is the mass-explore lesson; the next step superposes ONE explored qubit. The objective banner's travel line names the orb and its key while you are elsewhere and drops the moment you arrive.",
+      "body": "The Demos is one country on a wider island. Past the hedge, the Starter Forest keeps older words in fog. Go and stand under its canopy. Explore every bubble by hand: tap one to select it, tap again to open it (F does the same; R strikes, Q gathers). Then drag the empty dark to turn the graph and see it from every side. Last, hold Shift with a verb to work many bubbles at once: Shift+F opens a whole field.",
+      "tutorial_hint": "Explore every bubble in the Starter Forest, one by one.",
+      "redarken_biome": "StarterForest",
+      "math_note": "Four structural predicates (smooth_and), met in order of play. active_biome_is scores 1.0 the instant StarterForest is under your feet; biome_explored scores 1.0 once every plot of the forest is out of the fog (single explores: tap to select, tap again, or F). The 'orbit' gate is recorded by the first meaningful click-drag on the 3D graph (QuantumField3D) — or, after QuestManager.ORBIT_GRACE_SEC with the field explored, by the lesson itself, so a keyboard-only player is never stuck. Recording it fogs the forest again (redarken_biome; cosmetic reveal state only), and the 'batch_explore' gate is recorded by one Mass Explore (Shift+F), which opens the field a second time. biome_explored therefore ends true again at completion. Step ids and indices are unchanged: this stays the one wayfinding step.",
       "state_predicates": [
         {
           "type": "active_biome_is",
@@ -67,6 +68,16 @@
         {
           "type": "biome_explored",
           "biome": "StarterForest"
+        },
+        {
+          "type": "gate_sequence_contains",
+          "gate": "orbit",
+          "count": 1
+        },
+        {
+          "type": "gate_sequence_contains",
+          "gate": "batch_explore",
+          "count": 1
         }
       ],
       "display_name": "Past the Hedge"

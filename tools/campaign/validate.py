@@ -457,7 +457,7 @@ def validate(spec: dict, report_table: bool = False) -> Report:
 
 # Step kinds Core/Campaign/Guide.gd implements (`kind` or `kind:arg`).
 GUIDE_STEPS = {"travel", "hat", "berry", "deliver_to", "chart", "gate", "plant_atom", "plant_new",
-               "learn_word", "berry_axis", "take_door", "go", "strike", "deliver_lesson", "plot_verb", "pair_gate", "gate_word", "spinor", "entangle", "fence", "braid", "fuse", "gray", "reap", "measure", "superpose", "still", "evolve", "steer", "survey"}
+               "learn_word", "berry_axis", "take_door", "go", "strike", "deliver_lesson", "plot_verb", "pair_gate", "gate_word", "spinor", "entangle", "fence", "braid", "fuse", "gray", "reap", "measure", "superpose", "still", "evolve", "steer", "survey", "explore_each", "orbit"}
 
 
 def check_guide(spec: dict, R: "Report") -> None:

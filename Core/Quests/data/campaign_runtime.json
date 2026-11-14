@@ -645,6 +645,8 @@
       ],
       "lesson:wayfinding": [
         "go:StarterForest",
+        "explore_each",
+        "orbit",
         "survey"
       ],
       "lesson:superposition": [
