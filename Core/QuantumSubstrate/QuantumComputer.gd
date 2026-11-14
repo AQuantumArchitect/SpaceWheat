@@ -86,9 +86,24 @@ func get_gauge_field() -> GaugeField:
 		_gauge_signature = physics_signature
 	return _gauge_field
 
+## How many times the generator (H or the L_k list) has been written. The
+## twin of state_epoch: the native engine keeps its own copy of H and L, and
+## the batcher re-registers a biome whose operator_epoch moved since it was
+## registered — a rebuild, an icon learned, a coupling injected, a register
+## shrunk — so nothing that changes the physics has to know the engine is
+## there. Assigning either field stamps it; code that edits H or the L list in
+## place calls mark_operators_written().
+var operator_epoch: int = 0
+
 ## Lindblad evolution operators (set by biome via HamiltonianBuilder/LindbladBuilder)
-var hamiltonian: ComplexMatrix = null         # H matrix (Hermitian, dim×dim)
-var lindblad_operators: Array = []            # Array of L_k matrices (ComplexMatrix)
+var hamiltonian: ComplexMatrix = null:        # H matrix (Hermitian, dim×dim)
+	set(value):
+		hamiltonian = value
+		operator_epoch += 1
+var lindblad_operators: Array = []:           # Array of L_k matrices (ComplexMatrix)
+	set(value):
+		lindblad_operators = value
+		operator_epoch += 1
 
 ## Traceability anchor: a complete fingerprint of every input that determined H+L
 ## (icon physics, atom_components, register layout, coupling scale, dissipative flag),
@@ -146,6 +161,11 @@ func mark_state_written() -> void:
 	_state_written()
 
 
+## H or the L list was edited in place (see operator_epoch).
+func mark_operators_written() -> void:
+	operator_epoch += 1
+
+
 func clear() -> void:
 	# Release runtime state so biome/session teardown can break ref cycles.
 	if register_map and register_map.has_method("clear"):
@@ -154,6 +174,7 @@ func clear() -> void:
 	density_matrix = null
 	hamiltonian = null
 	lindblad_operators.clear()
+	mark_operators_written()
 	driven_icons.clear()
 	entanglement_graph.clear()
 	register_infrastructure.clear()
@@ -2173,8 +2194,8 @@ func _add_zz_coupling_to_hamiltonian(qubit_a: int, qubit_b: int, J: float) -> vo
 		var current = hamiltonian.get_element(i, i)
 		hamiltonian.set_element(i, i, Complex.new(current.re + zz_value, current.im))
 
-	# H mutated in place — the native engine re-registers from this canonical H
-	# on the biome's next mark_for_reregister cycle.
+	# H mutated in place: the batcher sees the epoch move and re-registers.
+	mark_operators_written()
 
 
 # ============================================================================
@@ -2250,10 +2271,11 @@ func update_driven_self_energies(time: float) -> void:
 				var current = hamiltonian.get_element(i, i)
 				hamiltonian.set_element(i, i, Complex.new(current.re + delta, current.im))
 
-	# NOTE: Native evolution engine cache is not invalidated for small diagonal changes
-	# The native engine stores its own copy, so for truly accurate time-dependent evolution,
-	# we would need to rebuild the native engine. For now, we accept small drift.
-	# Full rebuild happens every ~1 second via biome's periodic update.
+	# H mutated in place: the batcher sees the epoch move and re-registers.
+	# (Nothing calls this at present, so driven self-energies never reach the
+	# native engine.)
+	if significant_change:
+		mark_operators_written()
 
 
 func set_lindblad_operators(operators: Array) -> void:

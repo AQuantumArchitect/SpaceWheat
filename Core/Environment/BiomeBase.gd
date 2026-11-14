@@ -85,19 +85,15 @@ signal resource_registered(emoji: String, is_producible: bool, is_consumable: bo
 var _is_initialized: bool = false
 var quantum_evolution_enabled: bool = true
 
-# Sim-speed: sim-seconds advanced per wall-second.
-# Controls how fast the world evolves relative to real time.
-# Day/night wall-time = driver_period / quantum_time_scale.
-# Default sourced from BalanceConfig.physics.quantum_time_scale.
-# See PhysicsConfig for the full derivation.
-var quantum_time_scale: float = 0.5  # Overwritten in _ready from BalanceConfig
+# Vestigial: nothing steps by it. Every biome runs on the shared clock
+# (PhysicsConfig.PHRAME_SIM_DT per phrame × observation_stride). Still saved.
+var quantum_time_scale: float = 0.5
 
-# Max sim-time per Euler substep (numerical accuracy vs cost).
-# At 0.05, a typical phrame is ONE substep (cheapest).
-# Reduce if evolution becomes unstable (oscillations, trace divergence).
-# See PhysicsConfig.MAX_SUBSTEP_DT for the global default.
-# Whoever sets it (the − / = keys, the rig's set_resolution, a profile, a load),
-# the batcher is told here, so its lookahead frames never outlive their step.
+# Resolution: the largest integrator substep this biome allows (accuracy vs
+# cost; only open biomes substep, a closed one takes one exact step). It never
+# sets how much time passes — that is the shared clock (owner ruling
+# 2026-11-13). Whoever sets it (the rig's set_resolution, a profile, a load),
+# the batcher is told here, and re-forecasts at the new accuracy.
 var max_evolution_dt: float = _PC.MAX_SUBSTEP_DT:
 	set(value):
 		var old_dt := max_evolution_dt
@@ -418,17 +414,14 @@ func _on_resource_registered(emoji: String, is_producible: bool, is_consumable: 
 
 func _on_coupling_updated(emoji_a: String, emoji_b: String, strength: float) -> void:
 	coupling_updated.emit(emoji_a, emoji_b, strength)
-	# H mutated in place (no dim change). The C++ lookahead engine holds a stale
-	# copy of H — force re-register on next refill so visible physics matches.
 	_mark_lookahead_dirty()
 
 
+## H or L changed: both ambient scalars are stale (the gap is a pure function of
+## H). The native engine's copy needs nothing from here — writing H or L moves
+## QuantumComputer.operator_epoch and the batcher re-registers the biome itself.
 func _mark_lookahead_dirty() -> void:
-	# H mutated → both ambient scalars are stale (gap is a pure function of H).
 	_ambient_scalars_dirty = true
-	var batcher = _active_batcher()
-	if batcher != null and batcher.has_method("mark_for_reregister"):
-		batcher.mark_for_reregister(get_biome_type())
 
 
 ## The running farm's evolution batcher, or null before boot / in bare tests.
@@ -955,9 +948,8 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		if viz_cache:
 			viz_cache.clear_metadata()
 		_seed_viz_metadata()
-		# ... and flush the C++ twin: its H/L copy AND dimension are stale
-		# after a qubit was added. Without this the mutation only surfaced
-		# through the refill-time drift net, which the direct lane never ran.
+		# The C++ twin's H/L copy and dimension are stale now; the rebuild moved
+		# operator_epoch, so the batcher re-registers it on its next tick.
 		_mark_lookahead_dirty()
 	return result
 

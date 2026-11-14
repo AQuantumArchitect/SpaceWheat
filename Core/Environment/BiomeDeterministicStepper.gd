@@ -44,10 +44,15 @@ func reset_stride_carry(biome_name: String = "") -> void:
 	_stride_dt_carry[biome_name] = 0.0
 
 
+## Cut `incoming_dt` of WALL time into native packets of SIMULATED time on the
+## shared clock (PhysicsConfig.sim_dt): the same pace the lookahead lane plays,
+## so a biome is at the same point in its evolution whichever lane ran it.
+## max_evolution_dt only caps the substep.
 func collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
 	var packets: Array = []
 	if batcher == null or incoming_dt <= 0.0 or not batcher._is_valid_biome(biome):
 		return packets
+	var sim_in: float = PhysicsConfig.sim_dt(incoming_dt)
 
 	var biome_name = batcher._get_biome_name(biome)
 	var stride = get_observation_stride(biome)
@@ -56,7 +61,7 @@ func collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
 		return packets
 
 	if stride <= 1:
-		var carry_1x = float(_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt
+		var carry_1x = float(_stride_dt_carry.get(biome_name, 0.0)) + sim_in
 		packets.append({
 			"dt": carry_1x,
 			"max_dt": get_effective_max_dt_for_stride(biome, 1),
@@ -70,13 +75,11 @@ func collect_stride_evolution_packets(biome, incoming_dt: float) -> Array:
 	# real rate, so sim/wall stayed exactly 1.0 at any stride, while Farm's
 	# Lindblad path DID multiply by stride: the =/- dial desynced H from L and
 	# ripened nothing (fleet #6: "16× clock, zero effect"). Multiplier capped
-	# at 32× per frame (native evolve cost); packets stay ONE INTERVAL each so
-	# the Berry walk samples the trajectory at the same density as 1× play.
+	# at 32× per frame (native evolve cost); packets stay ONE PHRAME of sim time
+	# each so the Berry walk samples the trajectory at the same density as 1× play.
 	var mult := float(mini(stride, 32))
-	var carry_dt = float(_stride_dt_carry.get(biome_name, 0.0)) + incoming_dt * mult
-	var stride_window_dt = batcher.EVOLUTION_INTERVAL
-	if stride_window_dt <= 0.0:
-		stride_window_dt = incoming_dt
+	var carry_dt = float(_stride_dt_carry.get(biome_name, 0.0)) + sim_in * mult
+	var stride_window_dt: float = PhysicsConfig.PHRAME_SIM_DT
 	var effective_max_dt = get_effective_max_dt_for_stride(biome, stride)
 
 	while carry_dt + 1e-9 >= stride_window_dt:
