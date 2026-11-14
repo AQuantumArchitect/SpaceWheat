@@ -1923,7 +1923,7 @@ func _commitment_ask_text(quest: Dictionary, show_held: bool = false) -> String:
 			var held_farm = InstrumentLocator.resolve_active_farm(self)
 			if held_farm and held_farm.economy:
 				held = int(held_farm.economy.get_resource_units(emoji))
-			return "%s %d/%d held%s" % [emoji, held, qty, pays]
+			return "%s %d of %d held%s" % [emoji, qty, held, pays]
 		return "%s × %d%s" % [emoji, qty, pays]
 	if quest.has("observable"):
 		var obs_label := str(quest.get("observable", "?"))
@@ -2414,8 +2414,8 @@ func fill_shortfall_cue(q: Dictionary) -> String:
 		var have := int(s.get("have", 0))
 		var need := int(s.get("need", 0))
 		if have * 2 < need:
-			return "▸ [C] then [Q] Abandon — you hold %s %d/%d" % [res, have, need]
-		return "▸ gather %s %d/%d — [F] Explore then [R] Strike" % [res, have, need]
+			return "▸ [C] then [Q] Abandon — the ask is %s %d of %d" % [res, need, have]
+		return "▸ gather %s %d of %d — [F] Explore then [R] Strike" % [res, need, have]
 	return ""
 
 
@@ -2604,8 +2604,8 @@ func _held_walk_cue(want: String) -> String:
 			var need := int(short.get("need", 0))
 			# Wave 14 lost-lamb: 104/221 and ▸ still named Deliver.
 			if have * 2 < need:
-				return "▸ ESC closes — stall %s %d/%d" % [res, have, need]
-			return "▸ ESC closes — gather %s %d/%d" % [res, have, need]
+				return "▸ ESC closes — stall %s %d of %d" % [res, need, have]
+			return "▸ ESC closes — gather %s %d of %d" % [res, need, have]
 		var verb := "Claim" if str(data.get("status", "")).to_lower() == "ready" else "Deliver"
 		if frame_id != FRAME_COMMITMENTS:
 			return "▸ [U] then [R] %s" % verb
@@ -2685,7 +2685,7 @@ func _supply_row_cue(q: Dictionary, kind: String, i: int, start: int) -> String:
 		for k in give:
 			var have := int(econ.get_resource(str(k))) if econ else 0
 			if have < int(give[k]):
-				return "▸ ESC closes — the trade needs %s %d/%d" % [str(k), have, int(give[k])]
+				return "▸ ESC closes — the trade needs %s %d of %d" % [str(k), int(give[k]), have]
 	if i == _selected_index:
 		return "▸ [R] %s — %s" % [verb, deal]
 	var vis: int = i - start
@@ -2920,8 +2920,8 @@ func _accept_selected() -> void:
 			if _is_supply(offer):
 				_toast_feedback("✓ trade accepted — [R] on its stall delivers %s" % _supply_deal_words(offer))
 			elif ask_qty > 0 and held < ask_qty:
-				_toast_feedback("✓ accepted — you hold %s %d/%d. It waits on Commitments [U] while you gather" \
-						% [ask_res, held, ask_qty])
+				_toast_feedback("✓ accepted — the ask is %s %d of %d. It waits on Commitments [U] while you gather" \
+						% [ask_res, ask_qty, held])
 			else:
 				_toast_feedback("✓ contract accepted — pinned on Commitments [U]")
 		else:
