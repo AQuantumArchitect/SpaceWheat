@@ -213,8 +213,11 @@ static func apply_plant(farm, positions: Array[Vector2i]) -> Dictionary:
 			result["error"] = "fogged"
 			result["message"] = "A fog cannot be planted — no coherent pulse purifies r ≈ 0. Measure it, or jolt it with the Spark (wet country)."
 		elif already > 0:
-			result["error"] = "already_planted"
-			result["message"] = "Already planted — the state sits on its north pole."
+			# Already on the pole: a silent no-op, not a refusal.
+			result["success"] = true
+			result["noop"] = true
+			result["already"] = "already_planted"
+			result["detail"] = "Already planted — the state sits on its north pole."
 		else:
 			result["error"] = "no_valid_plots"
 			result["message"] = "No plot with a live quantum state selected."
