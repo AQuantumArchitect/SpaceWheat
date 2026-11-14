@@ -394,7 +394,7 @@ func action_plant(positions: Array[Vector2i]) -> Dictionary:
 # ============================================================================
 
 func action_drain(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
-	# Merchant Q (export) — standing channel out. kind picks the canonical
+	# Merchant Q (export) — a channel out. kind picks the canonical
 	# channel: thermal / dephase / damp. Per-plot regime gating lives in the
 	# handler: openness is a place.
 	var guard = _action_guard(positions)
@@ -408,7 +408,7 @@ func action_drain(positions: Array[Vector2i], kind: String = "damp") -> Dictiona
 
 
 func action_pump(positions: Array[Vector2i], kind: String = "damp") -> Dictionary:
-	# Merchant R (import) — standing channel in. kind: thermal / damp
+	# Merchant R (import) — a channel in. kind: thermal / damp
 	# (dephase-import is refused: decoherence is irreversible).
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard
@@ -421,7 +421,7 @@ func action_pump(positions: Array[Vector2i], kind: String = "damp") -> Dictionar
 
 
 func action_settle(positions: Array[Vector2i]) -> Dictionary:
-	# Merchant F — close the standing contract on the selected plots. Free,
+	# Merchant F — close the channel on the selected plots. Free,
 	# regime-blind: a contract can always be closed.
 	var guard = _action_guard(positions)
 	if not guard.is_empty(): return guard

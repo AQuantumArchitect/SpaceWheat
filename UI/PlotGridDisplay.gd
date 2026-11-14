@@ -892,7 +892,7 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 		berry_biome = live["biome"]
 	elif terminal_active:
 		berry_biome = biomes.get(terminal.bound_biome_name, null)
-	# Openness is a place: a standing contract runs (and shows) only on open ground.
+	# Openness is a place: a channel runs (and shows) only on open ground.
 	ui_data["lindblad_open"] = berry_biome.quantum_computer.is_open_here() \
 		if berry_biome and berry_biome.quantum_computer else BalanceConfig.dissipative_enabled()
 	if berry_biome and berry_biome.quantum_computer and berry_biome.quantum_computer.berry_register:

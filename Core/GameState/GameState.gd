@@ -52,11 +52,14 @@ extends Resource
 # GameStateSerializer.apply_state_to_farm scans the restored biome_states for
 # already-materialized FX_* synthetic biomes and seeds the ledger from their
 # register-0 axis instead.
-# v8 = Market locks (2026-11-13): additive market_state section
+# v8 = Market locks and channels (2026-11-13): additive market_state section
 # (MarketLattice.to_save_dict: the offers the player LOCKED, each with its
-# frozen quote, its board row and its seconds left). Unheld offers are not
-# saved — they requote from the saved ρ. Migration from v4–v7 is the empty
-# dict → no locks, which is what every earlier save meant.
+# frozen quote, its board row and its seconds left; and the Merchant channels
+# as contracts — issuer, direction, kind, what was paid). Unheld offers are not
+# saved — they requote from the saved ρ. A channel's physics stays in
+# biome_states' register infra. Migration from v4–v7 is the empty dict → no
+# locks, and each saved channel flag gets a synthesized contract
+# (MarketLattice.sync_channels).
 const CURRENT_SAVE_VERSION := 8
 
 # Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
@@ -81,9 +84,10 @@ const CURRENT_SAVE_VERSION := 8
 ## no-ops and the board regenerates from persisted truth.
 @export var quest_state: Dictionary = {}
 
-## The market's locks (v8+): MarketLattice.to_save_dict() — {locks: [contract
-## dicts with lock_seconds_left and locked_view]}. Empty dict = no locks (any
-## v4–v7 save, or a fresh game).
+## The market's locks and channels (v8+): MarketLattice.to_save_dict() —
+## {locks: [contract dicts with lock_seconds_left and locked_view], channels:
+## [flow contract dicts]}. Empty dict = no locks, channels synthesized from the
+## register infra (any v4–v7 save, or a fresh game).
 @export var market_state: Dictionary = {}
 
 ## Economy - Complete emoji credits dictionary (saves ALL resources)

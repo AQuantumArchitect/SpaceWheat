@@ -895,7 +895,7 @@ static func _cost_or(spend: Array, step: Dictionary, q: Dictionary, depth: int) 
 	return step
 
 
-## A resource no biome here grows: its standing trade on a board (the spec's
+## A resource no biome here grows: its trade on a board (the spec's
 ## `trades`) — the rescue that keeps an empty wallet from being a dead end.
 ## A trade found missing on the open market ring is ruled out for a while,
 ## so a gather that falls back to it does not open, close and reopen the

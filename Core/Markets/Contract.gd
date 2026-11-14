@@ -55,6 +55,17 @@ var last_ask: int = 0               # the ask one heartbeat ago (the ▲▼ on t
 var lock_seconds_left: float = 0.0  # > 0 while locked
 var locked_view: Dictionary = {}    # the board row as it stood when locked
 
+## Flow contracts (settle = SETTLE_FLOW): a Merchant channel on one register.
+## `resource` is the pole the channel drives (north for import, south for
+## export), the one its stake is priced in. The physics lives in the register's
+## infra flags (QuantumComputer.register_infrastructure); this is the deal.
+var channel_kind: String = ""       # thermal | dephase | damp
+var channel_direction: String = ""  # import (pump toward north) | export (drain)
+var channel_rate: float = 0.0
+var register_id: int = -1
+var signed_cost: Dictionary = {}    # what signing took from the wallet
+var signed_at: int = 0              # unix seconds; 0 = synthesized for an old save
+
 
 func ask() -> int:
 	return maxi(1, int(round(cost_amount)))
@@ -113,6 +124,12 @@ func to_dict() -> Dictionary:
 		"last_ask": last_ask,
 		"lock_seconds_left": lock_seconds_left,
 		"locked_view": locked_view.duplicate(true),
+		"channel_kind": channel_kind,
+		"channel_direction": channel_direction,
+		"channel_rate": channel_rate,
+		"register_id": register_id,
+		"signed_cost": signed_cost.duplicate(true),
+		"signed_at": signed_at,
 		"meta": {
 			"pair_a": str(get_meta("pair_a", "")),
 			"pair_b": str(get_meta("pair_b", "")),
@@ -146,6 +163,13 @@ static func from_dict(d: Dictionary) -> RefCounted:
 	c.lock_seconds_left = float(d.get("lock_seconds_left", 0.0))
 	var lv = d.get("locked_view", {})
 	c.locked_view = (lv as Dictionary).duplicate(true) if lv is Dictionary else {}
+	c.channel_kind = str(d.get("channel_kind", ""))
+	c.channel_direction = str(d.get("channel_direction", ""))
+	c.channel_rate = float(d.get("channel_rate", 0.0))
+	c.register_id = int(d.get("register_id", -1))
+	var sc = d.get("signed_cost", {})
+	c.signed_cost = (sc as Dictionary).duplicate(true) if sc is Dictionary else {}
+	c.signed_at = int(d.get("signed_at", 0))
 	var meta = d.get("meta", {})
 	if meta is Dictionary:
 		for k in meta:

@@ -1019,7 +1019,7 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 		var pop_cost = ActionCostRuntime.get_action_cost(farm, "pop", {})
 		var pop_cost_gate = _preflight_cost(economy, pop_cost)
 		if not pop_cost_gate.get("ok", true):
-			# No register mints 🧺: the standing trade on the Village board
+			# No register mints 🧺: the trade on the Village board
 			# (campaign resources table) is the restock and the rescue.
 			var route := CampaignRuntime.supply_route_words("🧺", _rail_key_for_trade("🧺"))
 			return {

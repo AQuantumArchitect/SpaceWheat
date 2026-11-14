@@ -117,7 +117,7 @@ static func has_plots(emoji: String) -> bool:
 	return p is Array and not p.is_empty()
 
 
-## Every standing trade that pays `emoji`, each stamped with "emoji".
+## Every trade that pays `emoji`, each stamped with "emoji".
 static func supply_trades(emoji: String) -> Array:
 	var out: Array = []
 	var tr = resource(emoji).get("trades", [])
@@ -144,7 +144,8 @@ static func rescue_trade(emoji: String) -> Dictionary:
 	return trade_in(emoji, "Village")
 
 
-## Standing trades that ALWAYS sit on `biome_name`'s board, table order.
+## The trades on `biome_name`'s board, table order (the board shows each only
+## while the player is short: QuestBoard._rescue_open).
 static func trades_for_biome(biome_name: String) -> Array:
 	var out: Array = []
 	if biome_name == "":

@@ -627,7 +627,14 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 	elif state.market_state is Dictionary:
 		saved_market = state.market_state
 	if farm and farm.has_method("_ensure_market_lattice"):
-		farm._ensure_market_lattice().from_save_dict(saved_market)
+		var lat_restore = farm._ensure_market_lattice()
+		lat_restore.from_save_dict(saved_market)
+		# Channels: the register infra (restored above with the biome states)
+		# is the physics; a channel flag from a save with no contract record
+		# gets one (issuer = the native faction), and a record whose flag is
+		# gone is dropped.
+		if lat_restore.has_method("sync_channels"):
+			lat_restore.sync_channels()
 
 	_log("info", "save", "✓", "State applied to farm successfully - quantum states will regenerate from biome")
 

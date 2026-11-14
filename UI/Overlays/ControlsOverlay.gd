@@ -1431,7 +1431,7 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
 	_body_box.add_child(_make_action_row("4", "Spark",     "One-shot Lindblad jolt — fires only on open (wet) ground; on closed ground the chips grey (openness is a place). The dissipative kick that re-purifies. E reads the gauge. Mode 2 (🌉): Majorana bridges — R spans, F braids, Q fuses, E reads the card — never sealed, any regime."))
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
-	_body_box.add_child(_make_action_row("6", "Merchant", "Standing contracts with the country you stand in (wet ground only). 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
+	_body_box.add_child(_make_action_row("6", "Merchant", "Channels with the country you stand in (wet ground only), issued by its native faction; held ones show on the C board. 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
 	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the bank (🧺), E=pause+inspect, R=strike (collapse, banks), F=explore / fast-forward, Shift+F=explore all, Ctrl+Shift+F=reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))

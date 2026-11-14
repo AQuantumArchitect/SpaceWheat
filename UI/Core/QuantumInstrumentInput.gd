@@ -822,7 +822,7 @@ func _execute_inject_icon(icon: Dictionary) -> void:
 		# read as "selection doesn't work" (marathon #9).
 		var why := str(result.get("message", result.get("error", "unknown reason")))
 		# Short of the word's south pole (13🪓 for 🪵/🪓, 13🌊 for 💧/🌊):
-		# name the standing trade that pays it, and keep the banner on it.
+		# name the trade that pays it, and keep the banner on it.
 		var south := str(icon.get("south", ""))
 		if south != "" and not CampaignRuntime.supply_trades(south).is_empty():
 			var sup := UIProgression.supply_refusal(south, EconomyConstants.ICON_INJECTION_SOUTH_COST, true)
@@ -2919,31 +2919,58 @@ func _execute_jolt_inspect() -> Dictionary:
 
 
 func _execute_read_price() -> Dictionary:
-	# Merchant E — the order book: pole odds, kT, unit prices both directions,
-	# and the native faction's standing factor. Read-only — prices are honest
-	# without touching ρ; the collapse verb stays with Ace.
+	# Merchant E — the order book: the price of a channel each way on this
+	# plot, at the hat's current kind. It is the C board's quote, from the same
+	# function (MarketLattice.channel_quote: −kT·log p on the driven pole × the
+	# issuing faction's standing factor, a lock on the board honoured). Read-
+	# only — prices are honest without touching ρ; the collapse verb stays with Ace.
 	var shell := _resolve_player_shell()
 	if not shell or not shell.has_method("show_hint"):
 		return {"success": false, "error": "no_player_shell", "message": "PlayerShell unavailable"}
-	var gauge := _axis_gauge(_get_grid_position())
+	var pos := _get_grid_position()
+	var gauge := _axis_gauge(pos)
 	if gauge.is_empty():
 		return {"success": false, "error": "no_axis", "message": "No plot with a live axis selected"}
-	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — contracts need wet country[/color]"
-	var lines: PackedStringArray = []
-	lines.append("[color=#cfe6ff]🤝 %s — order book[/color] · kT %.1f%s" % [
-		str(gauge.biome_name), float(gauge.kT), seal_txt])
-	lines.append("  import 📥 %s: 4📜 + %d× %s · export 📤 stakes 4🧺 + %d× %s, pays as it drains" % [
-		str(gauge.north), int(gauge.units_north), str(gauge.north),
-		int(gauge.units_south), str(gauge.south)])
-	var faction := ""
 	var biome = gauge.get("biome", null)
-	if biome and biome.has_method("first_native_faction"):
-		faction = str(biome.first_native_faction())
+	var kind := _merchant_channel_kind()
+	var reg := int(LindbladHandler._resolve_axis_binding(farm, pos, biome).get("register_id", -1))
+	var lattice = farm._ensure_market_lattice() if farm and farm.has_method("_ensure_market_lattice") else null
+	var q_in: Dictionary = {}
+	var q_out: Dictionary = {}
+	if lattice != null and reg >= 0:
+		if kind != "dephase":
+			q_in = lattice.channel_quote(biome, reg, "import", kind)
+		q_out = lattice.channel_quote(biome, reg, "export", kind)
+	var seal_txt := "" if bool(gauge.open) else " · [color=#8899aa]sealed — channels need wet country[/color]"
+	var lines: PackedStringArray = []
+	lines.append("[color=#cfe6ff]🤝 %s — order book[/color] · %s · kT %.1f%s" % [
+		str(gauge.biome_name), kind, float(gauge.kT), seal_txt])
+	var parts: PackedStringArray = []
+	if bool(q_in.get("ok", false)):
+		parts.append("import 📥 %s takes %s%s" % [str(gauge.north), _cost_words(q_in.get("cost", {})),
+			" 🔒" if bool(q_in.get("locked", false)) else ""])
+	elif kind == "dephase":
+		parts.append("no import — no channel sells phase back")
+	if bool(q_out.get("ok", false)):
+		parts.append("export 📤 %s takes %s%s, pays as it drains" % [str(gauge.south),
+			_cost_words(q_out.get("cost", {})), " 🔒" if bool(q_out.get("locked", false)) else ""])
+	lines.append("  " + " · ".join(parts))
+	var faction := str(q_out.get("faction", q_in.get("faction", "")))
 	if faction != "":
-		lines.append("  %s standing ×%.2f on contract prices" % [
+		lines.append("  %s issues it · standing ×%.2f on the price · same quote as the C board" % [
 			faction, PriceModel.standing_factor(faction, farm)])
 	shell.show_hint("\n".join(lines))
-	return {"success": true, "gauge": gauge}
+	return {"success": true, "gauge": gauge, "quote_import": q_in, "quote_export": q_out,
+		"register_id": reg, "kind": kind}
+
+
+static func _cost_words(cost) -> String:
+	var parts: PackedStringArray = []
+	if cost is Dictionary:
+		for k in cost:
+			if int(cost[k]) > 0:
+				parts.append("%d%s" % [int(cost[k]), str(k)])
+	return " + ".join(parts) if not parts.is_empty() else "nothing"
 
 
 func _execute_discovery_forecast() -> Dictionary:
