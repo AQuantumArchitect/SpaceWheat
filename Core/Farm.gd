@@ -1012,11 +1012,24 @@ func _physics_process(delta: float) -> void:
 
 	# Short-circuits when PlayerShell.paused is true (E key sets pause,
 	# F key clears it). See UI/Core/KEYBOARD_GRAMMAR.md.
+	# Any halt tells the evolution layer it is not stepping; the batcher's
+	# evolution_running signal is the one thing music follows.
 	if _is_globally_paused():
+		if biome_evolution_batcher:
+			biome_evolution_batcher.hold_evolution()
 		return
 
 	var gsm = _get_gsm()
 	if gsm and "phase" in gsm and int(gsm.phase) != int(SessionLifecycle.SessionPhase.RUNNING):
+		if biome_evolution_batcher:
+			biome_evolution_batcher.hold_evolution()
+		return
+
+	# All dark = dormant (no plot lit): the world is parked exactly where the
+	# player left it. Nothing below touches ρ either (Lindblad pumps, gated
+	# channels, bridges, faction decay, market locks) — the same as a pause.
+	if biome_evolution_batcher and biome_evolution_batcher.is_attention_dormant():
+		biome_evolution_batcher.hold_evolution()
 		return
 
 	# BATCHED QUANTUM EVOLUTION (moved here for visual/physics separation)

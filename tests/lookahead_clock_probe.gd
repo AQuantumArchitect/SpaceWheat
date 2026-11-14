@@ -56,6 +56,9 @@ func _run() -> void:
 		quit(1)
 		return
 	var b = farm.biome_evolution_batcher
+	# This probe is about the lookahead/market plumbing, not attention (#75):
+	# keep the world awake with every plot dark.
+	farm.biome_evolution_batcher.attention_gate_enabled = false
 	for _f in range(30): await physics_frame
 
 	var frames := {}      # biome -> frames forecast in the window

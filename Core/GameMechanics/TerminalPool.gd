@@ -291,6 +291,15 @@ func _to_string() -> String:
 	]
 
 
+## Attention: how many plots are lit (attended) right now. Zero = dormant.
+func get_lit_count() -> int:
+	var n := 0
+	for terminal in terminals:
+		if terminal.is_bound and bool(terminal.lit):
+			n += 1
+	return n
+
+
 ## Helper: Get all terminals bound in a specific biome
 func get_terminals_in_biome(biome_name: String) -> Array:
 	# Get all terminals currently bound in a specific biome.

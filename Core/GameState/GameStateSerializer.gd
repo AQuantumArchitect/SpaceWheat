@@ -208,6 +208,10 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 				# this a save/load silently threw the whole bank away.
 				if plot.terminal and "strikes" in plot.terminal and not plot.terminal.strikes.is_empty():
 					plot_data["strikes"] = plot.terminal.strikes.duplicate(true)
+				# Attention (Terminal.lit): a struck plot is dark. All dark is
+				# dormant, and a dormant world has to load dormant.
+				if plot.terminal and "lit" in plot.terminal:
+					plot_data["lit"] = bool(plot.terminal.lit)
 			elif has_memory and plot.has_method("get_measurement_memory"):
 				var memory = plot.get_measurement_memory()
 				plot_data["north_emoji"] = str(memory.get("north_emoji", ""))
@@ -534,6 +538,8 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 								var saved_strikes = plot_data.get("strikes", [])
 								if saved_strikes is Array and not saved_strikes.is_empty():
 									t.strikes = saved_strikes.duplicate(true)
+								# Pre-attention saves carry no flag: a bound probe was lit.
+								t.lit = bool(plot_data.get("lit", true))
 							else:
 								_log("warn", "save", "⚠️", "Terminal restore bind rejected at %s for register %d in %s" % [
 									str(pos), saved_register, saved_biome

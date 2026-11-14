@@ -7,7 +7,11 @@ extends RefCounted
 ##   - ρ represents an ensemble of identically-prepared quantum systems
 ##   - EXPLORE: Bind terminal to register (no quantum effect)
 ##   - MEASURE: Born sample + partial drain (η × purity fraction of population)
-##   - POP: Convert recorded probability to credits (no quantum effect)
+##   - POP (gather, Q): pay the plot's bank (no quantum effect, ever: no
+##     measurement, no projection; Q on a plot with nothing banked is a no-op)
+##
+## Attention (Terminal.lit): F lights a plot, R strikes and darkens it, Q never
+## changes it. All dark = dormant: the batcher stops stepping ρ.
 ##   - HARVEST: Broad multi-terminal cleanup / harvest loop
 ##
 ## Measurement Physics:
@@ -87,6 +91,22 @@ static func action_explore(terminal_pool, biome, economy = null, register_id: in
 				"blocked": true
 			}
 		if terminal_pool.is_register_bound(resolved_register, biome_name):
+			# A struck plot is dark but keeps its probe: F attends to it again,
+			# free (the probe is already there). Lit already: nothing to do.
+			var held = terminal_pool.get_terminal_for_register(resolved_register, biome_name) \
+					if terminal_pool.has_method("get_terminal_for_register") else null
+			if held != null and not bool(held.lit):
+				held.light()
+				return {
+					"success": true,
+					"relit": true,
+					"terminal": held,
+					"register_id": resolved_register,
+					"emoji_pair": held.get_emoji_pair(),
+					"probability": float(biome.get_register_probability(resolved_register)) \
+							if biome.has_method("get_register_probability") else 0.0,
+					"biome_name": biome_name
+				}
 			return _noop("already_bound",
 				"Register %d in %s is already explored." % [resolved_register, biome_name])
 		# lantern_door: Strike frees is_bound. Explore rebound the same axis
@@ -218,6 +238,14 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 				"message": "Nothing to measure — select a plot first (G H J K L ;).",
 				"blocked": true
 			}
+		# Strike needs attention: a dark plot (struck already) is lit by F first.
+		if not bool(terminal.lit):
+			return {
+				"success": false,
+				"error": "not_lit",
+				"message": "That plot is dark — F attends to it, then R strikes.",
+				"blocked": true
+			}
 		return {
 			"success": false,
 			"error": "cannot_measure",
@@ -292,14 +320,16 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 			"message": "Measurement collapse failed: biome quantum state unavailable."
 		}
 
-	# 5. Bank the strike. The probe stays on the plot (bound, unmeasured), so
-	#    R can strike again; Q pays the bank and returns the plot to fog. The
-	#    reward is priced NOW, from the strike-time probability (−kT·log p) —
-	#    a re-strike right after a collapse finds p≈1 and pays the floor, so
-	#    letting the Hamiltonian re-spread the qubit is what pays.
+	# 5. Bank the strike and go dark. The probe stays on the plot (bound,
+	#    unmeasured) holding the bank; F lights it again and R can strike
+	#    again; Q pays the bank without touching ρ. The reward is priced NOW,
+	#    from the strike-time probability (−kT·log p) — a re-strike right
+	#    after a collapse finds p≈1 and pays the floor, so letting the
+	#    Hamiltonian re-spread the qubit is what pays.
 	var bloch_r := clampf(float(snapshot.get("r", 0.5)), 0.0, 1.0)
 	var amount := _strike_reward_amount(biome, farm, outcome, recorded_probability, bloch_r, register_id)
 	terminal.bank_strike(outcome, amount, recorded_probability)
+	terminal.darken()
 	# spiral_breaks: a strike on a word you have incorporated is the lesson
 	# ("harvest what you know"); the quest ledger counts it as strike_known.
 	var known := false
@@ -397,55 +427,6 @@ static func _resolve_drain_fraction(_biome, purity: float, farm = null) -> float
 	return clampf(base_drain * clampf(purity, 0.0, 1.0), 0.0, 1.0)
 
 
-static func _auto_measure_for_pop(terminal, farm) -> Dictionary:
-	# Auto-measure a bound terminal so it can be popped directly.
-
-	# Born-samples from the live density matrix, collapses the axis (projective in
-	# the closed system, ensemble drain in the open-system DLC), and marks the
-	# terminal as measured — collapsing explore→measure→pop into explore→pop.
-	var biome = _resolve_biome_from_terminal(farm, terminal)
-	if not biome or not biome.quantum_computer:
-		return {"success": false, "error": "no_biome", "message": "Cannot auto-measure: biome unavailable.", "blocked": true}
-
-	var register_id = terminal.bound_register_id
-	var qc = biome.quantum_computer
-
-	# Born sample from live density matrix
-	var north_prob = qc.get_marginal(register_id, 0) if qc.has_method("get_marginal") else 0.5
-	var is_north = randf() < north_prob
-	var outcome = terminal.north_emoji if is_north else terminal.south_emoji
-	var outcome_prob = north_prob if is_north else (1.0 - north_prob)
-
-	if outcome.is_empty():
-		outcome = "?"
-
-	# Capture per-qubit bloch_r before drain (drain modifies state)
-	var bloch_r_pre = 0.5
-	if biome.viz_cache:
-		bloch_r_pre = clampf(float(biome.viz_cache.get_bloch(register_id).get("r", 0.5)), 0.0, 1.0)
-
-	# Collapse the measured axis — closed: full projective collapse (von Neumann);
-	# open (wet country): partial ensemble drain. Mirrors action_measure.
-	var collapse_ok: bool
-	if not _biome_open_here(biome):
-		collapse_ok = _project_register(biome, register_id, is_north)
-	else:
-		var purity = biome.get_purity() if biome.has_method("get_purity") else 0.5
-		var drain_eta = _resolve_drain_fraction(biome, purity, farm)
-		collapse_ok = _drain_register(biome, register_id, is_north, drain_eta)
-	if not collapse_ok:
-		# Honest failure: state not collapsed — don't fake a measured terminal.
-		return {"success": false, "error": "collapse_failed", "auto_measured": false}
-
-	# Mark terminal as measured — player sees pure collapsed state.
-	# Store r so _prepare_pop_result can read per-qubit Bloch radius.
-	var snapshot = {"purity": 1.0, "r": bloch_r_pre}
-	terminal.mark_measured(outcome, outcome_prob, 1.0, snapshot)
-	terminal.release_register()
-
-	return {"success": true, "auto_measured": true}
-
-
 static func _resolve_measurement_context(terminal, biome) -> Dictionary:
 	var register_id = terminal.bound_register_id if terminal else -1
 	var north_prob = biome.get_register_probability(register_id) if biome and biome.has_method("get_register_probability") else -1.0
@@ -483,7 +464,7 @@ static func _resolve_measurement_context(terminal, biome) -> Dictionary:
 
 
 static func _sample_born_outcome(terminal, _biome, _register_id: int, north_prob: float, south_prob: float) -> Dictionary:
-	# Genuine Born randomness (global RNG), matching _auto_measure_for_pop. The
+	# Genuine Born randomness (global RNG). The
 	# old "reproducible" seed hashed biome.biome_name + biome.elapsed_time —
 	# neither property exists on BiomeBase, so the seed was CONSTANT and every
 	# measure of a register collapsed to the same pole forever, no matter how
@@ -858,7 +839,7 @@ static func _closed_reap_rewards(active_biomes: Array, economy, farm) -> Diction
 
 static func action_pop(terminal, terminal_pool, economy = null, farm = null) -> Dictionary:
 	var harvest_result = _prepare_pop_result(terminal, terminal_pool, economy, farm)
-	if not harvest_result.get("success", false):
+	if not harvest_result.get("success", false) or bool(harvest_result.get("noop", false)):
 		return harvest_result
 
 	# Capture biome name before unbinding
@@ -867,9 +848,16 @@ static func action_pop(terminal, terminal_pool, economy = null, farm = null) -> 
 		biome_name = terminal.measured_biome_name if terminal.measured_biome_name != "" else terminal.bound_biome_name
 	var register_id = harvest_result.get("register_id", -1)
 
-	# Measured terminals typically released their register during MEASURE, so POP
-	# must clear the full terminal snapshot, not only the still-bound case.
+	# A dark plot returns to fog once its bank is gathered (the probe comes
+	# home; ρ is untouched). A lit plot is still being attended: Q only takes
+	# the bank, the probe stays and so does the attention.
+	if terminal.is_bound and bool(terminal.lit):
+		terminal.strikes.clear()
+		terminal.state_changed.emit(terminal)
+		harvest_result["released"] = false
+		return harvest_result
 	terminal_pool.release_terminal(terminal)
+	harvest_result["released"] = true
 	_log("info", "farm", "📤", "Register %d released in %s" % [register_id, biome_name if biome_name else "biome"])
 	return harvest_result
 
@@ -1039,26 +1027,11 @@ static func _prepare_pop_result(terminal, terminal_pool, economy = null, farm = 
 	if terminal.has_banked():
 		return _pay_bank(terminal, economy, farm)
 
-	if not terminal.can_pop():
-		if terminal.is_bound and not terminal.is_measured:
-			# Auto-measure: Born sample from live state and project
-			var auto_result = _auto_measure_for_pop(terminal, farm)
-			if not auto_result.get("success", false):
-				return auto_result
-		elif not terminal.is_measured:
-			return {
-				"success": false,
-				"error": "not_measured",
-				"message": "Terminal not measured. Use MEASURE first.",
-				"blocked": true
-			}
-		else:
-			return {
-				"success": false,
-				"error": "cannot_pop",
-				"message": "Terminal cannot be popped.",
-				"blocked": true
-			}
+	# Gather never disturbs the quantum state: no measurement, no projection.
+	# Q on a plot that was only explored (nothing banked) changes nothing and
+	# pays nothing — a silent no-op, the probe stays lit. Strike banks; Q pays.
+	if not terminal.is_measured:
+		return _noop("nothing_banked", "Nothing banked here — R strikes, then Q gathers.")
 
 	var reward_ctx = _resolve_pop_reward_context(terminal, farm)
 	var resource = str(reward_ctx.get("resource", terminal.measured_outcome))
@@ -1177,7 +1150,7 @@ static func action_clear_all(terminal_pool, farm = null, economy = null) -> Dict
 	# Pop each terminal and collect whatever harvest it yields.
 	for terminal in terminals_to_clear:
 		var result = action_pop(terminal, terminal_pool, economy, farm)
-		if result.get("success", false):
+		if result.get("success", false) and not bool(result.get("noop", false)):
 			harvest_results.append(result)
 			total_credits += int(result.get("credits", 0))
 			popped_count += 1

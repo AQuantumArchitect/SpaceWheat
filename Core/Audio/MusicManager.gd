@@ -150,10 +150,13 @@ var _track_positions: Dictionary = {}  # track_key -> {position: float, evolutio
 const _PC = preload("res://Core/Config/PhysicsConfig.gd")
 const EVOLUTION_DT: float = _PC.PHRAME_DT  # Seconds per evolution step (matches BiomeEvolutionBatcher.LOOKAHEAD_DT)
 
-## Register-based playback control (Layer 3 - music tied to evolution)
-## When true: Music only plays when active biome has explored bubbles (terminals bound)
-## This syncs music with biome evolution - both pause when no bubbles
+## Layer 3: music plays only while the density matrix is actually evolving.
+## The ONE source is BiomeEvolutionBatcher.evolution_running(bool) (plus its
+## is_evolution_running() on the poll, for a tree that stopped ticking). No
+## pause button, all-dark flag or UI signal reaches music directly: anything
+## that halts evolution silences it, anything that resumes evolution resumes it.
 var stop_music_when_no_registers: bool = true  # Layer 3 enabled
+var _evolution_batcher = null  # the batcher whose evolution_running we follow
 var _last_register_check: float = 0.0
 const REGISTER_CHECK_INTERVAL: float = 0.5  # Check register state every 0.5s
 
@@ -164,11 +167,8 @@ var _disabled: bool = false
 ## Layer 3 intentional stop flag (prevents watchdog from restarting)
 var _layer3_stopped: bool = false
 
-## Hysteresis: require N consecutive "no evolution" observations before stopping.
-## At high sim speed the global icon map can briefly read empty between batches;
-## a single blip shouldn't kill the music.
-var _empty_observation_count: int = 0
-const EMPTY_OBSERVATIONS_TO_STOP: int = 3
+## The fade-out _stop_for_layer3 runs; a resume kills it before swelling back.
+var _stop_fade_tween: Tween = null
 
 ## Watchdog recovery failure counter (prevents spam when audio device unavailable)
 var _watchdog_recovery_failures: int = 0
@@ -250,10 +250,12 @@ func _tick_health(delta: float) -> void:
 		crossfade_to(deferred)
 	if _current_track.is_empty() or _active_player.playing or _layer3_stopped:
 		return
+	if not _pending_track.is_empty():
+		return  # a rate-limited crossfade is queued: that is not a dropout
 	if _crossfade_tween != null and _crossfade_tween.is_valid():
 		return
 	# Dropout detected — check if evolution is actually happening.
-	if not _global_icon_map_has_data():
+	if not _evolution_is_running():
 		if _verbose:
 			_log_info("[MusicManager] Watchdog: dropout with nothing evolving - setting layer3_stopped")
 		_layer3_stopped = true
@@ -357,109 +359,72 @@ func _connect_biome_manager() -> void:
 
 
 func _connect_farm_signals() -> void:
-	# Connect to Farm signals for immediate music response to terminal changes.
-	#
-	# Layer 3: Music should respond immediately when:
-	# - Terminal bound (bubble explored) → start music
-	# - Terminal released (bubble reaped/measured) → stop music if last bubble
-	# Deferred connection - Farm may not exist yet
+	# Follow the evolution layer's one signal. Deferred: Farm may not exist yet.
 	call_deferred("_deferred_connect_farm")
 
 
 func _deferred_connect_farm() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame  # Wait 2 frames for Farm to be ready
+	_ensure_evolution_subscription()
 
+
+## Subscribe to the active farm's batcher (re-run on every poll: a new game or
+## a load builds a new farm, and with it a new batcher).
+func _ensure_evolution_subscription() -> void:
 	var farm = _get_active_farm()
-	if not farm:
-		_log_info("Farm not found - Layer 3 signals not connected")
+	var batcher = farm.get("biome_evolution_batcher") if farm else null
+	if batcher == _evolution_batcher:
 		return
-
-	# Connect to terminal state changes
-	if farm.has_signal("terminal_bound"):
-		farm.terminal_bound.connect(_on_terminal_bound)
-		_log_info("Connected to Farm.terminal_bound")
-	if farm.has_signal("terminal_released"):
-		farm.terminal_released.connect(_on_terminal_released)
-		_log_info("Connected to Farm.terminal_released")
-	if farm.has_signal("terminal_measured"):
-		farm.terminal_measured.connect(_on_terminal_measured)
-		_log_info("Connected to Farm.terminal_measured")
+	if _evolution_batcher != null and is_instance_valid(_evolution_batcher) \
+			and _evolution_batcher.has_signal("evolution_running") \
+			and _evolution_batcher.evolution_running.is_connected(_on_evolution_running):
+		_evolution_batcher.evolution_running.disconnect(_on_evolution_running)
+	_evolution_batcher = batcher
+	if batcher != null and batcher.has_signal("evolution_running") \
+			and not batcher.evolution_running.is_connected(_on_evolution_running):
+		batcher.evolution_running.connect(_on_evolution_running)
+		_log_info("Following BiomeEvolutionBatcher.evolution_running")
 
 
-func _on_terminal_bound(grid_pos: Vector2i, terminal_id: String, _emoji_pair: Dictionary) -> void:
+func _on_evolution_running(running: bool) -> void:
 	if _verbose:
-		_log_info("[MusicManager] SIGNAL: terminal_bound - %s at %s" % [terminal_id, grid_pos])
-	_update_evolution_gating()
-
-
-func _on_terminal_released(grid_pos: Vector2i, terminal_id: String, _credits: int) -> void:
-	if _verbose:
-		_log_info("[MusicManager] SIGNAL: terminal_released - %s at %s" % [terminal_id, grid_pos])
-	_update_evolution_gating()
-
-
-func _on_terminal_measured(grid_pos: Vector2i, terminal_id: String, outcome: String, _prob: float) -> void:
-	if _verbose:
-		_log_info("[MusicManager] SIGNAL: terminal_measured - %s at %s, outcome=%s" % [terminal_id, grid_pos, outcome])
-	_update_evolution_gating()
+		_log_info("[MusicManager] SIGNAL: evolution_running=%s" % running)
+	_apply_evolution_state(running)
 
 
 func _update_evolution_gating() -> void:
-	# Single authority for Layer 3 music gating (evolution-driven stop/start).
-	# Called immediately from terminal signals and polled every REGISTER_CHECK_INTERVAL.
-	# Both stop and restart paths live here — no asymmetry between callers.
+	# Poll fallback (every REGISTER_CHECK_INTERVAL): same source as the signal.
 	if not stop_music_when_no_registers:
 		return
-	var has_evolution := _global_icon_map_has_data()
-	var is_playing := _active_player.playing
-	if _verbose:
-		_log_info("[MusicManager] _update_evolution_gating: has_evolution=%s, is_playing=%s" % [
-			has_evolution, is_playing])
+	_ensure_evolution_subscription()
+	_apply_evolution_state(_evolution_is_running())
 
-	if has_evolution:
-		_empty_observation_count = 0
-		if _layer3_stopped or not is_playing:
-			if _verbose:
-				_log_info("[MusicManager] Evolution detected - starting music")
+
+func _apply_evolution_state(running: bool) -> void:
+	if not stop_music_when_no_registers or _disabled:
+		return
+	if running:
+		if _layer3_stopped or not _active_player.playing:
 			_start_music_from_state()
-	elif is_playing and not _layer3_stopped:
-		# not _layer3_stopped: in bed mode the player keeps playing (ducked) —
-		# without the guard this would re-trigger the duck every poll.
-		_empty_observation_count += 1
-		if _empty_observation_count >= EMPTY_OBSERVATIONS_TO_STOP:
-			if _verbose:
-				_log_info("[MusicManager] No global evolution - ducking to ambient bed")
-			_stop_for_layer3()
+	elif not _layer3_stopped:
+		_stop_for_layer3()
 
 
-func _global_icon_map_has_data() -> bool:
-	# Check if anything is evolving globally.
-	#
-	# Primary: Check global icon map from BiomeEvolutionBatcher.
-	# Fallback: If batcher has no data yet (early startup, headless), check for
-	# any active terminals across all biomes as a proxy for 'something is evolving'.
-	var farm = _get_active_farm()
-	if not farm:
+## Is ρ evolving? Asked of the evolution layer, never inferred from UI state.
+func _evolution_is_running() -> bool:
+	var batcher = _evolution_batcher
+	if batcher == null:
+		var farm = _get_active_farm()
+		batcher = farm.get("biome_evolution_batcher") if farm else null
+	if batcher == null or not batcher.has_method("refresh_evolution_running"):
 		return false
+	return bool(batcher.refresh_evolution_running())
 
-	# Primary check: global icon map
-	var batcher = farm.get("biome_evolution_batcher")
-	if batcher and batcher.has_method("get_global_icon_map"):
-		var icon_map: Dictionary = batcher.get_global_icon_map()
-		if icon_map.get("total", 0.0) > 0.0:
-			return true
 
-	# Fallback: check if any terminals are actively bound (not measured)
-	if farm.terminal_pool and farm.terminal_pool.has_method("get_bound_count"):
-		var bound_count: int = farm.terminal_pool.get_bound_count()
-		if bound_count > 0:
-			# Check if any are actually active (bound but not measured)
-			for terminal in farm.terminal_pool.terminals:
-				if terminal.is_bound and not terminal.is_measured:
-					return true
-
-	return false
+## Music is held while evolution is not running (Layer 3).
+func _held_by_evolution() -> bool:
+	return stop_music_when_no_registers and not _evolution_is_running()
 
 
 func _get_best_biome_from_global_map() -> String:
@@ -483,16 +448,15 @@ func _get_best_biome_from_global_map() -> String:
 	return ""
 
 
-# Ambient bed: a settled world is QUIET, not silent (never-silent ambience).
-const BED_FRACTION := 0.18  # of the user's music volume, linear
-const BED_FADE_S := 2.5
+const STOP_FADE_S := 1.2
 const SWELL_S := 1.2
 
 
 func _stop_for_layer3() -> void:
-	# Layer 3 (no explored bubbles): duck to a quiet ambient bed instead of a
-	# hard stop. Activity = music still holds — settled fades to a murmur, and
-	# the swell on the next explored bubble is seamless (same track position).
+	# Layer 3: evolution stopped, so the music stops (owner call 2026-11-14:
+	# all dark is silent, and a pause is silent). The ghost timer keeps the
+	# track position; it only advances with evolution steps, so resuming picks
+	# the track up exactly where the parked world left it.
 	_layer3_stopped = true
 
 	# Kill any crossfade in progress
@@ -506,12 +470,22 @@ func _stop_for_layer3() -> void:
 
 	var tree := get_tree()
 	if tree and _active_player.playing:
+		var player := _active_player
 		var fade := tree.create_tween()
-		fade.tween_property(_active_player, "volume_db",
-				_volume_to_db(_volume * BED_FRACTION), BED_FADE_S)
+		_stop_fade_tween = fade
+		fade.tween_property(player, "volume_db", -80.0, STOP_FADE_S)
+		fade.tween_callback(func():
+			if _layer3_stopped:
+				player.stop())
 	else:
 		_active_player.stop()
 	_inactive_player.stop()
+
+
+## Is music sounding? False once Layer 3 has stopped it (the fade may still
+## be finishing); probes read this instead of the private players.
+func is_music_playing() -> bool:
+	return _active_player != null and _active_player.playing and not _layer3_stopped
 
 
 ## Ceremony hook (EndingOverlay): lift the current track a few dB, hold, and
@@ -534,14 +508,19 @@ func _start_music_from_state() -> void:
 	# Clears layer3 stop flag and watchdog counter before attempting playback.
 	_layer3_stopped = false
 	_watchdog_recovery_failures = 0
+	if _stop_fade_tween != null and _stop_fade_tween.is_valid():
+		_stop_fade_tween.kill()
+	_stop_fade_tween = null
 	if _iconmap_sample_count >= 3:
 		_evaluate_iconmap_decision()
 	if _active_player.playing:
-		# Bed mode (ducked, still playing) → swell back to full.
+		# Still fading out (stopped a moment ago) → swell back to full.
 		var tree := get_tree()
 		if tree:
 			var swell := tree.create_tween()
 			swell.tween_property(_active_player, "volume_db", _volume_to_db(_volume), SWELL_S)
+		return
+	if not _active_player.playing and _resume_parked_track():
 		return
 	if not _active_player.playing:
 		var best_biome := _get_best_biome_from_global_map()
@@ -550,6 +529,31 @@ func _start_music_from_state() -> void:
 			best_biome = _get_active_biome_manager().get_active_biome()
 		if not best_biome.is_empty():
 			play_biome_track(best_biome)
+
+
+## Evolution resumed after a stop: pick the parked track back up on the
+## ghost timer (it only advanced with evolution steps) and swell in. No
+## crossfade, so a quick pause/resume is never caught by the rate limit.
+func _resume_parked_track() -> bool:
+	if _current_track.is_empty() or _active_player.stream == null:
+		return false
+	var pos := 0.0
+	if preserve_track_positions and _track_positions.has(_current_track):
+		var info: Dictionary = _track_positions[_current_track]
+		var steps := _get_biome_evolution_count(str(info.get("biome_name", ""))) - int(info.get("evolution_count", 0))
+		pos = float(info.get("position", 0.0)) + float(steps) * EVOLUTION_DT
+		var length := _active_player.stream.get_length()
+		if length > 0.0:
+			pos = fposmod(pos, length)
+	_active_player.volume_db = -80.0
+	_active_player.play(maxf(0.0, pos))
+	var tree := get_tree()
+	if tree:
+		var swell := tree.create_tween()
+		swell.tween_property(_active_player, "volume_db", _volume_to_db(_volume), SWELL_S)
+	else:
+		_active_player.volume_db = _volume_to_db(_volume)
+	return true
 
 
 func _save_ghost_timer_position(track_key: String) -> void:
@@ -616,7 +620,6 @@ func _on_biome_changed(new_biome: String, old_biome: String) -> void:
 		_log_info("[MusicManager] Biome changed: %s → %s" % [old_biome, new_biome])
 	if new_biome.is_empty() or _disabled:
 		return
-	_layer3_stopped = false
 	play_biome_track(new_biome)
 
 
@@ -982,10 +985,14 @@ func crossfade_to(track_key: String) -> void:
 	# Crossfade to a new track
 	if _verbose:
 		_log_info("[MusicManager] crossfade_to(%s)" % track_key)
-	_layer3_stopped = false  # Clear intentional stop flag
 	if _disabled:
 		_log_info("DISABLED - skipping crossfade")
 		return
+	if _held_by_evolution():
+		# Nothing is evolving: no music. Resume picks the track from state.
+		_layer3_stopped = true
+		return
+	_layer3_stopped = false  # Clear intentional stop flag
 
 	if track_key == _current_track and _active_player.playing:
 		_log_info("Already playing %s - skipping" % track_key)
@@ -1216,6 +1223,9 @@ func _get_or_load_stream(track_key: String) -> AudioStream:
 
 
 func _play_instant(stream: AudioStream, track_key: String) -> void:
+	if _held_by_evolution():
+		_layer3_stopped = true
+		return
 	_layer3_stopped = false  # Clear intentional stop flag
 	_active_player.stream = stream
 	_active_player.volume_db = _volume_to_db(_volume)

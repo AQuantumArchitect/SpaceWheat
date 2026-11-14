@@ -222,8 +222,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | Export / Price (order book) / Import / Settle — channels, wet ground only | unlocks in Act 1 (`village_stirs`) |
 | 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 📜×5 bought on the Village board) / — | biome lifecycle |
-| 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
-| 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
+| 8 | **Ace** ○ | Gather (🧺, never measures) / Pause / **Strike (measure, 👥; plot goes dark)** / Explore · Attend (🍞) · Fast-Fwd | player vantage; works in every mode || 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |
 
 **Hats unlock with the story.** The unlock table is compiled from
@@ -300,15 +299,26 @@ override, e.g. Icon-R "Add" vs "Incorporate") → `_run_action` →
 
 ## 6. The core loop (minute to minute)
 
-**The immediate verb triad (Ace, on a plot):**
-1. **F = Explore / bind** — point a terminal at a qubit; a bubble appears showing
-   its icon-pair.
+**The immediate verb triad (Ace, on a plot) is an attention loop.** A plot is
+either *lit* (attended) or *dark*; dark is the resting state.
+1. **F = Explore / attend** — point a terminal at a qubit and light it; a bubble
+   appears showing its icon-pair. F on a struck (dark) plot lights it again, free.
 2. **R = Measure (Strike)** — Born-sample the qubit; it collapses to one emoji;
    the probability bar shows how rare that outcome was. Closed mode projects
-   (purity stays 1).
-3. **Q = Gather (`pop`)** — cash the outcome for resources; reward is the
-   surprisal `−kT·log p`, times an **incorporation bonus** if that icon is already
-   in your signature (closed mode: ~4× flat).
+   (purity stays 1). The yield is **banked on the plot** and the plot **goes
+   dark**: measured, then let go.
+3. **Q = Gather (`pop`)** — pay the bank out; reward is the surprisal
+   `−kT·log p`, times an **incorporation bonus** if that icon is already in your
+   signature (closed mode: ~4× flat). Gather **never touches ρ**: no
+   measurement, no projection. A plot with nothing banked pays nothing (silent
+   no-op). A dark plot returns to fog once gathered; a lit one stays lit.
+
+**All dark = dormant.** When no plot anywhere is lit, the batcher stops stepping
+ρ (`BiomeEvolutionBatcher.is_attention_dormant`), so the world parks exactly
+where you left it (and stays parked across save/load). Music follows one
+signal only, `BiomeEvolutionBatcher.evolution_running(bool)`: it plays while ρ
+is actually evolving and stops whenever anything halts it (pause, E peek,
+dormant, menus).
 
 Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 `Core/Markets/EnergyPricing.gd`.

@@ -67,6 +67,9 @@ func _run() -> void:
 		quit(1)
 	var app = get_root().get_node_or_null("AppRoot")
 	var farm = app.game_root.farm
+	# This probe is about the lookahead/market plumbing, not attention (#75):
+	# keep the world awake with every plot dark.
+	farm.biome_evolution_batcher.attention_gate_enabled = false
 	var shell = app.get_player_shell()
 	var inst = InstrumentLocator.resolve_quantum_instrument(shell)
 	for e in ["🍞", "👥", "⛰"]:

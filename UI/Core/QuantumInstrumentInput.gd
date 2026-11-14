@@ -864,6 +864,7 @@ func build_chip_context() -> ChipContext:
 		ctx_pos = _instrument.last_selected_position
 		qid = ctx_pos.x
 	var bound := false
+	var lit := true
 	if farm and farm.grid and ctx_pos != GridSentinel.INVALID_POSITION:
 		var ctx_plot = farm.grid.get_plot(ctx_pos)
 		var term = ctx_plot.terminal if ctx_plot else null
@@ -873,7 +874,9 @@ func build_chip_context() -> ChipContext:
 		# Strike releases is_bound; the frozen measure still occupies the plot.
 		# Ace F must stay Fast-Fwd, not Explore-over-harvest.
 		bound = term != null and (bool(term.is_bound) or bool(term.is_measured))
-	return ChipContext.new(qc, qid, bound, farm)
+		# Struck plots keep their probe but go dark: F attends to them again.
+		lit = not (term != null and bool(term.is_bound) and not bool(term.lit))
+	return ChipContext.new(qc, qid, bound, farm, lit)
 
 
 func _build_chip_context() -> ChipContext:

@@ -1183,7 +1183,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	var label := "gather %s %d of %d" % [res, need, int(UIP._wallet(res))]
 	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
 	if col >= 0 and (UIP._plot_measured(col) or frozen != null):
-		# Strike as often as you like; Q gathers the bank (Ace R). When the
+		# Strike as often as you like (F attends, R strikes); Q gathers the bank. When the
 		# bank holds none of `res` yet, another strike on this plot is the
 		# cheap try — a rare pole pays big (−kT·log p). Gathering after every
 		# miss re-explores at the same bad odds: four overnight sensors sat at
@@ -1197,6 +1197,9 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 			# A lap counter: "Strike again" ×5 with nothing visible read as a loop to
 			# every memoryless sensor (lost-lamb w14, w31; masher). Then Q gathers.
 			var lap := "strike %d of %d, then Gather" % [term.strikes.size() + 1, STRIKE_TRIES]
+			# A strike darkens the plot (#75): F attends to it before R again.
+			if "lit" in term and not bool(term.lit):
+				return _lap(_chord(_close_first() + [label, lap, ["Attend", _verb("explore")]], q, "attend again"))
 			return _lap(_chord(_close_first() + [label, lap, ["Strike again", _verb("strike")]], q, "strike again"))
 		var got := UIP._measured_glyph(col) if frozen == null else str(frozen.measured_outcome)
 		# Strike-bank model: a plot holding banked strikes is not "measured",
