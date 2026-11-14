@@ -57,3 +57,16 @@ def test_noop_logs_detail_not_toast():
     u = src("UI/Core/QuantumInstrumentInput.gd")
     log = _fn(u, "func _log_action_result(")
     assert 'result.get("noop", false)' in log and "result.get(\"detail\"" in log
+
+
+def test_shift_verbs_act_on_the_selection_not_the_field():
+    """#108: Shift+F/R/Q act on the marked (or tapped) plot; only with nothing
+    selected does Mass Explore fall back to the current biome's fog."""
+    u = src("UI/Core/QuantumInstrumentInput.gd")
+    sel = _fn(u, "func _selection_here(")
+    assert "_tap_armed_pos" in sel and "checked_plots" in sel
+    assert "_selection_here()" in _fn(u, "func _mass_explore(")
+    assert "_selection_here()" in _fn(u, "func _perform_shift_key_action(")
+    # the whole-biome fallback sits behind the empty-selection check
+    mass = _fn(u, "func _mass_explore(")
+    assert mass.index("_selection_here()") < mass.index("if positions.is_empty() and farm")

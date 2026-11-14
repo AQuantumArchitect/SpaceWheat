@@ -1893,19 +1893,36 @@ func invoke_action(action_key: String, shift: bool = false, ctrl: bool = false) 
 	_dispatch_action_key(action_key, shift, ctrl)
 
 
+## The selection every Shift+verb acts on, in the biome you stand in: the
+## marked plots, else the plot a tap has picked and the cursor still holds.
+## Marks left in another country are ignored (marks survive a crossing).
+## Empty means nothing is selected here.
+func _selection_here() -> Array:
+	if _instrument == null:
+		return []
+	var here := str(_instrument.current_biome)
+	var a: Dictionary = {}
+	if farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
+		a = farm.grid.get_plot_biome_assignments()
+	var marks: Array = _instrument.checked_plots.filter(
+		func(p): return a.is_empty() or str(a.get(p, "")) == here)
+	if not marks.is_empty():
+		return marks
+	var t := _tap_armed_pos
+	if t != GridSentinel.INVALID_POSITION and int(_instrument.current_plot_idx) == t.x \
+			and (a.is_empty() or str(a.get(t, "")) == here):
+		return [t]
+	return []
+
+
 ## Shift+F (Ace): explore every checked plot, or — none checked — every
 ## unexplored plot of the biome you stand in. One press opens a whole field.
 func _mass_explore() -> void:
 	if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
 		UIProgression.redirect_locked(VerbGrammar.MASS_EXPLORE_LABEL)
 		return
-	var positions: Array = _instrument.checked_plots.duplicate() if _instrument else []
+	var positions: Array = _selection_here()
 	var here := str(_instrument.current_biome) if _instrument else ""
-	if farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
-		# Marks are grid positions and survive a crossing; a mark left in the
-		# last country must not turn this one's Mass Explore into a no-op.
-		var a0: Dictionary = farm.grid.get_plot_biome_assignments()
-		positions = positions.filter(func(p): return str(a0.get(p, "")) == here)
 	if positions.is_empty() and farm and farm.grid and farm.grid.has_method("get_plot_biome_assignments"):
 		var a: Dictionary = farm.grid.get_plot_biome_assignments()
 		var keys: Array = a.keys()
@@ -2514,6 +2531,8 @@ func _perform_shift_key_action(action_key: String) -> void:
 
 	# Use checked plots instead of entire homerow (ORDER PRESERVED from selection)
 	var positions = _instrument.checked_plots.duplicate()
+	if positions.is_empty():
+		positions = _selection_here()  # the tapped plot is the selection
 	if positions.is_empty():
 		# Honest refusal (anti-gating law): a silent mass-op reads as a dead key.
 		_toast_player("%s needs checked plots — Shift+click plots (or Shift+G H J K L ;) to mark them first." % log_label)
