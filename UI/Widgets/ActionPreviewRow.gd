@@ -87,6 +87,19 @@ func _ready():
 	print("🛠️  ActionPreviewRow initialized with BtnBtmMidl textures (matches 1234 buttons)")
 
 
+## 0 = on the farm (F is its normal verb), 1 = top surface (next F returns to
+## the farm), 2 = nested surfaces (F steps back one layer).
+var flatten_mode: int = 0
+
+
+func set_flatten_mode(mode: int) -> void:
+	if mode == flatten_mode:
+		return
+	flatten_mode = mode
+	if action_buttons.has("F"):
+		_apply_button_projection("F", current_projection.get("actions", {}).get("F", {}))
+
+
 func render_projection(projection: Dictionary) -> void:
 	# Render a fully projected Q/E/R/F action state.
 	current_projection = projection.duplicate(true)
@@ -302,6 +315,15 @@ func _apply_button_projection(action_key: String, action_info: Dictionary) -> vo
 	var is_disabled = bool(action_info.get("disabled", false))
 	var is_available = bool(action_info.get("available", false))
 	var has_icon = false
+	if action_key == "F" and flatten_mode > 0:
+		# F flattens out of the open surface; it is never the farm verb here.
+		label_text = "Farm" if flatten_mode == 1 else "Back"
+		emoji = "🌾" if flatten_mode == 1 else "↩"
+		icon_path = ""
+		shift_hint = ""
+		is_disabled = false
+		is_available = true
+		action_info = {}
 
 	if icon_path != "":
 		if ResourceLoader.exists(icon_path):

@@ -129,6 +129,13 @@ func _input(event: InputEvent) -> void:
 			_mark_input_handled()
 			return
 
+	# F flattens out of any open surface, one layer per press (touch-friendly
+	# back). F's farm verb only resumes once the farm is the top surface.
+	if event.keycode == KEY_F and not event.is_shift_pressed() and not event.ctrl_pressed \
+			and _flatten_surface():
+		_mark_input_handled()
+		return
+
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
 
@@ -518,6 +525,8 @@ func _pin_cursor_surface() -> void:
 ## Route a tapped/clicked action key (Q/E/R/F) to the same handler as the keyboard path.
 ## Connected to ActionPreviewRow.action_pressed for touch/mouse parity.
 func _route_action_key(action_key: String, shift: bool = false) -> void:
+	if action_key == "F" and not shift and _flatten_surface():
+		return
 	# Overlay first — mirrors the keyboard fallthrough order.
 	if overlay_stack and not overlay_stack.is_empty():
 		var top = overlay_stack.get_top()
@@ -546,6 +555,25 @@ func _cycle_frame_hat(delta: int) -> void:
 # =============================================================================
 # MENU MANAGEMENT (unified for all menus)
 # =============================================================================
+
+## F while a surface is open: close the topmost one (one level per press).
+## Returns false on the farm, where F keeps its normal verb.
+func _flatten_surface() -> bool:
+	if not _any_menu_open() or overlay_manager == null:
+		return false
+	overlay_manager.close_overlay()
+	return true
+
+
+## Relabel the F chip: "🌾 Farm" when the next F lands on the farm, "Back"
+## while more surfaces sit between here and the farm.
+func _refresh_flatten_label() -> void:
+	var apr = action_bar_manager.get_action_row() if action_bar_manager else null
+	if apr == null or not apr.has_method("set_flatten_mode"):
+		return
+	var depth: int = overlay_stack.size() - 1 if overlay_stack else 0
+	apr.set_flatten_mode(0 if depth <= 0 else (1 if depth == 1 else 2))
+
 
 func _any_menu_open() -> bool:
 	# Check if any menu (shell or farm) is currently open.
@@ -719,6 +747,7 @@ func _ready() -> void:
 	# gone — the sweep runner burned ~25 presses on physics gates that
 	# couldn't tick. When the last overlay closes onto a paused field, say
 	# so once (the pause-time hint expired minutes ago).
+	overlay_stack.stack_changed.connect(_refresh_flatten_label)
 	overlay_stack.overlay_popped.connect(func(_ov):
 		if paused and overlay_stack.is_empty():
 			show_hint("⏸ time paused — F plays on", 2))
