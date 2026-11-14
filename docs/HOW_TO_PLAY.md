@@ -52,7 +52,7 @@ Four verbs, same directions on every surface:
 - **R** — screw in: more, add, advance, strike, span.
 - **F** — play + flatten: close what E opened, advance time. In the Ace
   hat, **F explores** a fresh plot (1🍞) or fast-forwards an explored one;
-  **Shift+F explores every plot in the country**; **Ctrl+Shift+Q reaps the
+  **Shift+F explores every plot in the country**; **Ctrl+Shift+F reaps the
   season** — every plot settles and pays at once, the state is spent, and the
   round ends (costs 🍼).
 
@@ -64,7 +64,7 @@ Four verbs, same directions on every surface:
 | 5 | **Icon** | The vocabulary hat — **the story runs on it** (see Berries below). Mode **1** is inject: **F tracks** a plot's walk (⌖), **R incorporates** it when ripe. Mode **2** is the mirror 🪞 (see What Turns). R on an empty plot (mode 1) adds an icon, Q trims one. |
 | 6 | **Merchant** | Channels with the Bath (wet country only), issued by the biome's native faction. 1/2/3 picks the kind — thermal / dephase / damp. Q exports, E reads the order book (the C board's price), R imports, **F settles**. Held channels show on the C board's Commitments. |
 | 7 | **Captain** | Biome lifecycle: cull, compass, discover. |
-| 8 | **Ace** | The default: explore/fast-fwd (F; Shift+F explores all) / strike (R, banks; strike again when it spreads) / gather (Q, pays the bank; Shift+Q gathers all; Ctrl+Shift+Q reaps the season) / pause (E). |
+| 8 | **Ace** | The default: explore/fast-fwd (F; Shift+F explores all; Ctrl+Shift+F reaps the season) / strike (R, banks; strike again when it spreads) / gather (Q, pays the bank) / pause (E). |
 | 9 | **Operator** | Gate building: Bell, CNOT, CZ, SWAP, GHZ. Mode **2** is the compass 🧭 (see What Turns). |
 | 0 | **Druid** | Rotations + Hadamard (E); 1/2/3 pick the X/Y/Z axis. |
 

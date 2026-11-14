@@ -115,7 +115,7 @@ def test_ace_f_is_gather_first_on_a_struck_plot():
     ace = _read("Core/UI/AceChipResolvers.gd")
     f = ace.split("static func resolve_f(", 1)[1].split("\nstatic func ", 1)[0]
     assert "_plot_measured(" in f
-    assert '"shift_label": "Mass Explore"' in f
+    assert '"shift_label": "Mass Explore · Ctrl+⇧ Reap Season"' in f
 
 
 def test_lamp_oil_has_a_resources_entry():

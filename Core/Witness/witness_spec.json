@@ -83,7 +83,7 @@
     { "sensor_id": "resource_mutated.harvest", "zone": "biome:active", "role": "yield",
       "normalizer": { "type": "tanh", "scale": 5.0 }, "collapse_alpha": 0.4, "efficiency": 1.0,
       "reasons": ["pop", "reap_measure", "reap_flux", "reap_entropy", "plot_harvest"],
-      "description": "harvests here pay off (pop = Q extract, reap_* = Ctrl+Shift+Q)" },
+      "description": "harvests here pay off (pop = Q extract, reap_* = Shift+F)" },
     { "sensor_id": "resource_mutated.drain", "zone": "biome:active", "role": "drain",
       "normalizer": "unit_pos", "collapse_alpha": 0.3, "efficiency": 1.0,
       "reasons": ["lindblad_drain", "lindblad_rainbow", "composting"],

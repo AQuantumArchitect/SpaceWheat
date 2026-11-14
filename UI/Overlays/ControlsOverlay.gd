@@ -1425,7 +1425,7 @@ func _guide_core_loop() -> void:
 	_body_box.add_child(_make_body(
 		"F explores, R strikes, Q gathers — that's the farming heartbeat, and tapping a plot walks the same three beats. "
 		+ "On an explored plot F returns to its other meaning: play on / fast-forward (double down and let the odds spin). "
-		+ "Ctrl+Shift+Q — or the season button — reaps the whole season: every plot settles and pays at once, the quantum state is spent, and the round ends. It costs 🍼, which only the loom (a Bell weave) leaves you."))
+		+ "Ctrl+Shift+F — or the season button — reaps the whole season: every plot settles and pays at once, the quantum state is spent, and the round ends. It costs 🍼, which only the loom (a Bell weave) leaves you."))
 
 func _guide_four_tools() -> void:
 	_body_box.add_child(_make_section_header("the seven archetype frames (4-0)"))
@@ -1433,7 +1433,7 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_action_row("5", "Icon",      "Inject a dual-emoji qubit from the neighborhood's installed signature."))
 	_body_box.add_child(_make_action_row("6", "Merchant", "Channels with the country you stand in (wet ground only), issued by its native faction; held ones show on the C board. 1/2/3 picks the channel: thermal ~ (keeps the field warm) · dephase . (sells phase for heat; no buying it back) · damp | (pins and pays). Q=Export, E=order book, R=Import, F=Settle. Price = −kT·log p."))
 	_body_box.add_child(_make_action_row("7", "Captain",   "Biome lifecycle: Q=cull, E=compass, R=discover."))
-	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the bank (🧺), E=pause+inspect, R=strike (collapse, banks), F=explore / fast-forward, Shift+F=explore all, Shift+Q=gather all, Ctrl+Shift+Q=reap the season."))
+	_body_box.add_child(_make_action_row("8", "Ace", "Measurement vantage: Q=gather the bank (🧺), E=pause+inspect, R=strike (collapse, banks), F=explore / fast-forward, Shift+F=explore all, Ctrl+Shift+F=reap the season."))
 	_body_box.add_child(_make_action_row("9", "Operator",  "Gate building: Q=break, E=inspect, R=gate."))
 	_body_box.add_child(_make_action_row("0", "Druid",     "Unitary rotations + Hadamard. 1/2/3 = X / Y / Z."))
 	_body_box.add_child(_make_spacer(4))

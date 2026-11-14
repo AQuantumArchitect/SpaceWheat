@@ -40,9 +40,9 @@ static func resolve_f(ctx) -> Dictionary:
 		"hint": "Explore — mount an expedition to this plot (costs 🍞). Binding the register is what makes it strikeable.",
 		# The Q chip names "⇧ Mass Gather"; this one only named the reap, and
 		# its −1🍼 read as Explore's price (literalist, wave 32). Shift+F
-		# mass-explores; reap lives on the Q chip (Ctrl+Shift+Q).
+		# mass-explores, Ctrl+Shift+F reaps — name both, cost beside the reap.
 		"shift_mod": "⇧",
-		"shift_label": "Mass Explore",
+		"shift_label": "Mass Explore · Ctrl+⇧ Reap Season",
 	}
 
 

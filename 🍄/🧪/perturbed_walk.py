@@ -65,7 +65,7 @@ def deviations(rng: random.Random) -> list[tuple[str, list[tuple[str, bool]]]]:
         ("board_accept_first", [("c", False), ("y", False), ("g", False), ("r", False)]),
         ("board_abandon_first", [("c", False), ("u", False), ("g", False), ("q", False), ("f", False)]),
         ("arc_accept_first", [("x", False), ("y", False), ("g", False), ("r", False)]),
-        ("reap_season", [("8", False), ("ctrl+q", True)]),
+        ("reap_season", [("8", False), ("ctrl+f", True)]),
         ("travel_a_biome", [(rng.choice(list("tyu")), False)]),
         ("random_keys", [(rng.choice(list("qerf") + PLOTS + list("456789")), False) for _ in range(3)]),
         ("escape", [("escape", False)]),

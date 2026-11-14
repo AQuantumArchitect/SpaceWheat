@@ -59,16 +59,6 @@ static func annotate_cost(action_info: Dictionary, ctx) -> Dictionary:
 			out["shift_label"] = "%s %s %s" % [str(action_info.get("shift_mod", "⇧")),
 					shift_label, _format_cost_inline(shift_cost)]
 
-	# Reap rides the Q chip's shift hint, priced like the old F one was.
-	var reap_label := str(action_info.get("reap_label", ""))
-	if str(action_info.get("reap_action", "")) == "reap" and reap_label != "":
-		var reap_cost: Dictionary = _shift_action_cost(ctx.farm, "reap")
-		var base_hint := str(out.get("shift_label", ""))
-		var reap_part := "%s %s %s" % [str(action_info.get("reap_mod", "Ctrl+⇧")),
-				reap_label, _format_cost_inline(reap_cost)]
-		out = out.duplicate(true)
-		out["shift_label"] = reap_part if base_hint == "" else "%s · %s" % [base_hint, reap_part]
-
 	var existing = action_info.get("cost")
 	if existing is Dictionary and not existing.is_empty():
 		return out

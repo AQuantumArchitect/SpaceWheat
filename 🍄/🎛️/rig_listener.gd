@@ -2701,7 +2701,7 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 				result["slots"] = slots
 
 		"press_key":
-			# "ctrl+f" names a Ctrl chord (Reap is Ace Ctrl+Shift+Q).
+			# "ctrl+f" names a Ctrl chord (Reap is Ace Ctrl+Shift+F).
 			var pk_cmd: Dictionary = cmd.duplicate()
 			var pk_ctrl := bool(cmd.get("ctrl", false))
 			if str(pk_cmd.get("key", "")).to_lower().begins_with("ctrl+"):

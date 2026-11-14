@@ -2029,7 +2029,7 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if _live_col() < 0:
 		parts.append_array(_pick_plot(0))
-	parts.append(["Reap the season", "ctrl+shift+Q"])
+	parts.append(["Reap the season", "ctrl+shift+F"])
 	return _chord(parts, q, "reap")
 
 

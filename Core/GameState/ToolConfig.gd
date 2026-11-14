@@ -302,12 +302,8 @@ const ARCHETYPE_FRAMES: Dictionary = {
 			"probe": {
 				"Q": {"action": "pop", "label": "Gather", "emoji": "^",
 					  "icon": "res://Assets/UI/Science/Pop-Harvest.svg",
-					  "hint": "Gather — pull every strike banked on the plot into inventory and return it to fog (explore again to strike it); the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor). Shift+Q gathers every plot; Ctrl+Shift+Q reaps the whole season (biome-wide harvest, 🍼).",
-					  "shift_action": "pop", "shift_label": "Mass Gather",
-					  # Reap is gathering off the environment, so it lives on the
-					  # gather key: Ctrl+Shift+Q (Shift+Q alone mass-gathers).
-					  "reap_action": "reap", "reap_label": "Reap Season",
-					  "reap_mod": "Ctrl+⇧"},
+					  "hint": "Gather — pull every strike banked on the plot into inventory and return it to fog (explore again to strike it); the gathering costs 🧺, flat. Reward = surprisal −kT·log p (rare collapse pays more; certain ones pay the floor).",
+					  "shift_action": "pop", "shift_label": "Mass Gather"},
 				"E": {"action": "", "label": "Pause", "emoji": "⏸",
 					  "icon": "",
 					  "hint": "Pause — freeze time to read the odds (global side-effect; no tool verb)",
@@ -318,8 +314,12 @@ const ARCHETYPE_FRAMES: Dictionary = {
 				"F": {"action": "fast_forward", "label": "Fast-Fwd", "emoji": "⏩",
 					  "icon": "",
 					  "chip_resolver": "ace.f_explore",
-					  "shift_label": "Mass Explore",
-					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F explores every unexplored plot here (or the checked ones). Reap the season is on Q (Ctrl+Shift+Q)."}
+					  "shift_action": "reap", "shift_label": "Reap Season",
+					  # Reap is Ctrl+Shift+F (Shift+F alone mass-explores). The chip
+					  # said "⇧ Reap Season" while the banner said CTRL+SHIFT [F]
+					  # (earnest wall @ capstone, 2026-11-09).
+					  "shift_mod": "Ctrl+⇧",
+					  "hint": "Fast-forward — let the Hamiltonian spin the odds (advance time). Also resumes play. On an unexplored plot F mounts an expedition instead: explore it for 🍞. Shift+F explores every unexplored plot here (or the checked ones); Ctrl+Shift+F reaps the whole season (biome-wide harvest, 🍼)."}
 			}
 		}
 	},

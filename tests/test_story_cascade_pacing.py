@@ -186,7 +186,7 @@ def test_superposition_spotlight_is_e_not_the_druid_hat():
 
 
 def test_f_on_operator_does_not_secretly_reap():
-    """No hat back doors. Reap is Ace Ctrl+Shift+Q. Mash F on Operator must not
+    """No hat back doors. Reap is Ace Shift+F. Mash F on Operator must not
     swap to Ace and reap for them."""
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     dispatch = qii.split("func _dispatch_action_key")[1].split("func _handle_biome_row_input")[0]
@@ -300,11 +300,11 @@ def test_superposition_is_a_hadamard_not_forest_weather():
 
 
 def test_ace_f_on_a_bound_plot_is_not_silently_reap():
-    """Ace F stays Explore/Fast-Fwd. Reap is Ctrl+Shift+Q, named on the banner."""
+    """Ace F stays Explore/Fast-Fwd. Reap is Shift+F, named on the banner."""
     ace = src(ACE)
     resolve = ace.split("static func resolve_f")[1]
     assert "reap_season" not in resolve
     assert '"reap"' not in resolve
     prog = src(PROG)
     verb = prog.split("static func _verb_line(")[1].split("static func ")[0]
-    assert "Ctrl+Shift+Q" in verb
+    assert "Shift+F" in verb

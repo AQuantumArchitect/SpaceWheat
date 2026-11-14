@@ -346,28 +346,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 
 
-## Ace Ctrl+Shift+Q: Reap Season — gathering off the environment. Bypasses
-## _perform_action/ActionValidator, so the verb-level funnel is checked here.
-func _run_reap() -> void:
-	var frame = ToolConfig.get_current_frame()
-	var q_action: Dictionary = ToolConfig.get_action(frame, "Q")
-	# Gated on the BASE key (Q), same as plain-Q dispatch.
-	if not UIProgression.is_verb_active(frame, "Q"):
-		UIProgression.redirect_locked(str(q_action.get("label", "")))
-		return
-	# The reap carries its OWN funnel gate on top of the base key's: it unlocks
-	# at the Act-0 capstone step, because reap is once-affordable early
-	# (Fibonacci 🍼 costs) and reaps every biome at once — an early mash must
-	# not spend the only bottle on an undeveloped field. Redirect names the
-	# live objective, per the funnel law.
-	if not UIProgression.is_verb_active(frame, "ctrl+shift+Q"):
-		UIProgression.redirect_locked(str(q_action.get("reap_label", "")))
-		return
-	# Biome-wide — no checked-plot batch, dispatch directly.
-	_run_action(str(q_action.get("reap_action", "reap")), str(q_action.get("emoji", "")),
-		str(q_action.get("reap_label", "Reap Season")))
-
-
 ## Single dispatch authority for the Q/E/R/F verb quartet. Both entry points —
 ## keyboard (_unhandled_key_input) and pointer/touch chips (invoke_action via
 ## PlayerShell._route_action_key) — MUST land here, so the "submenu owns
@@ -386,8 +364,6 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 		"Q", "E", "R":
 			if _instrument and _instrument.is_in_submenu():
 				_handle_submenu_action(key)
-			elif key == "Q" and shift and ctrl and str(ToolConfig.get_current_frame()) == "ace":
-				_run_reap()
 			elif shift:
 				_perform_shift_key_action(key)
 			else:
@@ -424,15 +400,33 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 				else:
 					_close_submenu()
 			else:
-				# Reap is Ace Ctrl+Shift+Q (gather off the environment); Shift+F alone
-				# is mass explore (the checked plots, or every unexplored plot of
-				# this biome). Ctrl+Shift+F is deliberately nothing: it must not
-				# fall through to mass explore by surprise.
+				# Reap is Ace Ctrl+Shift+F; Shift+F alone is mass explore (the
+				# checked plots, or every unexplored plot of this biome). Do not
+				# swap hats or remap F for them.
 				var f_action = ToolConfig.get_action(ToolConfig.get_current_frame(), "F")
-				if shift and ctrl and str(ToolConfig.get_current_frame()) == "ace":
-					RefusalVoice.note("Ctrl+Shift+F is not bound — Reap is Ctrl+Shift+Q")
-				elif shift and not ctrl and str(ToolConfig.get_current_frame()) == "ace":
+				if shift and not ctrl and str(ToolConfig.get_current_frame()) == "ace":
 					_mass_explore()
+				elif shift and ctrl and str(f_action.get("shift_action", "")) != "":
+					# This branch bypasses _perform_action/ActionValidator entirely
+					# (today only Ace's Shift+F reap), so the verb-level funnel has
+					# to be checked here too — gated on the BASE key (F), same as
+					# the plain-F dispatch below.
+					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "F"):
+						UIProgression.redirect_locked(str(f_action.get("label", "")))
+						return
+					# The shifted verb carries its OWN funnel gate on top of the base
+					# key's: Ace Shift+F (reap) unlocks at the Act-0 capstone step,
+					# because reap is once-affordable early (Fibonacci 🍼 costs) and
+					# reaps every biome at once — an early mash must not spend the
+					# only bottle on an undeveloped field. Redirect names the live
+					# objective, per the funnel law.
+					if not UIProgression.is_verb_active(ToolConfig.get_current_frame(), "shift+F"):
+						UIProgression.redirect_locked(str(f_action.get("shift_label", "")))
+						return
+					# Shift+F = the season-scale time verb (Ace: Reap Season).
+					# Biome-wide — no checked-plot batch, dispatch directly.
+					_run_action(str(f_action["shift_action"]), str(f_action.get("emoji", "")),
+						str(f_action.get("shift_label", f_action.get("label", ""))))
 				elif not f_action.is_empty():
 					_perform_action("F")
 				else:
