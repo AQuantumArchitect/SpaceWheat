@@ -1036,7 +1036,10 @@ func exercise(contract_id: int) -> Dictionary:
 	var pre_marginal: float = qc.get_marginal(qubit_idx, c.qubit_pole)
 
 	# Same POP path used by plot harvest: seeded measurement + 1/p reward.
-	var seed_val: int = hash([c.id, _current_phrame])
+	# A synthesized settle contract carries its own id (so it can't touch a
+	# locked offer under make()'s hash) but rolls on that hash, as it always did.
+	var roll_key: int = int(c.get_meta("roll_id")) if c.has_meta("roll_id") else c.id
+	var seed_val: int = hash([roll_key, _current_phrame])
 	var rng = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	var roll: float = rng.randf()
@@ -1195,6 +1198,9 @@ func synthesize_and_exercise(emoji: String, faction_name: String = "", biome_nam
 	var c = MarketContract.make(emoji, faction_name, settle_name, pole,
 		_current_phrame, 0.0, _current_phrame + 1, emoji, 0.0)
 	# Its own id: the board offer for the same stall shares make()'s hash, and
-	# a LOCKED offer under that id must neither be exercised nor replaced.
+	# a LOCKED offer under that id must neither be exercised nor replaced. The
+	# Born roll keeps make()'s hash as its seed (exercise), so outcomes are
+	# what they were before locks existed.
+	c.set_meta("roll_id", c.id)
 	c.id = hash([c.id, "settle"])
 	return exercise_immediate(c)
