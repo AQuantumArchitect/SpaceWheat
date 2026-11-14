@@ -24,6 +24,10 @@ all describe bindings and any one of them can rot independently. See
 > Eight keys (QERF + WASD) span four navigation axes. A fifth axis-selector
 > row (1/2/3) chooses which axis Q/R fires along.
 
+> **Mouse:** left click on a plot = auto F/R (two-step tap); **right click = Q**
+> (gather the bank; silent no-op on empty or already-gathered plots). Touch is
+> left-tap only; gather stays on the on-screen Q button.
+
 ---
 
 ## The algebra: ACTION × SELECTION

@@ -1286,7 +1286,16 @@ func _input(event: InputEvent) -> void:
 	if not visible:
 		return
 	if event is InputEventMouseButton:
-		if event.button_index == MOUSE_BUTTON_LEFT:
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+			# Right click = Q (gather). Mouse only; touch gathers via the Q button.
+			# Consume press AND release so nothing else (menus, other handlers)
+			# sees the right button over a plot.
+			var rpos = _get_plot_at_screen_position(event.global_position)
+			if rpos != GridSentinel.INVALID_POSITION:
+				if event.pressed and instrument_input != null and instrument_input.has_method("handle_bubble_gather"):
+					instrument_input.handle_bubble_gather(rpos)
+				get_viewport().set_input_as_handled()
+		elif event.button_index == MOUSE_BUTTON_LEFT:
 			if event.pressed:
 				# Start drag tracking if pressing on a plot
 				var plot_pos = _get_plot_at_screen_position(event.global_position)

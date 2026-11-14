@@ -1439,6 +1439,7 @@ func _guide_four_tools() -> void:
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_body(
 		"Re-press (or re-tap) the active hat to toggle back to Ace (default toolkit). "
+		+ "Mouse: left click on a plot picks Explore or Strike for you; right click = Q, gather the bank (touch: the on-screen Q button). "
 		+ "Hold Shift+Q/E/R — or Shift+click the chip — to apply the verb to every valid plot at once; Shift+F explores every plot in the country."))
 
 func _guide_biomes_economy() -> void:

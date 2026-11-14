@@ -229,6 +229,10 @@ func _on_quantum_node_clicked(grid_pos: Vector2i, button_index: int, shift: bool
 		if _verbose:
 			_verbose.error("ui", "❌", "Bubble tap: no QuantumInstrumentInput attached")
 		return
+	if button_index == MOUSE_BUTTON_RIGHT:
+		# Right click = Q (gather); left stays the auto F/R tap.
+		instrument_input.handle_bubble_gather(grid_pos)
+		return
 	instrument_input.handle_bubble_tap(grid_pos, shift)
 
 
