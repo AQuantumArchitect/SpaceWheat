@@ -264,7 +264,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 		var hat_frame: String = ToolConfig.HAT_KEY_TO_FRAME[key]
 		var target_frame: String = ToolConfig.FRAME_ACE if ToolConfig.get_current_frame() == hat_frame else hat_frame
 		# Progressive disclosure (phase-2 funnel): a locked hat's key redirects
-		# instead of acting. Ace/Icon/Druid never lock (starter kit); the
+		# instead of acting. Only Ace never locks (starter kit); the
 		# fall-back-to-Ace re-press path always passes.
 		if not UIProgression.is_hat_active(target_frame):
 			UIProgression.redirect_locked("the %s hat" % target_frame)

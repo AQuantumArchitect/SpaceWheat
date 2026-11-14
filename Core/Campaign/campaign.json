@@ -220,6 +220,14 @@
  },
  "legacy_unlocks": {
   "_doc": "Old saves fired these before the reorders; a hat or menu never disappears on load.",
+  "hats": {
+   "druid": [
+    "loom_opens"
+   ],
+   "icon": [
+    "first_breath"
+   ]
+  },
   "menus": {
    "atlas": [
     "first_breath"
@@ -313,6 +321,10 @@
            "biome": "StarterForest"
           }
          ],
+         "unlock_flags": [
+          "druid_opens"
+         ],
+         "_unlock_note": "Completing this step fires druid_opens, which shows the Druid hat: the superposition lesson (next) is the first thing that needs it.",
          "display_name": "Past the Hedge"
         },
         {
@@ -431,6 +443,28 @@
          },
          "fired_by": "tutorial",
          "_note": "Empty on purpose: flags with no predicates never auto-fire (QuestManager._evaluate_story_flags). This beat is fired exclusively by the Act-0 superposition step's unlock_flags handoff — the tutorial hands the spine forward so the Operator hat exists before the entanglement step needs it (Break #2)."
+        },
+        {
+         "id": "druid_opens",
+         "display_name": "The Druid Answers",
+         "beat": "You crossed the hedge and opened the whole forest. A qubit there need not pick a side: the Druid spreads it across both poles.",
+         "requires": [],
+         "objective": [],
+         "on_open": {
+          "standing": {
+           "Hearth Keepers": {
+            "trust": 0.02
+           }
+          },
+          "unlock": {
+           "hats": [
+            "druid"
+           ],
+           "menus": []
+          }
+         },
+         "fired_by": "tutorial",
+         "_note": "Empty on purpose: fired exclusively by the wayfinding step's unlock_flags handoff, so the Druid hat exists before the superposition step needs it."
         }
        ]
       }
@@ -501,7 +535,8 @@
           },
           "unlock": {
            "hats": [
-            "merchant"
+            "merchant",
+            "icon"
            ],
            "menus": [
             "inspector",
