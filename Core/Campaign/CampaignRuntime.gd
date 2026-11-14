@@ -56,7 +56,7 @@ static func charts() -> Dictionary:
 	return c if c is Dictionary else {}
 
 
-## Chart price, e.g. {"🦅": 21} (keys starting with "_" are notes).
+## Chart price, e.g. {"📜": 5} (keys starting with "_" are notes).
 static func chart_cost() -> Dictionary:
 	var out := {}
 	var c = data().get("chart_cost", {})
@@ -65,6 +65,19 @@ static func chart_cost() -> Dictionary:
 			if not str(k).begins_with("_"):
 				out[str(k)] = int(c[k])
 	return out
+
+
+## The one resource a Chart is paid in: 📜, the Carrion Throne's paperwork
+## that commissions the Captain (🦅 stays the Throne's emblem, not its price).
+static func chart_resource() -> String:
+	for k in chart_cost():
+		return str(k)
+	return "📜"
+
+
+## How many chart_resource() one Chart / Add Biome costs.
+static func chart_price() -> int:
+	return int(chart_cost().get(chart_resource(), 0))
 
 
 ## emoji -> {low_water, spent_by, plots: [biome], trades: [{biome, faction, give, get}]}
@@ -187,7 +200,7 @@ static func trade_words(trade: Dictionary) -> String:
 ##   "Village [Y] → [C] board → Market → the 🧺 trade (👥×6 → 🧺×4)"
 ## `rail_key` is the biome-rail key that crosses to the trade's biome ("" when
 ## unknown or already there). `trade` picks a specific trade (default: rescue).
-## Plot-only resources read "gather 🦅 in StarterForest".
+## Plot-only resources read "gather 🌱 in StarterForest".
 static func supply_route_words(emoji: String, rail_key: String = "", trade: Dictionary = {}) -> String:
 	var t := trade if not trade.is_empty() else rescue_trade(emoji)
 	if t.is_empty():

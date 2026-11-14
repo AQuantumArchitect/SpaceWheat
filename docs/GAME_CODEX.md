@@ -221,7 +221,7 @@ Re-pressing the active hat returns to Ace. No hat = **Ace** (default).
 | 4 | **Spark** ⚡ | pole shift (Lindblad jolt) | unlocks in Act 5 (`edge_of_the_enclave`); fires only on open ground |
 | 5 | **Icon** 📖 | Trim / Inspect / **Add-or-Incorporate** / **Track** (Berry) | the progression tool |
 | 6 | **Merchant** 🤝 | Export / Price (order book) / Import / Settle — channels, wet ground only | unlocks in Act 1 (`village_stirs`) |
-| 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 🦅×21) / — | biome lifecycle |
+| 7 | **Captain** ✳ | Cull / Compass / Add Biome (**Chart** a story door's biome, 📜×5 bought on the Village board) / — | biome lifecycle |
 | 8 | **Ace** ○ | Gather (🧺) / Pause / **Strike (measure, 👥)** / Explore (🍞) · Fast-Fwd | player vantage; works in every mode |
 | 9 | **Operator** ⚙ | Break / Inspect / Build gate / — | entangling gates |
 | 0 | **Druid** V | rot− / **Hadamard** / rot+ / — | single-qubit unitary; `1/2/3` = X/Y/Z axis |

@@ -10,7 +10,7 @@ every Act-0 lesson; Act 1 — arc_handover offered and accepted on the Arc tab,
 village_stirs offered and accepted, two kept Millwright deliveries off the
 Village board filling its access-0.06 bar, claimed on Commitments; first_breath,
 spiral_breaks and new_voices through the Icon hat (berry ritual, a planted
-🌾/👥); both Act-2 doors charted with the Captain's Add Biome (🦅×21 draws —
+🌾/👥); both Act-2 doors charted with the Captain's Add Biome (🦅×21 draws then; 📜×5 since #103 —
 the discovery lean found FreshwaterSpring and Woodlot); woodlot_contact and
 lumber_flows claimed; spring_contact and spring_connects claimed on kept
 Hearth Keepers deliveries (with the 👥→🧺 basket rescue when gathering ran the

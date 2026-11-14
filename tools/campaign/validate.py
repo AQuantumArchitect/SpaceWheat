@@ -418,6 +418,12 @@ def validate(spec: dict, report_table: bool = False) -> Report:
                     continue
                 if res not in gather | market:
                     R.err(bid, f"charting costs {res}, which no loaded plot or board supplies")
+            # the hint names the price the chart actually charges
+            hint = str((b.get("offer") or {}).get("hint", ""))
+            for res, amt in re.findall(r"Need (\S+?)×(\d+)", hint):
+                if int(spec.get("chart_cost", {}).get(res, -1)) != int(amt):
+                    price = {k: v for k, v in spec.get("chart_cost", {}).items() if not k.startswith("_")}
+                    R.err(bid, f"hint asks {res}×{amt}, but the chart costs {price}")
         # one ask
         if b.get("offer") and b.get("trigger") and b.get("objective") == b.get("trigger"):
             R.err(bid, "objective is a copy of its own trigger")

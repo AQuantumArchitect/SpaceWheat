@@ -503,8 +503,13 @@ class HonestDrive:
             have = {s.get("biome") for s in self.t("biome_slots").get("slots", [])}
             if all(b in have for b in wanted):
                 return None
-            if not self.gather("🦅", 22, biome_names=("StarterForest",), rounds=30):
-                return "could not gather 🦅×21 to chart (wallet %s)" % json.dumps(self.wallet(), ensure_ascii=False)
+            # The chart price is 📜 (Carrion Throne paperwork, #103): no register
+            # at home carries it, so keep the Throne's standing Village trade.
+            if float(self.wallet().get("📜", 0)) < 5:
+                why = self.millwright_delivery("Carrion Throne", pays="📜")
+                if why or float(self.wallet().get("📜", 0)) < 5:
+                    return "could not buy 📜×5 to chart (%s; wallet %s)" % (
+                        why or "trade kept, still short", json.dumps(self.wallet(), ensure_ascii=False))
             self.press("7", settle=6)
             self.press("r", settle=30)
         have = {s.get("biome") for s in self.t("biome_slots").get("slots", [])}

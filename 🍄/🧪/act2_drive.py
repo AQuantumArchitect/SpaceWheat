@@ -7,7 +7,7 @@ A) StarterForest: incorporate through forest_communion AND loop_remembers (berry
    — new_voices needs loop_remembers, and the whole chapter hangs off new_voices.
 B) Village: incorporate + the village_stirs apprentice arc → new_voices fires →
    woodlot_door fires instantly (grants Millwright access 0.02, opens their board).
-C) Captain-hat discover Woodlot (story-pressured by the door's beats; costs 🦅).
+C) Captain-hat discover Woodlot (story-pressured by the door's beats; costs 📜).
 D) Millwright contracts at Village: door grant + ~2 deliveries × access 0.02 clears
    woodlot_contact (0.02 w.008) then the teaching gate on lumber_flows (0.05 w.01).
 E) CLAIM the timber teaching (🪵/🪓) on the Arc tab — the claim IS the teaching.
@@ -266,14 +266,14 @@ def main():
                   f"communion={'forest_communion' in fl} loop_remembers={'loop_remembers' in fl}")
             if "forest_communion" in fl and "loop_remembers" in fl:
                 break
-        # Bridge the labor/eagle supply: POP genuinely costs 👥 (labor) and discovery costs
-        # 🦅×21 — both intended grinds (verified harvestable). Bridge them to verify the Act-2
+        # Bridge the labor/chart supply: POP genuinely costs 👥 (labor) and discovery costs
+        # 📜×5 (bought on the Village board, #103) — both intended grinds. Bridge them to verify the Act-2
         # FLAGS fire; discovery/incorporation/standings below stay genuine keyboard play.
-        go("add_resource", emoji="🦅", amount=180)
+        go("add_resource", emoji="📜", amount=45)
         go("add_resource", emoji="👥", amount=200)
         go("add_resource", emoji="🍞", amount=400)
         go("add_resource", emoji="❄", amount=400)  # Hearth Keepers deliveries (spring trust)
-        print("  bridged:", {k: res().get(k, 0) for k in ("🦅", "🍞", "👥", "❄")})
+        print("  bridged:", {k: res().get(k, 0) for k in ("📜", "🍞", "👥", "❄")})
 
         # ---- B: Village → village_stirs → new_voices → woodlot_door ----
         print("\n== B: village_stirs → new_voices → woodlot_door ==")
@@ -297,7 +297,7 @@ def main():
                 break
             ensure_hat("7")  # re-select Captain each time
             press("R", 6)    # discover (pressure-biased)
-            print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+            print(f"  discover #{d}: grid={grid()} 📜={res().get('📜', 0)}")
 
         # ---- D: Millwright contracts → woodlot_contact → lumber_flows ----
         print("\n== D: Millwright contracts (contact → teaching) ==")
@@ -339,7 +339,7 @@ def main():
                 break
             ensure_hat("7")
             press("R", 6)
-            print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+            print(f"  discover #{d}: grid={grid()} 📜={res().get('📜', 0)}")
 
         # Beats 2+3 (contact → teaching gate): Hearth deliveries at Village. Their
         # channel is TRUST (banked ~0.30 from act 1); +0.05/delivery clears contact

@@ -3,7 +3,7 @@
 Owner decision: while a story door beat (a compiled flag with a "chart"
 field — woodlot_door → Woodlot, lantern_door → Lanternfall, ...) is open and
 its biome is not on the spindle, Captain R charts THAT biome at the chart
-price (CampaignRuntime.chart_cost(), 🦅×21). With no open door, R stays the
+price (CampaignRuntime.chart_cost(), 📜×5 since #103). With no open door, R stays the
 random Add Biome for side biomes. Slots full still refuses toward the cull.
 
 The godot battery (tests/captain_chart_smoke.gd) drives the REAL
@@ -55,7 +55,7 @@ def test_every_door_beat_charts_a_biome_at_the_chart_price():
     assert runtime["charts"] == doors
     assert doors["woodlot_door"] == "Woodlot"
     assert doors["lantern_door"] == "Lanternfall"
-    assert runtime["chart_cost"]["🦅"] == 21
+    assert {k: v for k, v in runtime["chart_cost"].items() if not k.startswith("_")} == {"📜": 5}
 
 
 def test_discover_branches_on_the_chart_target_not_the_draw():
@@ -96,19 +96,20 @@ def test_chip_and_controls_say_chart_when_r_will_chart():
     assert "captain.r_chart" in verbs and "chart_patch(" in verbs
 
 
-def test_chart_refusal_names_held_vs_needed_and_the_forest_walk():
+def test_chart_refusal_names_held_vs_needed_and_the_village_walk():
     qii = src(QII)
     arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
     assert "chart_short" in arm
     assert arm.index("chart_short") < arm.index("slots_full_refusal")
-    assert "eagle_short_refusal" in arm
+    assert "chart_short_refusal" in arm
+    assert "21🦅" not in arm
 
 
 def test_banner_points_at_captain_then_r_chart():
     prog = src(PROG)
     walk = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
-    assert "_eagle_short" in walk and "_eagle_gather_line" in walk
-    assert walk.index("_eagle_short") < walk.index("Chart")
+    assert "_chart_short" in walk and "_chart_supply_line" in walk
+    assert walk.index("_chart_short") < walk.index("Chart")
     assert "_chart_target_biome()" in walk
     assert '"▸ [7] Captain, then [R] Chart %s"' in walk
     assert '"▸ [R] Chart %s"' in walk

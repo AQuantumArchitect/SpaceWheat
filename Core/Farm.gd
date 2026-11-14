@@ -1861,7 +1861,7 @@ func chart_target_biome() -> String:
 	return str(chart_target().get("biome", ""))
 
 
-## "Chart Lanternfall needs 🦅×21 — you hold 🦅×5" (every short resource).
+## "Chart Lanternfall needs 📜×5 — you hold 📜×2" (every short resource).
 func chart_shortfall_message(biome_name: String, cost: Dictionary) -> String:
 	var need_parts: Array[String] = []
 	var have_parts: Array[String] = []

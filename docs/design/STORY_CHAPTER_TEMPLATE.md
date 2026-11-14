@@ -34,7 +34,7 @@ ids) — the teaching beat REUSES the act's existing flag id (chapter 1 kept
 
 | # | Role | Fires on | Grants | Arc quest |
 |---|------|----------|--------|-----------|
-| 1 | **Door glows** | prev chapter's teach flag only (instant) | attention +0.02, **access +0.02** ("they open their board") | state_preds `[biome_evolving(country)]`; hint = the FULL compass ritual (Captain hat 7, F reads compass, R discovers, 21🦅 and where to harvest them) |
+| 1 | **Door glows** | prev chapter's teach flag only (instant) | attention +0.02, **access +0.02** ("they open their board") | state_preds `[biome_evolving(country)]`; hint = the FULL compass ritual (Captain hat 7, F reads compass, R discovers, 📜×5 and where to buy them) |
 | 2 | **First contact** | door + `biome_evolving(country)` + `standing_gte(access, 0.02, width 0.008)` ≈ 2nd payment | trust +0.03, attention +0.05 | state_preds `[standing_gte(access, 0.05, width 0.01)]` — the progress bar; hint MUST carry the commitment-legibility line: "their board counts only what you gather AFTER you accept" |
 | 3 | **The teaching** (existing flag id) | contact + `standing_gte(access, 0.05, width 0.01)` ≈ 3rd payment. NO in-country berries or observables — must be reachable BEFORE planting anything there | trust +0.08 | ARC claim pattern (`village_stirs` shape: `"type": 1, "category": "ARC"`); `reward_north/south` = THE pair; state_preds live in already-open land (e.g. `berry_consumed(Village, 4)`). The claim is the teaching; contracts never teach |
 | 4 | **The planting / wakening** (`<country>_wakes`) | teaching + `atom_in_biome(country, north)` | trust +0.08, legitimacy +0.05 | `"type": "DELIVER"`, state_preds `[atom_in_biome(Village, north)]` — couple the island economy; NO reward pair |
@@ -72,7 +72,7 @@ discovery compass pressures ONE biome at a time (two open doors split the pressu
   stays raw: fix access, never prices.
 - Integer counts (`berry_consumed_count_gte` etc.) use `count_gate` — they fire AT
   the authored N. Write the N you mean.
-- Discovery costs 21🦅; the compass gives +6.0 pressure to any biome named in a
+- Discovery costs 📜×5 (Village board); the compass gives +6.0 pressure to any biome named in a
   next-reachable flag's predicates (`BiomeDiscoveryForecastService.gd`) — beats 1-2
   naming the country in `biome_evolving` IS the pointer, no code needed.
 
@@ -112,7 +112,7 @@ The `arc_beat` is the poem; the `hint` is the manual.
   Hamiltonian IS the story — say "the two rhythms keep separate time", not "the
   villagers miss the woodcutters". No purple filler.
 - **hint**: real keys and verbs, in execution order, with costs. "Captain hat (7):
-  F reads the compass... R discovers (costs 21🦅)". If the player will wonder *where
+  F reads the compass... R discovers (costs 📜×5)". If the player will wonder *where
   the currency comes from*, say where. One teaching sentence about the system's law
   is welcome at the end ("when a faction's word lives in a land, their board opens
   there").

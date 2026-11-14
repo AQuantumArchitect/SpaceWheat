@@ -1264,14 +1264,16 @@ static func _supply_via(tr: Dictionary, res: String, q: Dictionary, depth: int) 
 	return {}
 
 
-## Chart a story biome: Captain's R while its door is open, paid in 🦅.
+## Chart a story biome: Captain's R while its door is open, paid in 📜
+## (CampaignRuntime.chart_resource) — bought on the Village board.
 static func _chart(biome: String, q: Dictionary) -> Dictionary:
 	var abm := UIP._active_biome_manager()
 	if biome == "" or (abm != null and int(abm.get_slot_for_biome(biome)) >= 0):
 		return {}
-	var cost := int(CampaignRuntime.chart_cost().get("🦅", 21))
-	if UIP._wallet("🦅") < float(cost):
-		return _gather("🦅", cost, q)
+	var res := CampaignRuntime.chart_resource()
+	var cost := CampaignRuntime.chart_price()
+	if UIP._wallet(res) < float(cost):
+		return _gather(res, cost, q)
 	if UIP._slots_full():
 		return _cull(q)
 	var parts: Array = _close_first()

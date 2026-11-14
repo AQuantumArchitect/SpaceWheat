@@ -136,7 +136,9 @@ def test_waiting_banner_prefers_the_critical_path():
 def test_chart_price_has_one_source():
     prog = _src("UI/Core/UIProgression.gd")
     assert "_eagle_have() < 21.0" not in prog
-    assert "CampaignRuntime.chart_cost()" in prog.split("static func _chart_eagles")[1].split("\nstatic func ")[0]
+    assert "CampaignRuntime.chart_price()" in prog.split("static func _chart_price")[1].split("\nstatic func ")[0]
+    rt = _src("Core/Campaign/CampaignRuntime.gd")
+    assert "chart_cost()" in rt.split("static func chart_price")[1].split("\nstatic func ")[0]
 
 
 def test_the_ending_warns_that_the_post_game_is_in_development():

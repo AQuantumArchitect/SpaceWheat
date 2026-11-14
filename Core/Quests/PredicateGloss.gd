@@ -174,9 +174,10 @@ static func summary(pred: Dictionary, qm = null) -> String:
 			if loaded:
 				return "%s evolving" % evb
 			# Story biomes (a door's chart) are charted, not drawn.
+			var price := "%s×%d from the Village board" % [CampaignRuntime.chart_resource(), CampaignRuntime.chart_price()]
 			if CampaignRuntime.charts().values().has(evb):
-				return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Chart %s" % [evb, evb]
-			return "%s awake — 🦅×21 from Forest, then Captain [7] [R] Add Biome" % evb
+				return "%s awake — %s, then Captain [7] [R] Chart %s" % [evb, price, evb]
+			return "%s awake — %s, then Captain [7] [R] Add Biome" % [evb, price]
 		"biome_explored":
 			return "explore every plot in %s — Ace hat [8], then Shift+F" % str(pred.get("biome", "?"))
 		"active_biome_is":

@@ -2200,7 +2200,7 @@ func _perform_action(action_key: String) -> void:
 		])
 		# Refusals speak (anti-gating law). This branch was verbose-only —
 		# marathon #5 lost three legs to Captain-R 'Add Biome' silently
-		# refusing on an unaffordable discovery (21🦅 vs 4 held).
+		# refusing on an unaffordable discovery (then 21🦅 vs 4 held).
 		var refusal := _block_reason_for_player(action_name)
 		_toast_player("%s refused — %s" % [
 			str(action_info.get("label", action_name)), refusal], _supply_route_for(action_name, refusal))
@@ -2266,22 +2266,23 @@ func _block_reason_for_player(action_name: String) -> String:
 			if farm and farm.has_method("can_discover_biome"):
 				gate = farm.can_discover_biome()
 			# Captain Chart short of the price: name holdings vs need, then
-			# the 🦅 gather walk (Forest) so the refusal is not a dead [R].
+			# the 📜 walk (Village board) so the refusal is not a dead [R].
 			if bool(gate.get("chart_short", false)):
 				# The toast already leads with the chip label ("Chart X refused —").
 				var chart_msg := str(gate.get("message", "")).trim_prefix(
 						"Chart %s " % str(gate.get("chart", "")))
-				var walk := UIProgression.eagle_short_refusal()
-				if walk.begins_with("needs 21🦅 — "):
-					walk = walk.substr("needs 21🦅 — ".length())
-				elif walk.begins_with("needs 21🦅"):
+				var walk := UIProgression.chart_short_refusal()
+				var need_head := UIProgression.chart_need_words()
+				if walk.begins_with(need_head + " — "):
+					walk = walk.substr((need_head + " — ").length())
+				elif walk.begins_with(need_head):
 					walk = ""
 				return chart_msg if walk == "" else "%s · %s" % [chart_msg, walk]
-			# lantern_door: 21 eagles named Forest, no gather key. Banner and
-			# toast share UIProgression.eagle_short_refusal.
-			var eagle := UIProgression.eagle_short_refusal()
-			if eagle != "":
-				return eagle
+			# lantern_door: the chart price named no walk. Banner and toast
+			# share UIProgression.chart_short_refusal.
+			var chart_walk := UIProgression.chart_short_refusal()
+			if chart_walk != "":
+				return chart_walk
 			if not gate.is_empty():
 				var gmsg := str(gate.get("message", ""))
 				# lantern_door: "Biome slots full" named no cull target and no
@@ -2323,11 +2324,8 @@ func _block_reason_for_player(action_name: String) -> String:
 			var basket_ex := UIProgression.supply_refusal("🧺", UIProgression.gather_price(), true)
 			if basket_ex != "":
 				return "Explore does not pay 🧺 — %s" % basket_ex
-			# lantern_door: after Strike, F Explore wiped the 🦅 measure.
+			# lantern_door: after Strike, F Explore would wipe the measure.
 			if predict_tap_verb_for_focus() == "pop":
-				var eagle_ex := UIProgression.eagle_short_refusal()
-				if eagle_ex != "":
-					return "Explore does not harvest 🦅 — %s" % eagle_ex
 				return "Already measured — Q harvests it."
 			return "no unbound plot to explore here"
 		"measure":
@@ -2403,7 +2401,7 @@ func _has_focused_plot() -> bool:
 	return qid >= 0 and qid < biome.quantum_computer.register_map.num_qubits
 
 
-## "needs 21🦅 — you hold 4" for an unaffordable action; "" when affordable.
+## "needs 5📜 — you hold 2" for an unaffordable action; "" when affordable.
 ## "gather 🌱 in Starter Forest or Woodlot, or buy it at the Village market"
 ## for each resource in `cost` the wallet cannot cover.
 func _short_resource_sources(cost) -> String:

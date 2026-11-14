@@ -3,7 +3,9 @@
 - No trade is paid with 🐇. 👥 and 🍞 are bought with 🌾, 🧺 with 👥 only;
   every other resource with 🍞 only (no 🌱, no 💧).
 - Staple rescues stand on the Village board only while critical (≤ 2 held);
-  🌱 🔥 🔨 🪓 🌊 🦅 only while a live quest asks for them.
+  🌱 🔥 🔨 🪓 🌊 🪔 only while a live quest asks for them. 📜 (the chart
+  price, #103) stands on low water from the first day, so the Market sells
+  it before Captain is taught.
 - A refusal caused by a short staple toasts a route to the Village Market
   board with that trade selected — it never accepts the trade.
 """
@@ -52,7 +54,7 @@ def test_board_visibility_rules():
     assert "return _vital_stock(emoji) <= STAPLE_CRITICAL" in body
     assert "UIProgression.quest_requests_resource(emoji)" in body
     src = QB.read_text(encoding="utf-8")
-    assert 'const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]' in src
+    assert 'const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🪔"]' in src
     assert "const STAPLE_CRITICAL: int = 2" in src
 
 

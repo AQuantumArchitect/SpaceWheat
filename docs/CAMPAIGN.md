@@ -51,7 +51,10 @@ A **beat** is one story step:
   tab logs it as `<id>:done` and a 📜 toast carries its first sentence). Write
   the payoff there.
 - `chart: <Biome>` marks a **door**. While it is open, the Captain can chart that
-  biome deliberately (not a random pull) for `chart_cost`.
+  biome deliberately (not a random pull) for `chart_cost` (📜×5, the Carrion
+  Throne's paperwork; the random Add Biome charges the same). A chart beat's
+  hint that names a price ("Need 📜×5") must match `chart_cost`; the
+  validator checks it.
 
 Each beat asks for **one thing**. A beat opens on its requires alone. The old
 pattern, where a flag's predicates, its arc quest and the next flag's predicates
@@ -80,8 +83,10 @@ resource it gives:
   - A trade is on the board only while the player is short (owner ruling
     2026-10-29, `QuestBoard._rescue_open`):
     - 👥 🍞 🧺 while you hold 2 or fewer;
-    - 🌱 🔥 🔨 🪓 🌊 🦅 while a live quest asks for them;
-    - anything else while below its `low_water`.
+    - 🌱 🔥 🔨 🪓 🌊 🪔 while a live quest asks for them;
+    - anything else while below its `low_water`. That includes 📜, the chart
+      price, so the Village board sells it from day one, before Captain is
+      taught ([design note](design/CAPTAIN_LEDGER_BAILIFFS.md)).
   - The market is how south poles are earned: 🪓 at the Woodlot, 🌊 at the
     Spring, 🔨 and 🧺 in the Village.
   - Every resource also has a Village trade that a broke player can afford.
