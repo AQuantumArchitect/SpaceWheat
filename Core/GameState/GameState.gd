@@ -60,7 +60,10 @@ extends Resource
 # biome_states' register infra. Migration from v4–v7 is the empty dict → no
 # locks, and each saved channel flag gets a synthesized contract
 # (MarketLattice.sync_channels).
-const CURRENT_SAVE_VERSION := 8
+# v9 (2026-11-14): + highlight_uses (onboarding Q/E/R highlight retirement
+# counts). Additive. Migration from v4–v8 is the empty dict → every action
+# glows again until used three times; no data is lost.
+const CURRENT_SAVE_VERSION := 9
 
 # Declared default 0 ("unstamped") ON PURPOSE: ResourceSaver omits properties
 # equal to the declaration default, so if this declared 4 a fresh save would
@@ -164,6 +167,9 @@ const CURRENT_SAVE_VERSION := 8
 ## Both are empty on new saves (no flags fired yet).
 @export var story_flags_fired: Dictionary = {}
 @export var story_log: Array = []
+## Onboarding highlight retirement: action key ("Q"/"E"/"R") -> times used.
+## Past 3 the action stops glowing (UI/Core/ObjectiveTargets.gd).
+@export var highlight_uses: Dictionary = {}
 
 ## Per-faction multi-channel standings (v2). Empty dict → all zero on load.
 ## Format: {faction_name: {trust, debt, attention, access, legitimacy, entanglement}}

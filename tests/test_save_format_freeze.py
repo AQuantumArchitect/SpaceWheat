@@ -180,6 +180,35 @@ FROZEN_SCHEMAS = {
         "incorporated_icons",
         "market_state",
     },
+    # v9 (2026-11-14): + highlight_uses — Q/E/R onboarding highlight use counts.
+    # Additive; pre-v9 loads get the empty dict (everything glows until used 3x).
+    9: {
+        "scenario_id", "save_timestamp", "game_time", "quantum_time_scale",
+        "observation_stride", "save_version", "advanced_mode_enabled",
+        "grid_width", "grid_height",
+        "all_emoji_credits", "tributes_paid", "tributes_failed",
+        "known_icons", "active_icon_slots", "known_emojis",
+        "atom_map_snapshot", "atom_map_snapshot_source", "atom_map_snapshot_time",
+        "policy_state", "policy_graph_path", "policy_graph_jsonl",
+        "balance_profile_id", "balance_workbench_config",
+        "farm_variable_graph_path", "farm_variable_graph_jsonl",
+        "economy_variables", "reap_count",
+        "faction_density", "bridges",
+        "story_flags_fired", "story_log",
+        "faction_standings", "player_alignment", "player_faction_name",
+        "unlocked_biomes", "unexplored_biome_pool", "active_biome_name",
+        "selected_plot_positions", "revealed_plots",
+        "quest_pages", "quest_board_current_page",
+        "plots",
+        "biotic_activation", "chaos_activation", "imperium_activation",
+        "active_contracts",
+        "biome_states", "plot_biome_assignments",
+        "witness_state",
+        "quest_state",
+        "incorporated_icons",
+        "market_state",
+        "highlight_uses",
+    },
 }
 
 

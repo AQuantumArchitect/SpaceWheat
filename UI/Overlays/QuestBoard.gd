@@ -256,6 +256,8 @@ func _build_tab_row(container: Control) -> void:
 		{"name_prefix": "BoardTab_", "font_size": 15})
 	_tab_row_box = row["box"]
 	_tab_labels = row["labels"]
+	for tab_key in _tab_labels:
+		ObjectiveTargets.register(str(tab_key), _tab_labels[tab_key])
 
 func _build_verb_chips(container: Control) -> void:
 	_verb_palette = PanelContainer.new()

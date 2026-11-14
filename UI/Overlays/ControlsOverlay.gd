@@ -250,6 +250,7 @@ func _build_tab_row(container: Control) -> void:
 		ClickWire.attach(lbl, _show_tab.bind(int(entry.get("tab", 0))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
+		ObjectiveTargets.register(str(entry.get("key", "")), lbl)
 
 # =============================================================================
 # RENDER

@@ -136,6 +136,8 @@ func capture_state_from_farm(farm: Node, current_state: GameState, scenario_id: 
 		state.story_flags_fired = farm.story_flags_fired.duplicate()
 	if "story_log" in farm:
 		state.story_log = farm.story_log.duplicate(true)
+	if "highlight_uses" in farm:
+		state.highlight_uses = farm.highlight_uses.duplicate()
 
 	# Revealed plots (cosmetic bubble reveal set)
 	if "revealed_plots" in farm:
@@ -387,6 +389,12 @@ func apply_state_to_farm(state: GameState, farm: Node) -> void:
 		farm.story_flags_fired = (state.story_flags_fired if "story_flags_fired" in state else {}).duplicate()
 	if "story_log" in farm:
 		farm.story_log = (state.story_log if "story_log" in state else []).duplicate(true)
+	if "highlight_uses" in farm:
+		# v9+. v4–v8 carry none: explicit empty dict (every action glows again).
+		if state.save_version == 4 or state.save_version == 5 or state.save_version == 6 or state.save_version == 7 or state.save_version == 8:
+			farm.highlight_uses = {}
+		else:
+			farm.highlight_uses = (state.highlight_uses if "highlight_uses" in state else {}).duplicate()
 
 	# Revealed plots (cosmetic bubble reveal). Migration: a pre-reveal-era save that
 	# was actually played (any fired flag) saw the full field — restore it rather

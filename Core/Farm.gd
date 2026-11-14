@@ -33,6 +33,7 @@ var faction_density: FactionDensityMatrix = FactionDensityMatrix.new()  # ρ ove
 var bridge_register: BridgeRegister = BridgeRegister.new()  # Majorana bridges: nonlocal 2×2 registers spanning biome pairs (What Connects)
 var icon_atlas: IconRegistry = null  # Pair-Icon atlas (lazy-init on first use)
 var faction_standings: Dictionary = {}  # faction_name -> FactionStanding (6-channel rep; written by QuestManager, read by FactionAffinity)
+var highlight_uses: Dictionary = {}   # action key -> uses; Q/E/R highlight retires at 3 (ObjectiveTargets)
 var story_log: Array = []              # Array[Dictionary] — fired story flag entries {id, act, display_name, arc_beat, fired_at}
 var story_flags_fired: Dictionary = {} # flag_id -> phrame_index (int); prevents re-firing
 var revealed_plots: Dictionary = {}    # Vector2i -> true; plots the player has focused at least once. COSMETIC ONLY (bubble reveal) — never gate mechanics on it. Persisted.

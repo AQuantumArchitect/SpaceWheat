@@ -368,6 +368,7 @@ func _dispatch_action_key(key: String, shift: bool = false, ctrl: bool = false) 
 			elif shift:
 				_perform_shift_key_action(key)
 			else:
+				ObjectiveTargets.note_use(farm, key)
 				# No hat back doors. Ace E pauses. Druid E Superposes. The
 				# player wears the hat (banner names [0] Druid) then presses
 				# the verb. Never silently swap frames and fire the other

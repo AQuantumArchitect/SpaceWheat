@@ -34,6 +34,8 @@ var _tween: Tween = null
 # Self-heal latch: which pulse target we already tried to heal a stale menu
 # row for (see _refresh) — one heal attempt per target change, not per poll.
 var _healed_for_key: String = ""
+var _farm = null  # for the Q/E/R use-count retirement (ObjectiveTargets)
+var _prev_modulate: Color = Color.WHITE
 
 
 func setup(action_bar_manager) -> void:
@@ -83,6 +85,9 @@ func _refresh() -> void:
 	_stop_pulse()
 	if pulse_id == "":
 		return
+	# Main actions retire after 3 uses: the player knows them; stay dark.
+	if ObjectiveTargets.is_retired(_get_farm(), pulse_id):
+		return
 	if pulse_id.begins_with("biome:"):
 		# The rail orb IS the target now — the biome bar's tab chip died with
 		# the bar (2026-08-24). The field breathes the named orb; placeholders
@@ -107,6 +112,10 @@ func _refresh() -> void:
 				push_warning("ObjectiveSpotlight: menu row was stale for visible '%s' — self-healed" % menu_id)
 				row.refresh_progression()
 				target = _resolve_target(pulse_id)
+	if target == null:
+		# Not on a menu/hat/action row: a surface tab (T Y U I O) or any other
+		# button registered against the target id (ObjectiveTargets).
+		target = ObjectiveTargets.resolve(pulse_id)
 	if target != null:
 		_start_pulse(target)
 
@@ -163,8 +172,19 @@ func _set_field_spotlight(biome_name: String) -> void:
 		field.set_spotlight_biome(biome_name)
 
 
+func _get_farm():
+	if _farm != null and is_instance_valid(_farm):
+		return _farm
+	var shell := get_tree().get_first_node_in_group("player_shell") if is_inside_tree() else null
+	_farm = shell.get("farm") if shell != null else null
+	return _farm
+
+
 func _start_pulse(target: Control) -> void:
 	_pulsing_node = target
+	# Gold, the gold toast's own color; a soft grow/pulse, never a reticle.
+	_prev_modulate = target.modulate
+	target.modulate = ObjectiveTargets.GOLD_MODULATE
 	target.pivot_offset = target.size / 2.0
 	_tween = target.create_tween()
 	_tween.set_loops()
@@ -180,5 +200,6 @@ func _stop_pulse() -> void:
 	_tween = null
 	if _pulsing_node != null and is_instance_valid(_pulsing_node):
 		_pulsing_node.scale = Vector2.ONE
+		_pulsing_node.modulate = _prev_modulate
 	_pulsing_node = null
 	_set_field_spotlight("")
