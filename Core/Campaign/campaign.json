@@ -623,18 +623,28 @@
          "done": "Because you KNOW it — because you walked its loop and kept the shape — every harvest of that word pays more than the strike cost. Six times more. The spiral of spending to look breaks here. Incorporated words pay; taught words plant."
         },
         {
-         "id": "find_the_milk",
-         "display_name": "Find the Milk",
-         "beat": "The season would not turn. Reaping costs 🍼, and the loom's gift is spent: the Demos has no milk of its own, and no Village stall sells it. 🍼 is a word of the deep web, held by the Reality Midwives and grazed in the Pastoral Commons, far past the lands you can chart from here.",
+         "id": "milk_runs_out",
+         "display_name": "The Milk Runs Out",
+         "beat": "The season would not turn. Reaping costs 🍼, and the loom's gift is spent. The Demos has no milk of its own, and no Village stall sells it.",
          "requires": [
-          "first_breath"
+          "first_harvest"
          ],
-         "trigger": [
+         "objective": [
           {
            "type": "gate_sequence_contains",
            "gate": "milk_short",
            "count": 1
           }
+         ],
+         "_note": "#93 part 1. A milestone: completes on the first reap refused for 🍼 after the first-season reap. The schema has no resource-shortage predicate, so QuantumInstrument.action_reap records the durable 'milk_short' gate count on that refusal (the name must not contain 'reap': gate patterns match by substring)."
+        },
+        {
+         "id": "find_the_milk",
+         "display_name": "Find the Milk",
+         "beat": "🍼 is a word of the deep web, held by the Reality Midwives and grazed in the Pastoral Commons, far past the lands you can chart from here. Nothing in the Demos makes it. Someone has to go and find it.",
+         "requires": [
+          "milk_runs_out",
+          "first_breath"
          ],
          "objective": [
           {
@@ -647,9 +657,9 @@
           "body": "Find the Milk — 🍼 lives with the Reality Midwives and in the Pastoral Commons. Go find it, then trade for it or incorporate the word, Birth (🍼/✨).",
           "hint": "Go find 🍼: Reality Midwives, Pastoral Commons. Trade or learn it. Neither land can be charted from the Demos yet, so this charge stays open until it can.",
           "faction": "Hearth Keepers",
-          "math_note": "Opens on the first reap refused for 🍼 (the durable 'milk_short' gate count, recorded by QuantumInstrument.action_reap) once Incorporate is taught. Completes when Birth (🍼/✨) is on the incorporation ledger. A trade buys a season's 🍼 but does not close it."
+          "math_note": "Opens once The Milk Runs Out (a reap refused for 🍼) and Incorporate is taught. Completes when Birth (🍼/✨) is on the incorporation ledger. A trade buys a season's 🍼 but does not close it."
          },
-         "_note": "#93 part 1. TODO(#94-#97): PastoralCommons and Reality Midwives are not loaded in the Demos, so the objective cannot be met yet and the charge stays open on purpose (no dead end, no crash). Load those worlds, and add the 🍼 trade, in the follow-up issues. requires first_breath, not first_harvest: the validator refuses an icon_incorporated objective before Incorporate is taught, and the schema has no resource-shortage predicate, hence the gate count."
+         "_note": "#93 part 1. TODO(#94-#97): PastoralCommons and Reality Midwives are not loaded in the Demos, so the objective cannot be met yet and the charge stays open on purpose (no dead end, no crash). Load those worlds, and add the 🍼 trade, in the follow-up issues. Requires first_breath as well: the validator refuses an icon_incorporated objective before Incorporate is taught."
         }
        ]
       },

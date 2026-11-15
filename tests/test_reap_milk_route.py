@@ -49,3 +49,23 @@ def test_guide_reap_step_walks_to_the_arc_while_short():
     i_reap = body.index('"Reap the season", "ctrl+shift+F"')
     assert i_short < i_reap, "the 🍼 check must come before the reap chord"
     assert '_short_of(StapleRescue.MILK, _chord(_go("X/arc")' in body
+
+
+def test_refused_reap_records_milk_short_and_opens_find_the_milk():
+    import json
+    qi = (ROOT / "Core" / "Instrumentation" / "QuantumInstrument.gd").read_text(encoding="utf-8")
+    body = qi.split("func action_reap(")[1].split("\nfunc ")[0]
+    assert '_notify_quest_projection("milk_short", {"success": true})' in body
+    assert "StapleRescue.milk_short(farm)" in body
+    flags = {f["id"]: f for f in json.loads(
+        (ROOT / "Core/Quests/data/story_flags.json").read_text(encoding="utf-8"))}
+    ms = flags["milk_runs_out"]
+    assert {"type": "story_flag_set", "id": "first_harvest"} in ms["predicates"]
+    assert any(p.get("gate") == "milk_short" for p in ms["predicates"])
+    fm = flags["find_the_milk"]
+    assert {"type": "story_flag_set", "id": "milk_runs_out"} in fm["predicates"]
+    aq = fm["arc_quest"]
+    text = aq["body"] + " " + aq["hint"]
+    for word in ("Reality Midwives", "Pastoral Commons", "trade", "incorporate", "find"):
+        assert word.lower() in text.lower(), word
+    assert aq["state_predicates"] == [{"type": "icon_incorporated", "north": "🍼", "south": "✨"}]
