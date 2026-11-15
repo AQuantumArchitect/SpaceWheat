@@ -791,7 +791,7 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 	_pivot.add_child(ring)
 
 	var slot_lbl := _spawn_slot_label(reg, pos)
-	var b := {"reg": reg, "mesh": mi, "halo": halo, "known": false, "eq": eq, "axisline": axisline, "np": np,
+	var b := {"reg": reg, "mesh": mi, "halo": halo, "known": false, "shared": false, "eq": eq, "axisline": axisline, "np": np,
 		"spr": spr, "dot": dot, "ring": ring, "pos": pos, "anchor": pos, "grid_pos": grid_pos,
 		"trail": [], "north_e": north_emoji, "south_e": south_emoji, "revealed": false,
 		"slot_lbl": slot_lbl}
@@ -811,11 +811,19 @@ func _spawn(reg: int, pos: Vector3, north_emoji: String, south_emoji: String, gr
 ## the Village and the Forest — and fog too: you recognise your own word in the
 ## ground before you have explored what it is doing.
 func _apply_known_glow(b: Dictionary) -> void:
-	var known := ProbeActions.word_known(farm_ref, str(b.get("north_e", "")), str(b.get("south_e", "")))
+	var tier := str(ProbeActions.vocabulary_tier(farm_ref, str(b.get("north_e", "")), str(b.get("south_e", ""))).get("tier", "none"))
+	var known := tier == ProbeActions.TIER_ICON
+	var shared := tier == ProbeActions.TIER_EMOJI
 	b["known"] = known
+	b["shared"] = shared
 	var halo = b.get("halo")
 	if halo != null and is_instance_valid(halo):
-		halo.visible = known
+		halo.visible = known or shared
+		# Full lime shell for a known word; a faint one for a shared emoji.
+		var hmat = halo.material_override
+		if hmat != null:
+			var kc: Color = QuantumVisualGrammar.COLOR_KNOWN_WORD if known else QuantumVisualGrammar.COLOR_SHARED_EMOJI
+			hmat.albedo_color = Color(kc.r, kc.g, kc.b, 0.24 if known else 0.07)
 
 
 ## The ledger only changes on an incorporate (or a load), so the halos are
@@ -824,6 +832,15 @@ func _ledger_sig() -> int:
 	if farm_ref == null or not is_instance_valid(farm_ref) or not ("incorporated_icons" in farm_ref):
 		return 0
 	return farm_ref.incorporated_icons.hash()
+
+
+## Registers (of the biome on screen) whose shared-emoji highlight is lit.
+func shared_emoji_regs() -> Array:
+	var out: Array = []
+	for b in _bubbles:
+		if bool(b.get("shared", false)):
+			out.append(int(b.reg))
+	return out
 
 
 ## Registers (of the biome on screen) whose known-word halo is lit.

@@ -58,6 +58,13 @@ func _lit(farm, biome) -> Array:
 	return out
 
 
+func _tiers(farm, biome) -> Array:
+	var out: Array = []
+	for ax in _axes(biome):
+		out.append(str(ProbeActions.vocabulary_tier(farm, ax[0], ax[1]).get("tier", "")))
+	return out
+
+
 func _reward_layer(n: Node):
 	if n is FloatingRewardLayer:
 		return n
@@ -126,7 +133,11 @@ func _run() -> void:
 	var before := {}
 	for nm in biomes:
 		before[nm] = _lit(farm, biomes[nm])
-	_trace({"phase": "before", "ledger": farm.incorporated_icons.size(), "lit": before})
+	var before_tiers := {}
+	for nm in biomes:
+		before_tiers[nm] = _tiers(farm, biomes[nm])
+	_trace({"phase": "before", "ledger": farm.incorporated_icons.size(), "lit": before,
+		"tiers": before_tiers})
 
 	# ledger: incorporate the word on the StarterForest plot the strike will use.
 	var forest = biomes["StarterForest"]
@@ -150,7 +161,10 @@ func _run() -> void:
 		for ax in axes_by[nm]:
 			ms.append(ProbeActions._incorporation_reward_multiplier(ax[0], ax[1], 1.0, farm))
 		mult[nm] = ms
-	_trace({"phase": "ledger", "word": word, "lit": lit, "mult": mult, "axes": axes_by})
+	var tiers := {}
+	for nm in biomes:
+		tiers[nm] = _tiers(farm, biomes[nm])
+	_trace({"phase": "ledger", "word": word, "lit": lit, "mult": mult, "axes": axes_by, "tiers": tiers})
 
 	# field: the 3D field's halos, biome by biome.
 	var abm = get_root().get_node_or_null("/root/ActiveBiomeManager")
@@ -163,6 +177,7 @@ func _run() -> void:
 		field.connect_to_farm(farm)
 		await _frames(3)
 	var halos := {}
+	var shared_halos := {}
 	if field != null and field.has_method("known_glow_regs") and abm != null:
 		for nm in biomes:
 			abm.set_active_biome(nm)
@@ -171,7 +186,11 @@ func _run() -> void:
 				var regs: Array = field.known_glow_regs()
 				regs.sort()
 				halos[nm] = regs
-	_trace({"phase": "field", "has_field": field != null, "mounted": mounted, "halos": halos})
+				var sh: Array = field.shared_emoji_regs()
+				sh.sort()
+				shared_halos[nm] = sh
+	_trace({"phase": "field", "has_field": field != null, "mounted": mounted, "halos": halos,
+		"shared_halos": shared_halos})
 
 	# strike: the known plot, then a stranger in the same forest.
 	if abm != null:
@@ -207,7 +226,8 @@ func _run() -> void:
 			"known_multiplier": float(s.get("known_multiplier", -1.0)), "amount": int(s.get("amount", 0))})
 	_trace({"phase": "strike", "known_reg": known_reg, "strikes": rows, "has_layer": layer != null,
 		"layer_text": layer_text,
-		"sample_text": FloatingRewardLayer.known_strike_text(12, 3.4)})
+		"sample_text": FloatingRewardLayer.known_strike_text(12, "icon"),
+		"sample_emoji_text": FloatingRewardLayer.known_strike_text(12, "emoji")})
 
 	# guide: a second forest word; the newest one is where the guide points.
 	var second := -1

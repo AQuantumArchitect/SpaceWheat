@@ -48,32 +48,43 @@ def phases(tmp_path_factory):
     return {r["phase"]: r for r in rows}
 
 
-def test_an_empty_vocabulary_lights_nothing(phases):
+def test_an_empty_ledger_still_knows_the_demos_own_words(phases):
+    # The vocabulary is the home biome's axes + the ledger: with nothing
+    # incorporated the Demos glows fully; no other biome's word is known.
     b = phases["before"]
-    assert b["ledger"] == 0 and all(v == [] for v in b["lit"].values()), b
+    assert b["ledger"] == 0, b
+    assert b["lit"]["TheDemos"], b
+    assert all(t == "icon" for t in b["tiers"]["TheDemos"]), b
+    for biome, regs in b["lit"].items():
+        if biome != "TheDemos":
+            assert regs == [], (biome, b)
 
 
 def test_the_glow_is_derived_from_the_vocabulary_in_every_loaded_biome(phases):
     led = phases["ledger"]
     known = [tuple(led["word"]), ("🌾", "👥"), ("🔥", "❄")]
+    demos = [tuple(a) for a in led["axes"]["TheDemos"]]
+    known += demos
     for biome, axes in led["axes"].items():
         expect = [q for q, (n, s) in enumerate(axes)
                   if (n, s) in known or (s, n) in known]
         assert led["lit"][biome] == expect, (biome, led)
     # The Demos' 👥/🌾 lights from a 🌾/👥 entry: an icon is its axis.
-    assert led["lit"]["TheDemos"] == [0]
+    assert 0 in led["lit"]["TheDemos"]
     assert led["lit"]["Village"] and led["lit"]["StarterForest"]
 
 
-def test_the_glow_and_the_payout_are_one_check(phases):
+def test_the_tiers_pay_exactly_1_2_and_6(phases):
     led = phases["ledger"]
-    for biome, ms in led["mult"].items():
+    want = {"none": 1.0, "emoji": 2.0, "icon": 6.0}
+    seen = set()
+    for biome, ts in led["tiers"].items():
         lit = set(led["lit"][biome])
-        for q, m in enumerate(ms):
-            if q in lit:
-                assert m > 1.0, (biome, q, m)
-            else:
-                assert m == 1.0, (biome, q, m)
+        for q, t in enumerate(ts):
+            seen.add(t)
+            assert led["mult"][biome][q] == want[t], (biome, q, t, led["mult"][biome][q])
+            assert (q in lit) == (t == "icon"), (biome, q, t)
+    assert {"emoji", "icon"} <= seen, seen   # the world has a ×2 and a ×6 plot
 
 
 def test_the_3d_field_draws_a_halo_on_every_known_plot(phases):
@@ -81,17 +92,26 @@ def test_the_3d_field_draws_a_halo_on_every_known_plot(phases):
     assert f["has_field"] and f["halos"], f
     for biome, regs in f["halos"].items():
         assert regs == phases["ledger"]["lit"][biome], (biome, f)
+    # The subtle highlight: exactly the emoji-tier plots, never a known one.
+    assert f["shared_halos"], f
+    for biome, regs in f["shared_halos"].items():
+        want = [q for q, t in enumerate(phases["ledger"]["tiers"][biome]) if t == "emoji"]
+        assert regs == want, (biome, f)
+        assert not set(regs) & set(f["halos"][biome]), (biome, f)
 
 
 def test_a_strike_on_a_glowing_plot_shows_the_bonus_it_paid(phases):
     s = phases["strike"]
     known = [r for r in s["strikes"] if r["register_id"] == s["known_reg"]]
     stranger = [r for r in s["strikes"] if r["register_id"] != s["known_reg"]]
-    assert known and known[0]["known"] and known[0]["known_multiplier"] > 1.0, s
-    assert stranger and not stranger[0]["known"] and stranger[0]["known_multiplier"] == 1.0, s
+    assert known and known[0]["known"] and known[0]["known_multiplier"] == 6.0, s
+    assert stranger and not stranger[0]["known"], s
+    assert stranger[0]["known_multiplier"] in (1.0, 2.0), s   # ×2 when it shares an emoji
     assert s["has_layer"], s
-    want = "+%d  ×%.1f known word" % (known[0]["amount"], known[0]["known_multiplier"])
+    want = "+%d  ×6 known word" % known[0]["amount"]
     assert want in s["layer_text"], (want, s)
+    assert s["sample_text"] == "+12  ×6 known word", s
+    assert s["sample_emoji_text"] == "+12  ×2 shared emoji", s
 
 
 def test_the_guide_points_at_the_newest_word_on_the_biome(phases):
@@ -119,7 +139,8 @@ def test_the_glow_is_taught_on_the_beat_after_the_millwright_vocabulary():
     assert fb["requires"] == ["village_stirs"]
     for text in (fb["beat"], fb["offer"]["body"]):  # body + hint are the E-inspect text
         assert "glow" in text, text
-    assert "pays more" in fb["beat"] and "pay more" in fb["offer"]["body"]
+    assert "×6" in fb["beat"] and "×2" in fb["beat"]
+    assert "×6" in fb["offer"]["body"] and "×2" in fb["offer"]["body"]
     assert "glows" in fb["done"]
 
 
@@ -139,6 +160,17 @@ def test_spiral_breaks_leads_with_the_strike_on_the_word_just_learned():
 def test_one_check_feeds_the_glow_the_payout_and_the_strike_ledger():
     probe = read_source("Core/Actions/ProbeActions.gd")
     mult = probe.split("static func _incorporation_reward_multiplier(")[1].split("\nstatic func ")[0]
-    assert "word_known(" in mult
-    assert "word_known(" in read_source("Core/Visualization/QuantumField3D.gd")
-    assert "ProbeActions.word_known(" in read_source("UI/PlotGridDisplay.gd")
+    assert "vocabulary_tier(" in mult and "signature_r_bonus" not in mult
+    assert "vocabulary_tier(" in read_source("Core/Visualization/QuantumField3D.gd")
+    assert "ProbeActions.vocabulary_tier(" in read_source("UI/PlotGridDisplay.gd")
+
+
+def test_the_tier_rule_is_one_function_with_exact_numbers():
+    probe = read_source("Core/Actions/ProbeActions.gd")
+    assert "const MULT_EMOJI := 2.0" in probe and "const MULT_ICON_ON_TOP := 3.0" in probe
+    tier = probe.split("static func vocabulary_tier(")[1].split("\nstatic func ")[0]
+    assert "MULT_EMOJI * MULT_ICON_ON_TOP" in tier and "bloch" not in tier
+    vocab = probe.split("static func vocabulary_words(")[1].split("\nstatic func ")[0]
+    assert "HOME_BIOME" in vocab and "incorporated_icons" in vocab and "known_icons" not in vocab
+    assert "vocabulary_tier(" in read_source("UI/PlotGridDisplay.gd")
+    assert "vocabulary_tier(" in read_source("Core/Visualization/QuantumField3D.gd")

@@ -997,7 +997,9 @@ func _transform_plot_to_ui_data(pos: Vector2i, plot, terminal = null) -> Diction
 
 	# Known-word glow (#105): the strike multiplier's own check, on whatever
 	# axis this tile shows.
-	ui_data["word_known"] = ProbeActions.word_known(farm, str(ui_data["north_emoji"]), str(ui_data["south_emoji"]))
+	var vtier: String = str(ProbeActions.vocabulary_tier(farm, str(ui_data["north_emoji"]), str(ui_data["south_emoji"])).get("tier", "none"))
+	ui_data["word_known"] = vtier == ProbeActions.TIER_ICON
+	ui_data["emoji_shared"] = vtier == ProbeActions.TIER_EMOJI
 	return ui_data
 
 
