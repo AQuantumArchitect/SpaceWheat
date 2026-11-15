@@ -215,11 +215,13 @@ def test_integrator_substeps_are_bounded():
 
     A hard substep ceiling is the guarantee that one phrame costs bounded work no
     matter what state a player builds."""
-    src = _read(ROOT / "native/src/quantum_evolution_engine.h")
-    assert "MAX_SUBSTEPS" in src, "the integrator needs a hard ceiling on work per call"
-    cpp = _read(ROOT / "native/src/quantum_evolution_engine.cpp")
-    assert "MAX_SUBSTEPS" in cpp, "the ceiling must be used, not just declared"
-    assert "1e-6f" not in cpp.split("QuantumEvolutionEngine::evolve(")[1].split("\n}")[0], (
+    # The integrator lives in the Godot-free kernel; quantum_evolution_engine.* is a
+    # wrapper over it (docs/design/KERNEL_EXTRACTION.md).
+    src = _read(ROOT / "native/kernel/include/swk/evolution.hpp")
+    assert "MAX_SUBSTEPS =" in src, "the integrator needs a hard ceiling on work per call"
+    body = src.split("Status evolve(")[1].split("\n    }\n")[0]
+    assert "MAX_SUBSTEPS" in body, "the ceiling must be used, not just declared"
+    assert "1e-6" not in body, (
         "the absolute 1e-6s step floor is what allowed 100k substeps; it must not return"
     )
 
