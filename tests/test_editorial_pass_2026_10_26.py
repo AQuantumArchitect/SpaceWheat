@@ -88,6 +88,29 @@ def test_spiral_breaks_requires_the_strike_it_teaches():
     assert 'if gate == "strike_known":' in guide and "static func _strike_known(" in guide
 
 
+
+def test_spiral_breaks_hint_spells_the_strike_route():
+    """#102: the strike is an Ace verb on the farm, not an Icon [5] verb. The
+    hint walks Esc → the Demos' biome key [T] → Ace [8] → [R]. demos_normal
+    seats TheDemos/Village/StarterForest on T/Y/U."""
+    hint = _beats()["spiral_breaks"]["offer"]["hint"]
+    strike = hint.split("Then", 1)[0]
+    assert "Icon [5]" not in strike
+    for step in ("Esc", "[T] to the Demos", "Ace [8]", "[R]: strike"):
+        assert step in strike, step
+    tres = src("Scenarios/demos_normal.tres")
+    assert 'unlocked_biomes = Array[String](["TheDemos", "Village", "StarterForest"])' in tres
+
+
+def test_strike_known_is_the_glow_check():
+    """#102: strike_known is the glow's own test (#115): ICON tier of the player's
+    vocabulary, which is what ProbeActions.word_known wraps."""
+    probe = src("Core/Actions/ProbeActions.gd")
+    assert "known = known_tier == TIER_ICON" in probe
+    assert "static func word_known(" in probe and "== TIER_ICON" in probe.split("static func word_known(")[1]
+    assert "static func _strike_known(" in src("Core/Campaign/Guide.gd")
+
+
 def test_mass_explore_ignores_marks_from_another_country():
     qii = src("UI/Core/QuantumInstrumentInput.gd").split("func _mass_explore(")[1].split("\nfunc ")[0]
     assert "_selection_here()" in qii
@@ -180,3 +203,20 @@ def test_legacy_plant_banner_skips_keys_the_wallet_cannot_pay():
     assert "static func _plant_affordable" in prog
     aff = prog.split("static func _plant_affordable")[1].split("\nstatic func ")[0]
     assert "_get_injection_cost" in aff and "_wallet" in aff
+
+
+def test_incorporation_writes_only_the_players_vocabulary():
+    """Incorporate (and the faction pump it triggers) never seats or alters the
+    player's words on a faction's behalf. discover_icon is the player's own
+    ledger; _pump_for_icon only pumps FactionDensityMatrix, the lexicon and the
+    market lattice."""
+    farm = src("Core/Farm.gd")
+    pump = farm.split("func _pump_for_icon")[1].split("\nfunc ")[0]
+    for forbidden in ("known_icons", "incorporated_icons", "discover_icon",
+                      "mark_icon_incorporated", "active_icon_slots"):
+        assert forbidden not in pump, forbidden
+    assert "faction_density.pump(" in pump
+    qi = src("Core/Instrumentation/QuantumInstrument.gd")
+    inc = qi.split("func action_incorporate")[1].split("\nfunc ")[0]
+    assert "gsm.player_progress.discover_icon(north, south)" in inc
+    assert "faction_density" not in inc and "Millwright" not in inc
