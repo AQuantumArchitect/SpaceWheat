@@ -129,13 +129,6 @@ func _input(event: InputEvent) -> void:
 			_mark_input_handled()
 			return
 
-	# F flattens out of any open surface, one layer per press (touch-friendly
-	# back). F's farm verb only resumes once the farm is the top surface.
-	if event.keycode == KEY_F and not event.is_shift_pressed() and not event.ctrl_pressed \
-			and _flatten_surface():
-		_mark_input_handled()
-		return
-
 	var stack_size = overlay_stack.size() if overlay_stack else 0
 	_verbose.debug("input", "⌨️", "PlayerShell._input() KEY: %s, overlay_stack: %d" % [event.keycode, stack_size])
 
@@ -146,6 +139,12 @@ func _input(event: InputEvent) -> void:
 		var consumed = overlay_stack.route_input(event)
 		_verbose.debug("input", "→", "Overlay consumed: %s" % consumed)
 		if consumed:
+			_mark_input_handled()
+			return
+
+		# F flattens out of an open surface that did not claim F itself.
+		if event.keycode == KEY_F and not event.is_shift_pressed() and not event.ctrl_pressed \
+				and _flatten_surface():
 			_mark_input_handled()
 			return
 
@@ -559,10 +558,20 @@ func _cycle_frame_hat(delta: int) -> void:
 ## F while a surface is open: close the topmost one (one level per press).
 ## Returns false on the farm, where F keeps its normal verb.
 func _flatten_surface() -> bool:
-	if not _any_menu_open() or overlay_manager == null:
+	if not _any_menu_open() or overlay_manager == null or _top_overlay_owns_f():
 		return false
 	overlay_manager.close_overlay()
 	return true
+
+
+## True when the top overlay binds F to a verb of its own (a non-empty,
+## non-"—" F label): price lock, confirm, play, back... Its verb wins.
+func _top_overlay_owns_f() -> bool:
+	var top = overlay_stack.get_top() if overlay_stack else null
+	if top == null or not top.has_method("get_action_labels"):
+		return false
+	var f := str(top.get_action_labels().get("F", "")).strip_edges()
+	return f != "" and f != "—"
 
 
 ## Relabel the F chip: "🌾 Farm" when the next F lands on the farm, "Back"
@@ -571,8 +580,16 @@ func _refresh_flatten_label() -> void:
 	var apr = action_bar_manager.get_action_row() if action_bar_manager else null
 	if apr == null or not apr.has_method("set_flatten_mode"):
 		return
-	var depth: int = overlay_stack.size() - 1 if overlay_stack else 0
-	apr.set_flatten_mode(0 if depth <= 0 else (1 if depth == 1 else 2))
+	apr.set_flatten_mode(_flatten_mode())
+
+
+## 0 = F is not flattening (farm on top, or the overlay owns F); 1 = one open
+## surface (F returns to the farm); 2 = nested surfaces (F steps back).
+## FarmView is overlay_stack index 0, so open surfaces = size() - 1.
+func _flatten_mode() -> int:
+	if not _any_menu_open() or _top_overlay_owns_f():
+		return 0
+	return 1 if overlay_stack.size() - 1 == 1 else 2
 
 
 func _any_menu_open() -> bool:
@@ -748,6 +765,9 @@ func _ready() -> void:
 	# couldn't tick. When the last overlay closes onto a paused field, say
 	# so once (the pause-time hint expired minutes ago).
 	overlay_stack.stack_changed.connect(_refresh_flatten_label)
+	overlay_stack.overlay_pushed.connect(func(ov):
+		if ov and ov.has_signal("action_labels_changed"):
+			ov.action_labels_changed.connect(_refresh_flatten_label))
 	overlay_stack.overlay_popped.connect(func(_ov):
 		if paused and overlay_stack.is_empty():
 			show_hint("⏸ time paused — F plays on", 2))
