@@ -122,7 +122,9 @@ func _run() -> void:
 	var outer_pos: Array = farm.grid.get_plot_positions_for_biome(outer_name)
 	var outer_ex: Dictionary = {}
 	if not outer_pos.is_empty():
-		outer_ex = inst.action_explore(outer_name, outer_pos[outer_pos.size() - 1])  # not register 0: that one opens the inner world
+		# A fresh demos_normal Demos has one axis (register 0, column 0); light it.
+		# It is darkened again before the inner world is entered from it.
+		outer_ex = inst.action_explore(outer_name, outer_pos[0])
 	var o0 := _diag(outer_qc)
 	for _f in range(FRAMES):
 		await process_frame
