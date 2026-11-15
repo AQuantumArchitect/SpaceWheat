@@ -372,6 +372,10 @@ static func _reproduce_objective(farm, index: Dictionary, aid: String, anc: Arra
 				berry_need[b2] = cur2
 			"atom_in_biome":
 				_plant_atom(farm, index, anc, str(p.get("biome", "")), str(p.get("atom", "")), report, aid)
+			"home_biome_has_emoji":
+				var homes: Array = StapleRescue.home_biomes(farm)
+				if StapleRescue.home_biome_with(farm, str(p.get("emoji", ""))) == "" and not homes.is_empty():
+					_plant_atom(farm, index, anc, str(homes[0]), str(p.get("emoji", "")), report, aid)
 			"biome_evolving", "story_flag_any", "active_biome_is", "biome_explored", "icon_incorporated":
 				pass  # charted biomes load above; a fork pick is its own beat; standing places are transient
 			_:

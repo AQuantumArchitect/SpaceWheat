@@ -626,6 +626,9 @@
       "atom_in_biome": [
         "plant_atom"
       ],
+      "home_biome_has_emoji": [
+        "plant_atom"
+      ],
       "biome_state_gte": [
         "plant_atom",
         "steer"

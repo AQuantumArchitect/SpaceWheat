@@ -517,7 +517,7 @@ func _evaluate_flag_predicates(predicates: Array, farm) -> float:
 ## tutorial + arc + market quests all draw from one unified predicate language.
 const FLAG_PREDICATE_TYPES := [
 	"act_at_least",
-	"story_flag_set", "story_flag_any", "biome_evolving", "biome_explored", "icon_incorporated", "berry_consumed_count_gte", "berry_total_phase_gte",
+	"story_flag_set", "story_flag_any", "biome_evolving", "biome_explored", "icon_incorporated", "home_biome_has_emoji", "berry_consumed_count_gte", "berry_total_phase_gte",
 	"standing_gte", "contracts_kept_gte", "biome_state_gte", "biome_state_lte", "signature_size_gte", "signature_growth_gte", "atom_count_gte", "atom_in_biome",
 	"atom_diversity_gte", "biome_attractor_emoji_gte",
 	"soul_purity_gte",
@@ -786,6 +786,11 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 				if (ia == ina and ib == inb) or (ia == inb and ib == ina):
 					return 1.0
 			return 0.0
+		"home_biome_has_emoji":
+			# A planted icon carrying this emoji stands in one of the player
+			# faction's home biomes (governing_biome_slots). The milk win
+			# (#123) rides it. Structural 1/0, read from the live registers.
+			return 1.0 if StapleRescue.home_biome_with(farm, str(pred.get("emoji", ""))) != "" else 0.0
 		"biome_explored":
 			# Every plot of the biome is out of the fog (structural 1/0). Plots
 			# already revealed stay revealed, so this only ever turns true.

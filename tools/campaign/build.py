@@ -67,7 +67,7 @@ def compile_flag(camp: dict, act: dict, ch: dict, b: dict) -> dict:
     for k in ("regime_changes", "physics_changes"):
         if k in on_open:
             flag[k] = on_open[k]
-    for k in ("branch_group", "ending", "chart", "fired_by"):
+    for k in ("branch_group", "ending", "win", "chart", "fired_by"):
         if k in b:
             flag[k] = b[k]
     return flag

@@ -660,6 +660,22 @@
           "math_note": "Opens once The Milk Runs Out (a reap refused for 🍼) and Incorporate is taught. Completes when Birth (🍼/✨) is on the incorporation ledger. A trade buys a season's 🍼 but does not close it."
          },
          "_note": "#93 part 1. TODO(#94-#97): PastoralCommons and Reality Midwives are not loaded in the Demos, so the objective cannot be met yet and the charge stays open on purpose (no dead end, no crash). Load those worlds, and add the 🍼 trade, in the follow-up issues. Requires first_breath as well: the validator refuses an icon_incorporated objective before Incorporate is taught."
+        },
+        {
+         "id": "milk_at_home",
+         "display_name": "Milk at Home",
+         "beat": "Birth is your word now. A word you know is a word you can plant. Plant it at home, in the Forest or the Village, and the season will never wait on 🍼 again.",
+         "requires": [
+          "find_the_milk"
+         ],
+         "objective": [
+          {
+           "type": "home_biome_has_emoji",
+           "emoji": "🍼"
+          }
+         ],
+         "win": true,
+         "_note": "#123 milk endgame part 2, the demo's official end. A milestone: fires when an icon carrying 🍼 is planted in one of the player faction's home biomes (factions.json governing_biome_slots: StarterForest, Village), read live from the registers by StapleRescue.home_biome_with. `win` spawns the EndingOverlay in its demo-won form (RuntimeMount). From then on StapleRescue.draw_home_milk covers each reap's 🍼 from the home biome. Waits on find_the_milk's charge (Birth 🍼/✨ incorporated), so it stays dark until #94-#97 load the milk worlds."
         }
        ]
       },
@@ -2949,6 +2965,9 @@
     "gate"
    ],
    "atom_in_biome": [
+    "plant_atom"
+   ],
+   "home_biome_has_emoji": [
     "plant_atom"
    ],
    "biome_state_gte": [

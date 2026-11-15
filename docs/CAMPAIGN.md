@@ -25,7 +25,11 @@ CI runs `build.py --check` and `validate.py` on every push.
 
 **Campaign › Act › Chapter › Beat.** Three campaigns:
 
-- **The Demos** — the main story, Acts 0–6, ends at `island_free`.
+- **The Demos** — the main story, Acts 0–6, ends at `island_free`. The demo
+  build's own win is earlier: `milk_at_home` (Act 1, `"win": true`) fires when
+  an icon carrying 🍼 is planted in a Demos home biome (StarterForest or the
+  Village). It opens the ending ceremony in its "you've won the demo" form,
+  play goes on, and every later reap's 🍼 is covered from home.
 - **What Fades** (Lanternfall) and **The Loom** — post-game campaigns. Both open
   after `island_free`, and neither feeds the main story. Both are **in
   development** (`"status": "in_development"` in the spec): their headers say so
@@ -137,7 +141,7 @@ walls.
 | 0 The Loop | First Fruits | first_harvest, loom_opens |
 | 1 The Village | The Wheel Is Yours | arc_handover |
 | 1 The Village | Apprentice to the Mill | village_stirs |
-| 1 The Village | First Breath | first_breath (Incorporate), spiral_breaks |
+| 1 The Village | First Breath | first_breath (Incorporate), spiral_breaks, milk_runs_out, find_the_milk, milk_at_home (the demo's win) |
 | 1 The Village | New Voices | new_voices |
 | 2 Two Countries | Timber Country | woodlot_door, woodlot_contact, lumber_flows, woodlot_wakes, timber_rhythm |
 | 2 Two Countries | Spring Country | spring_door, spring_contact, spring_connects, spring_wakes, pond_depths, pond_breathes |

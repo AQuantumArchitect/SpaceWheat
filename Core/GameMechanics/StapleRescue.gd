@@ -44,9 +44,83 @@ static func milk_short(farm) -> bool:
 	if farm == null or not ("economy" in farm) or farm.economy == null \
 			or not farm.economy.has_method("get_resource"):
 		return false
+	if milk_at_home(farm):
+		return false  # the home biome yields it (#123): never short again
 	var cost: Dictionary = BalanceService.get_reap_cost(farm, ProbeActions._get_reap_count(farm))
 	var need := int(cost.get(MILK, 0))
 	return need > 0 and int(farm.economy.get_resource(MILK)) < need
+
+
+## The player faction's home biomes: the biomes it governs
+## (factions.json governing_biome_slots; for The Demos, StarterForest and
+## Village). Pinned faction first, The Demos when no pin is readable.
+static func home_biomes(farm) -> Array:
+	var fname := "The Demos"
+	if farm != null and farm.has_method("get_pinned_faction_name"):
+		var pinned := str(farm.get_pinned_faction_name())
+		if pinned != "":
+			fname = pinned
+	var faction = FactionRegistry.get_shared().get_by_name(fname)
+	if faction == null:
+		return []
+	var out: Array = []
+	for slot in faction.governing_biome_slots:
+		var b := str(faction.governing_biome_slots[slot])
+		if b != "" and not out.has(b):
+			out.append(b)
+	return out
+
+
+## The win condition (#123): a planted icon carrying 🍼 (a live register
+## axis with 🍼 as either pole) stands in one of the player faction's home
+## biomes. Read from the registers every call, so uprooting it ends the
+## supply again.
+static func milk_at_home(farm) -> bool:
+	return milk_home_biome(farm) != ""
+
+
+## The home biome holding a 🍼 icon, or "" when none does.
+static func milk_home_biome(farm) -> String:
+	return home_biome_with(farm, MILK)
+
+
+## The first home biome with a planted icon that has `emoji` as a pole, or "".
+static func home_biome_with(farm, emoji: String) -> String:
+	if emoji == "":
+		return ""
+	if farm == null or not ("grid" in farm) or farm.grid == null \
+			or not farm.grid.has_method("get_biome"):
+		return ""
+	for bname in home_biomes(farm):
+		var biome = farm.grid.get_biome(str(bname))
+		if biome == null or biome.get("quantum_computer") == null:
+			continue
+		var rm = biome.quantum_computer.register_map
+		if rm == null:
+			continue
+		for q in range(int(rm.num_qubits)):
+			var ax: Dictionary = rm.axes.get(q, {})
+			if str(ax.get("north", "")) == emoji or str(ax.get("south", "")) == emoji:
+				return str(bname)
+	return ""
+
+
+## Infinite access (#123): with 🍼 planted at home, the home biome yields
+## whatever the next reap is short of, so the cost is still shown and still
+## spent, and is always covered. Called right before the reap preflight.
+## Returns the 🍼 credited (0 when nothing was short or no milk is at home).
+static func draw_home_milk(farm, cost: Dictionary) -> int:
+	var need := int(cost.get(MILK, 0))
+	if need <= 0 or farm == null or not ("economy" in farm) or farm.economy == null:
+		return 0
+	var home := milk_home_biome(farm)
+	if home == "":
+		return 0
+	var short := need - int(farm.economy.get_resource(MILK))
+	if short <= 0:
+		return 0
+	farm.economy.add_resource(MILK, short, "home_milk", home)
+	return short
 
 
 static func staple_for(action: String) -> String:

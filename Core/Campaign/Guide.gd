@@ -603,7 +603,11 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 		"gate":
 			return _gate(pred, q)
 		"plant_atom":
-			return _plant(str(pred.get("biome", "")), str(pred.get("atom", pred.get("emoji", ""))), false, q)
+			var plant_biome := str(pred.get("biome", ""))
+			if plant_biome == "" and str(pred.get("type", "")) == "home_biome_has_emoji":
+				# Any home biome holds the win (#123); walk to the plant home.
+				plant_biome = str(_km().get("plant_home", "Village"))
+			return _plant(plant_biome, str(pred.get("atom", pred.get("emoji", ""))), false, q)
 		"plant_new":
 			return _plant(str(pred.get("biome", _km().get("plant_home", "Village"))), "", true, q)
 		"learn_word":
