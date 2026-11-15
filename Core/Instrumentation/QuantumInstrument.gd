@@ -237,7 +237,8 @@ func _action_guard(positions: Array[Vector2i]) -> Dictionary:
 	if not farm:
 		return {"success": false, "error": "no_farm", "message": "Farm not initialized"}
 	if positions.is_empty():
-		return {"success": false, "error": "no_selection", "message": "No plot selected"}
+		# Say what is missing and the keys that fix it (#87).
+		return {"success": false, "error": "no_selection", "message": "no plot picked — G H J K L ; picks one"}
 	return {}
 
 

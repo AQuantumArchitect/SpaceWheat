@@ -348,6 +348,14 @@ incorporation** — do not confuse the two economies.
   offers them, live and lockable; Merchant E shows the same quote.
 - **Trades** (the campaign's supply `trades`) are table-priced, never requote,
   can't be locked, and stand on the board only while you're short.
+- **No dead-end wallet.** Explore (🍞), Strike (👥) and Gather (🧺) each spend a
+  staple that a Village trade buys back (🧺 with 👥, 👥 and 🍞 with 🌾). When
+  no chain of those trades can pay a verb's fee (0🧺 · 3👥 · 0🌾), the wallet
+  is *stranded* and the fee is waived until a trade could pay it again
+  (`Core/GameMechanics/StapleRescue.gd`, applied in `FarmEconomy.get_action_cost`).
+  The Guide checks every step against the wallet (`Guide._afford`): while a fee
+  is short, the banner walks to its trade from the lap's first key, and stays
+  until the wallet can pay. Visiting the Market without buying changes nothing.
 - "Standing" means reputation only: channel, trade and offer are the three
   kinds of contract.
 

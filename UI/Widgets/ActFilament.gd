@@ -124,6 +124,10 @@ func _apply_rung_visuals() -> void:
 	else:
 		offset_bottom = offset_top + _banner_height()
 	var obj := _text
+	# Out of a fee: the hover lists every way back, not only the banner's (#87).
+	var routes := UIProgression.shortage_routes()
+	if routes != "" and obj != "":
+		obj = "%s\n%s" % [obj, routes]
 	if not _ladder.has_home:
 		tooltip_text = ("Now: %s" % obj) if obj != "" else ""
 	elif _ladder.rung == ClickLadder.Rung.FACE:

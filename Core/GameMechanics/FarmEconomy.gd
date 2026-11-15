@@ -285,8 +285,11 @@ func get_overridden_gate_cost(gate_name: String) -> Dictionary:
 
 
 func get_action_cost(action: String, context: Dictionary = {}) -> Dictionary:
-	# Canonical runtime action-cost lookup (overrides + defaults).
-	return get_overridden_action_cost(action, context)
+	# Canonical runtime action-cost lookup (overrides + defaults). A stranded
+	# staple's fee is waived here (StapleRescue, #87): badge, preflight and
+	# spend all read this one number.
+	var normalized_action = EconomyConstants.normalize_action_id(action)
+	return StapleRescue.effective_cost(normalized_action, get_overridden_action_cost(action, context), self)
 
 
 func get_gate_cost(gate_name: String) -> Dictionary:

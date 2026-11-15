@@ -2736,12 +2736,16 @@ static func _wallet(emoji: String) -> float:
 
 
 ## Ace Q gather price in 🧺 (flat; the action-cost table is the authority).
+## 0 while the fee is waived for a stranded wallet (StapleRescue, #87).
 static func gather_price() -> int:
 	var farm = _active_farm()
 	if farm != null:
 		var c: Dictionary = ActionCostRuntime.get_action_cost(farm, "pop", {})
 		if c.has("🧺"):
 			return maxi(1, int(round(float(c["🧺"]))))
+		if "economy" in farm and farm.economy != null \
+				and StapleRescue.stranded("🧺", 1, farm.economy):
+			return 0
 	return 1
 
 
@@ -2893,9 +2897,45 @@ static func supply_refusal(emoji: String, cost: int, strict: bool = false) -> St
 	var route := supply_route_line(emoji)
 	if out:
 		if route == "":
-			return "needs %s" % emoji
-		return "needs %s (you hold %d) — %s" % [emoji, have, route]
+			return "needs %s" % StapleRescue.named(emoji)
+		var alt := recovery_alternatives(emoji)
+		return "needs %s (you hold %d) — %s%s" % [StapleRescue.named(emoji), have, route,
+				"" if alt == "" else " · " + alt]
 	return "%s low (%d left) — restock: %s" % [emoji, have, route]
+
+
+## Every route back while the Guide is walking a shortage (banner hover). ""
+## when it is not.
+static func shortage_routes() -> String:
+	var res := str(_guide().shortage)
+	if res == "":
+		return ""
+	return supply_refusal(res, _supply_cost(res), true)
+
+
+## The other ways back to `emoji` when the wallet is out of it (#87: more
+## than one route): the rescue trade's ask bought first when that is short
+## too, and the plots that carry the ask or `emoji` itself. "" when none.
+static func recovery_alternatives(emoji: String) -> String:
+	var out: PackedStringArray = []
+	# A plot pays out through a Gather: name one only while the basket is paid.
+	var can_gather := _wallet("🧺") >= float(gather_price())
+	var t := CampaignRuntime.rescue_trade(emoji)
+	var give := CampaignRuntime.trade_give(t)
+	for g in give:
+		var gs := str(g)
+		if _wallet(gs) >= float(give[g]):
+			continue
+		var sub := CampaignRuntime.rescue_trade(gs)
+		if not sub.is_empty():
+			out.append("short of %s: the %s trade (%s) first" % [StapleRescue.named(gs), gs, CampaignRuntime.trade_words(sub)])
+		var gp = CampaignRuntime.resource(gs).get("plots", [])
+		if can_gather and gp is Array and not gp.is_empty():
+			out.append("or gather %s in %s" % [gs, ", ".join(PackedStringArray(gp))])
+	var own = CampaignRuntime.resource(emoji).get("plots", [])
+	if can_gather and own is Array and not own.is_empty():
+		out.append("or gather %s in %s" % [emoji, ", ".join(PackedStringArray(own))])
+	return " · ".join(out)
 
 
 ## Which resource the banner is supply-walking right now ("" = none).
