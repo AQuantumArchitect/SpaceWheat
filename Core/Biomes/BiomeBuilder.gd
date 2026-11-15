@@ -198,7 +198,6 @@ static func build_from_spec(
 	biome.set_biome_type(biome_name)
 	biome.name = biome_name
 	biome.quantum_computer = qc
-	biome.berry_track_boost = maxi(1, int(_spec_get(biome_def, "berry_track_boost", 1)))
 
 	# Store icons for viz_cache coupling data. IconRegistry remains canonical;
 	# this dict is a per-biome cache keyed by emoji.

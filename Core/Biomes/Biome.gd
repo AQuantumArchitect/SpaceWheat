@@ -76,12 +76,6 @@ var visual_config: Dictionary = {}
 ## door opens). Story flags may change it at runtime via regime_changes.
 var regime: String = ""
 
-## Clock multiplier while one of this biome's qubits is Berry-tracked (issue
-## #126). A slow biome's loop (Village 🔥/❄: ~0.34 sr per turn) otherwise
-## takes ~10k phrames to ripen. 1 = no boost. Never saved: BiomeBase derives
-## the boost from the register's tracking state each phrame.
-var berry_track_boost: int = 1
-
 
 ## ========================================
 ## Methods
@@ -273,8 +267,6 @@ func to_dict() -> Dictionary:
 		"atom_components": atom_components,
 		"tags": tags,
 	}
-	if berry_track_boost > 1:
-		data["berry_track_boost"] = berry_track_boost
 
 	return data
 
@@ -294,7 +286,6 @@ func load_from_dict(data: Dictionary) -> void:
 	atom_components = _normalize_atom_components(data.get("atom_components", {}))
 	tags = _normalize_tags(data.get("tags", []))
 	regime = str(data.get("regime", ""))
-	berry_track_boost = maxi(1, int(data.get("berry_track_boost", 1)))
 	var vc = data.get("visual_config", {})
 	visual_config = vc if vc is Dictionary else {}
 

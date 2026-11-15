@@ -1618,9 +1618,7 @@ func _get_biome_depth(biome_name: String) -> int:
 
 func _get_biome_buffer_time_ms(biome_name: String) -> float:
 	var depth = _get_biome_depth(biome_name)
-	var biome = _get_biome_by_name(biome_name)
-	var stride: int = biome.evolution_stride() if biome != null and biome.has_method("evolution_stride") else 1
-	return depth * EVOLUTION_INTERVAL * 1000.0 / float(maxi(1, stride))
+	return depth * EVOLUTION_INTERVAL * 1000.0
 
 
 func _get_biome_rho_status(biome_name: String, biome) -> Dictionary:
@@ -2439,9 +2437,7 @@ func _advance_all_buffers():
 			continue
 
 		# Observation stride: 0=locked, 1=normal, 2+=fast forward
-		# (evolution_stride: × berry_track_boost while a qubit is tracked, #126)
-		var stride: int = biome.evolution_stride() if biome.has_method("evolution_stride") \
-				else (biome.observation_stride if "observation_stride" in biome else 1)
+		var stride: int = biome.observation_stride if "observation_stride" in biome else 1
 		if stride <= 0:
 			continue  # Locked — no advancement
 

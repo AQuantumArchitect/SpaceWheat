@@ -1341,9 +1341,7 @@ func _get_lindblad_effective_delta_for_biome(biome, frame_delta: float) -> float
 		return base_delta
 
 	var stride = 1
-	if biome.has_method("evolution_stride"):
-		stride = max(0, int(biome.evolution_stride()))   # H and L stay on one clock (#126)
-	elif "observation_stride" in biome:
+	if "observation_stride" in biome:
 		stride = max(0, int(biome.observation_stride))
 	if stride <= 0:
 		return 0.0

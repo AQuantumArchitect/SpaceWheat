@@ -1063,8 +1063,7 @@
         ]
       }
     },
-    "regime": "closed",
-    "berry_track_boost": 8
+    "regime": "closed"
   },
   {
     "name": "VolcanicWorlds",
