@@ -271,20 +271,20 @@ static func _can_execute_measure(farm, selected_plots: Array[Vector2i]) -> bool:
 static func _can_execute_pop(farm, selected_plots: Array[Vector2i]) -> bool:
 	# Check if POP action is available (Ace frame — probe/harvest).
 
-	# POP harvests a measured terminal and unbinds it.
-	# Available when: measured terminal exists at any selected position.
+	# POP (gather) pays the plot's bank without touching ρ.
 	if not farm:
 		return false
 
 	if selected_plots.is_empty():
 		return false
 
-	# Check any selected plot has a measured terminal (or bound terminal that will auto-measure on pop)
+	# Gather pays a bank and never measures: available only where something
+	# is banked (or a legacy measured snapshot waits). Explored-only is grey.
 	var grid = farm.get("grid") if farm else null
 	for pos in selected_plots:
 		var plot = grid.get_plot(pos) if grid else null
 		var terminal = plot.terminal if plot else null
-		if terminal and (terminal.can_pop() or terminal.is_bound):
+		if terminal and terminal.can_pop():
 			return true
 
 	return false

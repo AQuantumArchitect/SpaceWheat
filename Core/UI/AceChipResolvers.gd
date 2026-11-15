@@ -20,6 +20,14 @@ static func resolve_f(ctx) -> Dictionary:
 		return {"label": toast_lbl, "emoji": "📋"}
 	if ctx == null or not ctx.has_focused_qubit():
 		return {}
+	if ctx.register_bound and not bool(ctx.register_lit):
+		# Struck: the probe is still here but the plot went dark. F attends.
+		return {
+			"action": "explore",
+			"label": "Attend",
+			"emoji": "❔",
+			"hint": "Attend — light this dark plot again (free: the probe is still here). Then R strikes; Q gathers what is banked.",
+		}
 	if ctx.register_bound:
 		return {}
 	# Fill the Urn / berry ripen: mill names Fast-Fwd. Unbound leftover

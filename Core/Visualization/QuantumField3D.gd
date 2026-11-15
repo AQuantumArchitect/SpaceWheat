@@ -916,6 +916,34 @@ func _update_bank_badge(b: Dictionary, bname: String) -> void:
 	b["bank_nodes"] = nodes
 
 
+## Attention: a lit plot glows; a struck plot keeps its probe and its bank but
+## goes dark (Terminal.lit), so its ball dims and its pole sprites fade back.
+## Fog is still fog (_set_bubble_revealed). Written only on a change.
+func _update_attention_visual(b: Dictionary, bname: String) -> void:
+	var dark := false
+	if bool(b.get("revealed", false)) and farm_ref != null and is_instance_valid(farm_ref) \
+			and farm_ref.get("terminal_pool") != null:
+		var term = farm_ref.terminal_pool.get_terminal_for_register(int(b.reg), bname)
+		dark = term != null and bool(term.is_bound) and not bool(term.lit)
+	var revealed := bool(b.get("revealed", false))
+	var sig := "%s:%s" % [revealed, dark]
+	if sig == str(b.get("attn_sig", "")):
+		return
+	b["attn_sig"] = sig
+	if not revealed:
+		return
+	var mesh = b.get("mesh")
+	if mesh != null and is_instance_valid(mesh) and mesh.material_override is StandardMaterial3D:
+		(mesh.material_override as StandardMaterial3D).albedo_color = (
+			Color(_glow.r * 0.4, _glow.g * 0.4, _glow.b * 0.4, 0.05) if dark
+			else Color(_glow.r, _glow.g, _glow.b, 0.12)
+		)
+	for k in ["spr", "np", "eq"]:
+		var node = b.get(k)
+		if node != null and is_instance_valid(node) and "modulate" in node:
+			node.modulate.a = 0.35 if dark else 1.0
+
+
 func _apply_check_visual(_b: Dictionary) -> void:
 	# The cyan camera-circle is the checkbox now. No glyph on the orb.
 	if _sel_reticle != null and is_instance_valid(_sel_reticle):
@@ -1366,6 +1394,7 @@ func _tick_field(dt: float) -> void:
 	_prepare_phi_lights(_bubbles.size())
 	for b in _bubbles:
 		_update_bank_badge(b, bname)
+		_update_attention_visual(b, bname)
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
 			_hide_phi_light(i_light)

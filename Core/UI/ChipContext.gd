@@ -9,13 +9,15 @@ var quantum_computer = null   # QuantumComputer for the active biome (may be nul
 var qubit_index: int = -1     # plot_idx ≡ register_id (per Plot-Register Invariant)
 var register_bound: bool = false  # focused plot has a bound terminal (explored)
 var farm = null               # economy/affinity source for cost annotation (may be null)
+var register_lit: bool = true     # focused plot is attended; a struck plot is bound but dark
 
 
-func _init(qc = null, qid: int = -1, bound: bool = false, farm_ref = null) -> void:
+func _init(qc = null, qid: int = -1, bound: bool = false, farm_ref = null, lit: bool = true) -> void:
 	quantum_computer = qc
 	qubit_index = qid
 	register_bound = bound
 	farm = farm_ref
+	register_lit = lit
 
 
 func has_focused_qubit() -> bool:

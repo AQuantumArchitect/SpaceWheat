@@ -369,6 +369,25 @@ var _registered_operator_epoch: Dictionary = {}  # biome_name -> int
 # Signal emitted when a biome has its 10-step lookahead buffers primed and is ready
 signal biome_ready(biome_name: String)
 
+## THE evolution signal: true while ρ is actually being stepped, false the
+## moment anything halts it — the pause button, the E peek, a menu, the
+## session leaving RUNNING, or all-dark dormancy. One cause, one effect:
+## MusicManager listens to this and to nothing else.
+signal evolution_running(running: bool)
+
+## Attention gate (Terminal.lit): when no plot anywhere is lit the world is
+## dormant and physics_process does not step. Probes and labs that drive
+## evolution with no terminals at all may switch it off.
+var attention_gate_enabled: bool = true
+## Steps actually applied, across every biome (both lanes). The truth behind
+## evolution_running: a tick that advanced it is a tick ρ moved.
+var evolution_step_total: int = 0
+var _evolution_running: bool = false
+var _last_step_ms: int = -1
+## A lookahead lane can wait a few phrames on a packet; only a longer gap
+## than this reads as "not evolving".
+const EVOLUTION_STALE_MS: int = 1000
+
 # Pending biomes waiting for native engine to be ready
 var _pending_biomes: Array = []
 
@@ -1309,7 +1328,14 @@ func physics_process(delta: float):
 	_last_physics_frame = current_physics_frame
 
 	if biomes.is_empty():
+		hold_evolution()
 		return
+
+	# All dark = dormant: nothing is attended, so nothing evolves.
+	if is_attention_dormant():
+		hold_evolution()
+		return
+	var steps_before := evolution_step_total
 
 	# One-time diagnostic: confirm C++ lookahead status
 	if not _first_tick_logged:
@@ -1339,6 +1365,55 @@ func physics_process(delta: float):
 		_process_pending_reregisters()
 		_deterministic_stepper.run_time_skip_cycles(1, delta)
 	# else: backend not ready yet — biomes wait for engine init (no GDScript compute).
+	_note_evolution_progress(steps_before)
+
+
+# === EVOLUTION RUNNING (the one signal music follows) ===
+
+## True when no plot anywhere is lit (Terminal.lit): the world is parked.
+func is_attention_dormant() -> bool:
+	if not attention_gate_enabled or terminal_pool == null:
+		return false
+	if not terminal_pool.has_method("get_lit_count"):
+		return false
+	return int(terminal_pool.get_lit_count()) == 0
+
+
+## Is ρ being stepped right now? False while held (pause, menus, dormant) or
+## when no step has landed for EVOLUTION_STALE_MS (any path that simply stops
+## calling physics_process).
+func is_evolution_running() -> bool:
+	if not _evolution_running:
+		return false
+	return _last_step_ms >= 0 and Time.get_ticks_msec() - _last_step_ms <= EVOLUTION_STALE_MS
+
+
+## Evolution is not happening this tick (Farm paused / not RUNNING, dormant).
+func hold_evolution() -> void:
+	_set_evolution_running(false)
+
+
+## Re-read the running state (pollers call this when physics_process might
+## not be running at all, e.g. a paused tree).
+func refresh_evolution_running() -> bool:
+	if _evolution_running and not is_evolution_running():
+		_set_evolution_running(false)
+	return _evolution_running
+
+
+func _note_evolution_progress(steps_before: int) -> void:
+	if evolution_step_total != steps_before:
+		_last_step_ms = Time.get_ticks_msec()
+		_set_evolution_running(true)
+	else:
+		refresh_evolution_running()
+
+
+func _set_evolution_running(running: bool) -> void:
+	if running == _evolution_running:
+		return
+	_evolution_running = running
+	evolution_running.emit(running)
 
 
 func _physics_process_lookahead(delta: float):
@@ -2483,6 +2558,7 @@ func _apply_buffered_step(biome, apply_post: bool = true) -> void:
 
 	# Increment cumulative evolution count (for music ghost timer sync)
 	biome_evolution_counts[biome_name] = biome_evolution_counts.get(biome_name, 0) + 1
+	evolution_step_total += 1
 
 	if apply_post and biome.quantum_evolution_enabled and not biome.evolution_paused:
 		_post_evolution_update(biome)

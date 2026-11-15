@@ -581,13 +581,17 @@ func action_pop(grid_pos: Vector2i) -> Dictionary:
 
 	_detach_terminal_from_plot(terminal)
 	var result = ProbeActions.action_pop(terminal, terminal_pool, economy, farm)
-	if not result.get("success", false):
-		# A refused gather (short 🧺, cost commit failure, …) released nothing:
-		# the terminal is still bound in the pool and still holds its bank.
-		# Left detached, the plot is dead — Explore says "already explored"
-		# (pool still binds the register), Strike says "Unexplored", Gather
-		# says "No terminal" (playtest 2026-10-29). Put the probe back.
+	if not result.get("success", false) or bool(result.get("noop", false)) \
+			or not bool(result.get("released", true)):
+		# The probe was not released: a refused gather (short 🧺, cost commit
+		# failure, …), a no-op (nothing banked), or a gather on a lit plot
+		# (Q takes the bank, the attention stays). Left detached, the plot is
+		# dead — Explore says "already explored" (pool still binds the
+		# register), Strike says "Unexplored", Gather says "No terminal"
+		# (playtest 2026-10-29). Put the probe back.
 		_reattach_terminal_to_plot(terminal)
+	if bool(result.get("noop", false)):
+		return result
 	_emit_farm_action("pop", result, grid_pos)
 	action_performed.emit("pop", result)
 	# Quest-visible: the first lesson is the whole loop (explore, strike, gather).

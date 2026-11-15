@@ -61,11 +61,19 @@ var measured_biome_name: String = ""
 var measured_snapshot: Dictionary = {}
 
 ## The harvest banked by strikes on this plot, waiting for Q: one entry per
-## strike, {resource, amount, probability}. A strike collapses the qubit and
-## banks what it paid, but the probe stays on the plot, so R can strike again
-## (the Hamiltonian re-spreads the state between strikes; waiting pays more).
-## Q pays the bank out and returns the plot to fog.
+## strike, {resource, amount, probability}. A strike collapses the qubit,
+## banks what it paid and darkens the plot; the probe stays, so F lights it
+## again and R can strike again (the Hamiltonian re-spreads the state while
+## anything is attended; waiting pays more). Q pays the bank out without
+## touching ρ; a dark plot then returns to fog.
 var strikes: Array = []
+
+## Attention (❔ attend). A lit plot is being attended: F lights it, R strikes
+## it and it goes dark again (we measured it and stopped thinking about it).
+## A dark plot keeps its probe, its register and its bank; only attention
+## left. When no plot anywhere is lit the world is dormant: the batcher stops
+## stepping ρ (BiomeEvolutionBatcher.is_attention_dormant).
+var lit: bool = false
 
 
 func _init(id: String = ""):
@@ -90,6 +98,7 @@ func bind_to_register(register_id: int, biome_name: String, emoji_pair: Dictiona
 	measured_biome_name = ""
 	measured_snapshot.clear()
 	strikes.clear()
+	lit = true
 
 	# Store emoji pair if provided
 	if emoji_pair.has("north"):
@@ -122,6 +131,7 @@ func unbind() -> void:
 	measured_biome_name = ""
 	measured_snapshot.clear()
 	strikes.clear()
+	lit = false
 	current_emoji = ""
 	north_emoji = ""
 	south_emoji = ""
@@ -168,6 +178,7 @@ func release_register() -> void:
 	bound_register_id = -1
 	bound_biome_name = ""
 	is_bound = false
+	lit = false
 	# KEEP: is_measured, measured_outcome, measured_probability (the measurement snapshot)
 	# KEEP: grid_position (terminal stays visible on grid)
 	# KEEP: north_emoji, south_emoji (reference for the measurement basis)
@@ -207,6 +218,7 @@ func get_state() -> Dictionary:
 		"measured_probability": measured_probability,
 		"measured_snapshot": measured_snapshot,
 		"strikes": strikes.duplicate(true),
+		"lit": lit,
 		"current_emoji": current_emoji,
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji,
@@ -250,14 +262,31 @@ func can_explore() -> bool:
 
 
 ## Check if this terminal can be used for MEASURE action
+## Strike needs attention: a dark plot is lit by F first.
 func can_measure() -> bool:
-	return is_bound and not is_measured
+	return is_bound and not is_measured and lit
 
 
 ## Bank one strike's harvest on this plot (see `strikes`).
 func bank_strike(resource: String, amount: int, probability: float) -> void:
 	strikes.append({"resource": resource, "amount": amount, "probability": probability})
 	current_emoji = resource
+	state_changed.emit(self)
+
+
+## F on a dark plot that still holds its probe: attend to it again.
+func light() -> void:
+	if lit or not is_bound:
+		return
+	lit = true
+	state_changed.emit(self)
+
+
+## R just struck: stop attending. The register, the probe and the bank stay.
+func darken() -> void:
+	if not lit:
+		return
+	lit = false
 	state_changed.emit(self)
 
 

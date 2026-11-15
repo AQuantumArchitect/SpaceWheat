@@ -63,6 +63,9 @@ func _run() -> void:
 		_fail("boot did not yield a farm")
 		return
 	var farm = app_root.game_root.farm
+	# This probe is about the lookahead/market plumbing, not attention (#75):
+	# keep the world awake with every plot dark.
+	farm.biome_evolution_batcher.attention_gate_enabled = false
 	var shell = app_root.get_player_shell()
 	seed(7)
 	for _f in range(10):

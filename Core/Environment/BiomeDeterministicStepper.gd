@@ -408,6 +408,7 @@ func run_native_biome_cycle(biome, dt: float, max_dt_override: float = -1.0) -> 
 
 	batcher._post_evolution_update(biome)
 	batcher.biome_evolution_counts[biome_name] = batcher.biome_evolution_counts.get(biome_name, 0) + 1
+	batcher.evolution_step_total += 1
 
 
 ## Post-evolution Bloch-packet fan-out: accumulate Berry phase on tracked qubits
