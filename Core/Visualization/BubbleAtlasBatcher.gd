@@ -753,19 +753,22 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 				  frame_chi: float = NAN,
 				  fiber_gamma: float = NAN,
 				  fiber_closed: bool = false,
-				  stay_home: bool = false) -> void:
+				  stay_home: bool = false,
+				  r_bloch: float = 1.0) -> void:
 	# Mini-Metro STATION (2026-07-07). Replaces the 10-layer bubble (glows,
 	# gloss, season wedges, spin spiral, uncertainty/purity rings, sink
 	# particles — all deleted). Max three signals per station:
 	#   disc — identity: flat paper on the zone's dark field (ink-inverted when
-	#          measured; the glyph is drawn by the emoji pass on top)
+	#          measured; the glyph is drawn by the emoji pass on top). Its
+	#          radius is the Bloch radius |r| (open-system mixedness): it
+	#          grows and shrinks as dissipation acts, while the outline and
+	#          ring stay static at |r| = 1 as the "full" reference.
 	#   ring — PAYOFF / MIXEDNESS: expected pop payoff H(p)/ln2 in the global
 	#          accent gold (NOT Berry Ω — that lives on the plot-tile violet
 	#          arc). Filling clockwise from 12 o'clock; measured = pinned full
 	#          + the established cyan double ring (a bankable readout — pop me)
-	#   dot  — PHASE: a small ink dot riding the ring at angle phi,
-	#          alpha = coherence (r_xy ∈ [0,1]) — phase visibly rotates,
-	#          decoherence visibly fades
+	#   dot  — PHASE: a small bright light riding the ring at angle phi,
+	#          brighter with coherence (r_xy ∈ [0,1]); shown everywhere
 	#   dial — GAUGE FRAME (opt-in; NAN = off): four faint tick marks rotated
 	#          by the plot's chosen local convention χ. Turning the compass
 	#          rotates the FACE; the phase dot (physics) stays put — the
@@ -779,10 +782,11 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 	var ink: Color = theme.get("ink", Color(0.08, 0.09, 0.1))
 	var accent: Color = theme.get("accent", Color(1.0, 0.8, 0.3))
 
-	# — Disc —
+	# — Disc — (measured = collapsed/pure → pinned full; else radius = |r|)
 	var fill := ink if is_measured else paper
 	fill.a = anim_alpha
-	add_circle_layer("circle_100", pos, r, fill)
+	var disc_r := r if is_measured else r * clampf(r_bloch, 0.05, 1.0)
+	add_circle_layer("circle_100", pos, disc_r, fill)
 
 	# — Outline —
 	if is_measured:
@@ -810,12 +814,14 @@ func draw_station(pos: Vector2, base_radius: float, anim_scale: float, anim_alph
 		add_arc_layer(pos, ring_r, -PI / 2.0, -PI / 2.0 + TAU * f, w,
 				Color(accent.r, accent.g, accent.b, (0.55 + 0.4 * f) * anim_alpha))
 
-	# — Phase dot —
-	if not is_measured and coherence > 0.02:
-		var dot_alpha := clampf(coherence, 0.0, 1.0) * anim_alpha
-		var dot_color := Color(1.0, 0.9, 0.35, dot_alpha) if is_celestial \
-				else Color(ink.r, ink.g, ink.b, dot_alpha)
-		add_circle_layer("circle_100", pos + Vector2.from_angle(phi) * ring_r, 3.0, dot_color)
+	# — Phase light — a small bright dot (with a faint halo) riding the ring at φ.
+	# Always shown; coherence only modulates how bright it burns.
+	if not is_measured:
+		var lit := 0.45 + 0.55 * clampf(coherence, 0.0, 1.0)
+		var light := Color(1.0, 0.9, 0.35) if is_celestial else Color(1.0, 0.97, 0.8)
+		var light_pos := pos + Vector2.from_angle(phi) * ring_r
+		add_circle_layer("circle_100", light_pos, 5.5, Color(light.r, light.g, light.b, 0.3 * lit * anim_alpha))
+		add_circle_layer("circle_100", light_pos, 3.0, Color(light.r, light.g, light.b, lit * anim_alpha))
 
 	# — Gauge dial —
 	if not is_nan(frame_chi) and not is_measured:

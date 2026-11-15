@@ -64,6 +64,9 @@ const PRR = preload("res://Core/GameMechanics/PlotRegisterResolver.gd")
 
 const CYAN := Color(0.42, 0.95, 0.88)
 const R := 0.34                     # orb radius
+const LIGHT_SMOOTH := 14.0          # 1/s: visual lerp rate for |r|, theta, phi (faithful, de-jittered)
+const MIN_BALL_SCALE := 0.04        # the inner ball never collapses to a degenerate zero-size mesh
+const LIGHT_RADIUS := 0.034         # phi light: small bright bead riding the equator ring
 const SHELL := 2.35                 # layout shell radius
 const MI_STRIDE := 6                # recompute mutual-information correlations every N frames
 const METRO_STRIDE := 90            # H-coupling is static per biome ("H only moves on incorporation")
@@ -109,6 +112,7 @@ var _field_blocked := ""
 var _sv: SubViewport
 var _world: Node3D
 var _pivot: Node3D
+var _lights: MultiMeshInstance3D = null   # ONE batched draw for every register's phi light
 var _cam: Camera3D
 var _bubbles: Array = []            # {reg, mesh, ring, sprite, dot, mat, rmat, pos, grid_pos}
 var _portals: Array = []            # {mesh, hue_ring, sprite, label, name, key, pos, placeholder}
@@ -213,6 +217,7 @@ func _ready() -> void:
 	_pivot = Node3D.new()
 	_pivot.position = Vector3(0, -0.45, 0)   # sit the field below the top HUD chrome
 	_world.add_child(_pivot)
+	_build_phi_lights()
 
 	# manifold edges: live mutual-information correlation lines, rebuilt each frame
 	_edges = MeshInstance3D.new()
@@ -1276,10 +1281,14 @@ func _tick_field(dt: float) -> void:
 	var t1 := Time.get_ticks_usec()
 	_apply_force_dynamics(vc, dt)
 	var t2 := Time.get_ticks_usec()
+	var i_light := 0
+	_prepare_phi_lights(_bubbles.size())
 	for b in _bubbles:
 		_update_bank_badge(b, bname)
 		var snap = vc.get_snapshot(b.reg)
 		if typeof(snap) != TYPE_DICTIONARY:
+			_hide_phi_light(i_light)
+			i_light += 1
 			continue
 		var p0 := float(snap.get("p0", 0.5))
 		var p1 := float(snap.get("p1", 0.5))
@@ -1293,6 +1302,8 @@ func _tick_field(dt: float) -> void:
 		var st := sin(th)
 		var bloch := Vector3(st * cos(ph), cos(th), st * sin(ph)) * (rb * R)
 		b.dot.position = b.pos + bloch
+		_update_bloch_lights(b, i_light, th, ph, rb, dt)
+		i_light += 1
 		if b.dot.scale.x > 1.01:   # decay the pick-flash
 			b.dot.scale = b.dot.scale.lerp(Vector3.ONE, min(1.0, dt * 6.0))
 		# record the trajectory so the state's precession leaves a visible fading arc
@@ -1328,6 +1339,82 @@ func _tick_field(dt: float) -> void:
 	FrameCostLedger.add_us("viz_field3d_vectors", t5 - t4)
 	FrameCostLedger.add_us("viz_field3d_chain", t6 - t5)
 	FrameCostLedger.add_us("viz_field3d_lindblad", t7 - t6)
+
+
+# --- Bloch radius ball + phase lights -----------------------------------------
+# The translucent ball is the state's |r| (open systems shrink it as dissipation acts);
+# the equator + gold rings stay at full size (|r| = 1) as the reference. A small light
+# rides the equator ring at the azimuth phi, and a second one rides the camera
+# selection ring at the Bloch vector's projection onto that ring's plane (a cross
+# section: same light as phi when the camera looks down the pole axis). Radius, theta
+# and phi are lightly lerped for display only; both lights come from the SAME smoothed
+# state, and all phi lights are one MultiMesh draw (no per-bubble light nodes).
+
+func _build_phi_lights() -> void:
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	var sm := SphereMesh.new()
+	sm.radius = LIGHT_RADIUS
+	sm.height = LIGHT_RADIUS * 2.0
+	sm.radial_segments = 10
+	sm.rings = 6
+	mm.mesh = sm
+	_lights = MultiMeshInstance3D.new()
+	_lights.multimesh = mm
+	var lm := StandardMaterial3D.new()
+	lm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	lm.vertex_color_use_as_albedo = true
+	lm.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	_lights.material_override = lm
+	_pivot.add_child(_lights)
+
+
+func _prepare_phi_lights(n: int) -> void:
+	if _lights == null:
+		return
+	var mm := _lights.multimesh
+	if mm.instance_count != n:
+		mm.instance_count = n
+		for i in n:
+			_hide_phi_light(i)
+
+
+func _hide_phi_light(i: int) -> void:
+	if _lights != null and i < _lights.multimesh.instance_count:
+		_lights.multimesh.set_instance_transform(i, Transform3D(Basis.from_scale(Vector3.ZERO), Vector3.ZERO))
+
+
+## Smooth (r, theta, phi), scale the inner ball to r, and place the phi light.
+## Stores b["bloch_vis"] (smoothed local Bloch vector, unit-ball units) for the
+## selection-ring light.
+func _update_bloch_lights(b: Dictionary, i: int, th: float, ph: float, rb: float, dt: float) -> void:
+	var k := 1.0 - exp(-LIGHT_SMOOTH * dt)
+	if not b.has("r_s") or not _bubble_shown(b):
+		b["r_s"] = rb; b["th_s"] = th; b["ph_s"] = ph   # snap on first sight / while hidden
+	else:
+		b["r_s"] = lerpf(float(b.r_s), rb, k)
+		b["th_s"] = lerp_angle(float(b.th_s), th, k)
+		b["ph_s"] = lerp_angle(float(b.ph_s), ph, k)
+	var r_s: float = clampf(float(b.r_s), 0.0, 1.0)
+	var s_th := sin(float(b.th_s))
+	var phs: float = float(b.ph_s)
+	b["bloch_vis"] = Vector3(s_th * cos(phs), cos(float(b.th_s)), s_th * sin(phs)) * r_s
+	var mesh = b.get("mesh")
+	if mesh != null and is_instance_valid(mesh):
+		# Unexplored fog keeps the full constant ground; |r| is physics the player must explore.
+		mesh.scale = Vector3.ONE * (maxf(r_s, MIN_BALL_SCALE) if _bubble_shown(b) else 1.0)
+	if not _bubble_shown(b):
+		_hide_phi_light(i)
+		return
+	var rxy: float = r_s * absf(s_th)
+	if rxy < 0.02:
+		_hide_phi_light(i)
+		return
+	var pos: Vector3 = b.pos + Vector3(cos(phs), 0.0, sin(phs)) * R
+	var mm := _lights.multimesh
+	mm.set_instance_transform(i, Transform3D(Basis.IDENTITY, pos))
+	mm.set_instance_color(i, Color(1.0, 0.95, 0.6, clampf(rxy, 0.0, 1.0)))
 
 
 ## Draw each register's live state vector (centre → the real Bloch point) plus a fading
@@ -2372,6 +2459,32 @@ func _paint_camera_reticle() -> void:
 		return
 	var pulse := 1.0 + 0.05 * (0.5 + 0.5 * sin(_sel_pulse))
 	_stroke_camera_circle(focused, Color(1.0, 0.90, 0.32, 0.98), 3.4, 1.32 * pulse)
+	_paint_selection_light(focused, 1.32 * pulse)
+
+
+## The Bloch vector projected onto the selection ring's plane (the camera plane): a light
+## at the projected angle, dimmed by the projected length. A cross-section of the state.
+func _paint_selection_light(b: Dictionary, radius_scale: float) -> void:
+	if not bool(b.get("revealed", false)) or not b.has("bloch_vis"):
+		return
+	var mesh = b.get("mesh")
+	var wp: Vector3 = mesh.global_position
+	if _cam.is_position_behind(wp):
+		return
+	var v: Vector3 = _pivot.global_transform.basis * (b.bloch_vis as Vector3)
+	var cb := _cam.global_transform.basis
+	var px := v.dot(cb.x.normalized())
+	var py := v.dot(cb.y.normalized())
+	var plen := Vector2(px, py).length()
+	if plen < 0.02:
+		return
+	var center := _cam.unproject_position(wp)
+	var edge := _cam.unproject_position(wp + cb.x.normalized() * R)
+	var radius := center.distance_to(edge) * radius_scale + 6.0
+	var at := center + Vector2(px, -py) / plen * radius   # screen y points down
+	var a := clampf(plen, 0.0, 1.0)
+	_sel_reticle.draw_circle(at, 5.5, Color(0.04, 0.04, 0.07, 0.88 * a))
+	_sel_reticle.draw_circle(at, 3.8, Color(1.0, 0.95, 0.6, a))
 
 
 func _stroke_camera_circle(b: Dictionary, color: Color, width: float, radius_scale: float) -> void:

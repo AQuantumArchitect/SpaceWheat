@@ -3147,6 +3147,7 @@ func get_interpolated_snapshot(biome_name: String, register_id: int) -> Dictiona
 		"theta": lerpf(curr.get("theta", PI / 2.0), next.get("theta", PI / 2.0), t),
 		"phi": _lerp_angle(curr.get("phi", 0.0), next.get("phi", 0.0), t),
 		"purity": lerpf(curr.get("purity", 1.0), next.get("purity", 1.0), t),
+		"r_bloch": lerpf(curr.get("r_bloch", 1.0), next.get("r_bloch", 1.0), t),
 		"t": t
 	}
 

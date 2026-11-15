@@ -4,6 +4,7 @@ extends RefCounted
 # Shared constants
 const VerboseConfig = preload("res://Core/Config/VerboseConfig.gd")
 const UIProgression = preload("res://UI/Core/UIProgression.gd")
+const _BalanceConfig = preload("res://Core/GameMechanics/BalanceConfig.gd")
 
 ## Batched Bubble Renderer — STATION coordinator (Mini-Metro pass, 2026-07-07)
 ##
@@ -136,6 +137,7 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 	_bubble_atlas_batcher.begin(graph.get_canvas_item())
 
 	var theme_by_biome: Dictionary = {}
+	var closed_system: bool = _BalanceConfig.is_closed_system()
 
 	# Gauge dial (What Turns): per-biome fence-ledger lookup, resolved once
 	# per pass and only after the compass lesson unlocks the overlay. NAN
@@ -165,6 +167,7 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		var p1: float = node.p_south
 		var phi: float = node.phi_raw
 		var coherence: float = clampf(node.coherence * 2.0, 0.0, 1.0)  # node stores r_xy·0.5
+		var r_bloch: float = node.r_bloch
 		if batcher and batcher.lookahead_enabled and node.register_id >= 0 and not is_measured:
 			var snap = batcher.get_interpolated_snapshot(node.biome_name, node.register_id)
 			if not snap.is_empty():
@@ -173,6 +176,13 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 				p1 = 1.0 - p0
 				phi = snap.get("phi", phi)
 				coherence = clampf(float(snap.get("r_xy", coherence)), 0.0, 1.0)
+				if not closed_system:  # closed = |r| = 1 by contract
+					r_bloch = clampf(float(snap.get("r_bloch", r_bloch)), 0.0, 1.0)
+
+		# Light smoothing so |r| and φ glide instead of jittering (per-node
+		# state, no allocation): ~0.25 per frame toward the faithful target.
+		node.r_bloch_vis = lerpf(node.r_bloch_vis, r_bloch, 0.25)
+		node.phi_vis = lerp_angle(node.phi_vis, phi, 0.4)
 
 		var theme: Dictionary
 		if theme_by_biome.has(node.biome_name):
@@ -216,8 +226,8 @@ func _draw_with_atlas(graph: Node2D, ctx: Dictionary) -> void:
 		_bubble_atlas_batcher.draw_station(
 			node.position, station_radius, anim_scale, anim_alpha,
 			theme, VisualizationConstants.ripeness(p0, p1),
-			phi, coherence, is_measured, false, time_accumulator, frame_chi,
-			fiber_gamma, fiber_closed, stay_home)
+			node.phi_vis, coherence, is_measured, false, time_accumulator, frame_chi,
+			fiber_gamma, fiber_closed, stay_home, node.r_bloch_vis)
 
 		_emoji_queue.append({
 			"position": node.position,
