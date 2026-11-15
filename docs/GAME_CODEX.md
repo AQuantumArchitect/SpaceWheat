@@ -404,7 +404,9 @@ the Arc tab *is* that score, rising continuously — there is no boolean "ding."
 Predicate families (`QuestManager.gd`):
 - **Actions:** `berry_consumed_count_gte`, `berry_total_phase_gte`,
   `signature_size_gte`, `signature_growth_gte`.
-- **Composition/ecology:** `atom_in_biome`, `atom_count_gte`, `atom_diversity_gte`.
+- **Composition/ecology:** `atom_in_biome`, `atom_count_gte`, `atom_diversity_gte`,
+  `home_biome_has_emoji` (a planted icon with that pole in one of the player
+  faction's `governing_biome_slots` biomes; the demo's 🍼 win rides it).
 - **Quantum observables (composition-intrinsic):** `biome_spectral_gap_gte/_lte`
   (the `H`'s own gap `E₁−E₀` — wide = one rigid attractor, small = many competing
   modes), `biome_energy_variance_gte/_lte` (Var(H), state restlessness).
