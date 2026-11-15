@@ -212,6 +212,14 @@ func _run() -> void:
 			"emoji": oc.resource, "biome": oc.biome_name, "p": snappedf(oc.quote_p, 0.0001),
 			"p_prior": oc.p_prior, "prior_biome": oc.prior_biome, "kT": snappedf(oc.quote_kT, 0.01),
 			"standing": PriceModel.standing_factor(oc.faction, farm), "faction": oc.faction}))
+	# Drop every Resource handle so the engine exits with none still in use.
+	loaded = null
+	state = null
+	saved = {}
+	fresh = null
+	rc = null
+	app_root.queue_free()
+	await process_frame
 	quit(0)
 
 
