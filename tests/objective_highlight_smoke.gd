@@ -11,7 +11,20 @@ class FarmStub:
 	var highlight_uses: Dictionary = {}
 
 
-func _init() -> void:
+var _ran := false
+
+
+## Run on the first frame, not in _init(): only then is /root inside the tree,
+## so is_visible_in_tree() (what ObjectiveTargets.resolve reads) can be true.
+func _process(_delta: float) -> bool:
+	if _ran:
+		return false
+	_ran = true
+	_run()
+	return false
+
+
+func _run() -> void:
 	ObjectiveTargets.clear_registry()
 	var root_ctl := Control.new()
 	get_root().add_child(root_ctl)
