@@ -321,6 +321,17 @@ signal only, `BiomeEvolutionBatcher.evolution_running(bool)`: it plays while ρ
 is actually evolving and stops whenever anything halts it (pause, E peek,
 dormant, menus).
 
+**Your vocabulary pays in tiers.** `ProbeActions.vocabulary_tier` is the one
+rule: the glow, the faint highlight and every payout read it, in every biome.
+Your vocabulary is the home biome's (the Demos) own axes plus
+`farm.incorporated_icons`; taught faction words (`known_icons`) stay out until
+incorporated. A plot whose full axis is known glows (`bubble.known_word`) and
+pays **×6** (×2 for sharing its emojis, ×3 on top for the icon). A plot with one
+vocabulary emoji on a pole but an unknown axis gets a faint highlight
+(`bubble.shared_emoji`) and pays **×2**. Anything else pays ×1. The strike's
+floating receipt names the tier ("+N  ×6 known word" / "+N  ×2 shared emoji").
+No r-dependence: `signature_r_bonus` and `signature_reward_exponent` are unused.
+
 Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 `Core/Markets/EnergyPricing.gd`.
 
@@ -418,7 +429,7 @@ phase-0 partition, `tests/test_campaign_partition.py`).
   forms. Reputation raises market pay (⭐, `quest_rewards.standing_reward_*`).
 - **Act 3 — What the Land Remembers:** the berry chapter (`first_breath` + the
   forest staircase): Berry-tracking, incorporation, the first invariant — and
-  the **×4 harvest bonus**, which rides `farm.incorporated_icons` (the ritual's
+  the **×6 harvest bonus**, which rides `farm.incorporated_icons` (the ritual's
   ledger), never mere teaching.
 - **Act 4 — the hub:** all biomes coupled (`island_lives`); `village_identity`
   ("A Character") gates on Village at its 12-atom cap + island diversity + the

@@ -25,11 +25,8 @@ const TUNABLES: Array = [
 	# Market scarcity temperature kT (Boltzmann E = −kT·log p).
 	{"root": "tuning", "key": "market_temperature", "default": 10.0, "label": "Market kT", "category": "Market", "kind": "float", "step": 0.5, "min": 1.0, "max": 30.0},
 	{"root": "tuning", "key": "market_temperature_entropy_gain", "default": 1.0, "label": "Market kT entropy gain", "category": "Market", "kind": "float", "step": 0.1, "min": 0.0, "max": 5.0},
-	# Incorporation-reward multiplier — the escape from the resource spiral. Harvesting a
-	# register whose ICON you have INCORPORATED (the Icon-hat ripening ritual,
-	# farm.incorporated_icons — taught words do NOT count) boosts its yield:
-	# mult = (r + (incorporated ? signature_r_bonus : 0)) ^ exponent; closed (r=1)
-	# → incorporated ×4 / not ×1; open (r<1) → a curve. See ProbeActions._incorporation_reward_multiplier.
+	# UNUSED since #105: the vocabulary multiplier is exactly ×1 / ×2 / ×6
+	# (ProbeActions.vocabulary_tier), no r-dependence. Keys kept so saves and boards load.
 	{"root": "tuning", "key": "signature_r_bonus", "default": 1.0, "label": "Signature r-bonus", "category": "Signature", "kind": "float", "step": 0.25, "min": 0.0, "max": 4.0},
 	{"root": "tuning", "key": "signature_reward_exponent", "default": 2.0, "label": "Signature exponent", "category": "Signature", "kind": "float", "step": 0.25, "min": 1.0, "max": 4.0},
 	{"root": "economy_variables", "key": "quantum_to_credits", "default": 1.0, "label": "Quantum → credits", "category": "Economy", "kind": "float", "step": 0.1, "min": 0.1, "max": 10.0},

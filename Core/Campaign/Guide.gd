@@ -436,7 +436,15 @@ static func explain() -> Array:
 ## want different hats never trade the hat back and forth: whichever can act
 ## in the current hat acts, and the other waits its turn. A held collapse
 ## (steer's "hold") is idle, ranked below everything.
+## An objective marked `"lead": true` in the campaign goes first while it is
+## open: the others are walked only when it offers nothing (spiral_breaks
+## sends you to the word you just learned before the second berry, #105).
 static func _across(preds: Array, q: Dictionary) -> Dictionary:
+	var lead: Array = preds.filter(func(p): return p is Dictionary and bool(p.get("lead", false)))
+	if not lead.is_empty() and lead.size() < preds.size():
+		var first := _across(lead, q)
+		if not first.is_empty():
+			return first
 	var wait := {}
 	var setup := {}
 	var idle := {}  # a held collapse: nothing to do, and nothing lost by doing something else
@@ -578,6 +586,14 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _survey(q)
 		"attend_charge":
 			return _attend_charge(q)
+		"explore_each":
+			return _explore_each(pred, q)
+		"mass_strike":
+			return _mass(pred, q, "batch_strike", "strike", "strike")
+		"mass_gather":
+			return _mass(pred, q, "batch_gather", "gather", "gather")
+		"orbit":
+			return _orbit(pred, q)
 		"deliver_to":
 			# A lesson keeps its contract on its own board (lesson_offer).
 			var lesson_home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
@@ -1628,19 +1644,18 @@ static func _strike_pick(biome: String) -> int:
 ## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
 ## register on the active biome (the forest the berries came from), explores
 ## it if it is in fog, then Ace R. Nothing to show when no word here is known.
+## The word just learned comes first (#105): the newest entry in the ledger
+## that stands on this biome — 🔥/❄️ after fire and ice, 🦅/🐇 after the
+## forest's first loop — so the glow the player is sent to is the one they
+## just lit.
 static func _strike_known(q: Dictionary) -> Dictionary:
 	var biome := UIP._active_biome_name()
 	var farm = UIP._active_farm()
 	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
 	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
 		return {}
-	var rm = b.quantum_computer.register_map
-	var col := -1
-	for c in range(_live_cols(biome)):
-		var ax: Dictionary = rm.axis(c)
-		if ProbeActions._icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", ""))):
-			col = c
-			break
+	var hit := known_word_col(farm, b.quantum_computer.register_map, _live_cols(biome))
+	var col := int(hit.get("col", -1))
 	if col < 0:
 		return {}
 	var h := _hat("ace", q)
@@ -1651,8 +1666,27 @@ static func _strike_known(q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if _live_col() != col:
 		parts.append_array(_pick_plot(col))
-	parts.append(["Strike", _verb("strike")])
+	parts.append(["Strike the glowing %s/%s" % [str(hit.get("north", "")), str(hit.get("south", ""))], _verb("strike")])
 	return _chord(parts, q, "strike known")
+
+
+## The plot (of the first `cols`) carrying the most recently incorporated word
+## that stands there: {col, north, south}, or {} when none of your words does.
+## Reads farm.incorporated_icons newest-first; the match is ProbeActions.same_word,
+## the entry test inside word_known — the check that lights the glow and pays the bonus.
+static func known_word_col(farm, rm, cols: int) -> Dictionary:
+	if farm == null or rm == null or not ("incorporated_icons" in farm):
+		return {}
+	var ledger: Array = farm.incorporated_icons
+	for i in range(ledger.size() - 1, -1, -1):
+		var ic = ledger[i]
+		for c in range(cols):
+			var ax: Dictionary = rm.axis(c)
+			var n := str(ax.get("north", ""))
+			var s := str(ax.get("south", ""))
+			if ProbeActions.same_word(ic, n, s):
+				return {"col": c, "north": n, "south": s}
+	return {}
 
 
 ## A lesson that is a delivery (resource × quantity): gather it, then claim.
@@ -2080,6 +2114,65 @@ static func _entangle(q: Dictionary) -> Dictionary:
 				return _chord([["Bell pair", k]], q, "pick gate")
 		return {}
 	return _pair_gate("", q, "Bell pair")
+
+
+## Wayfinding, first ask: open the bubbles one at a time (select, then explore).
+## Hands off to "orbit" and the mass asks once the player has looked around; {} when
+## this is not that phase or nothing here is still fog.
+static func _explore_each(pred: Dictionary, q: Dictionary) -> Dictionary:
+	if str(pred.get("type", "")) != "biome_explored" or _orbit_done():
+		return {}
+	var biome := UIP._active_biome_name()
+	for c in range(_live_cols(biome)):
+		if _is_revealed(biome, c):
+			continue
+		var parts: Array = _close_first()
+		if str(ToolConfig.get_current_frame()) != "ace":
+			parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+		parts.append_array(_pick_plot(c))
+		parts.append(["explore", _verb("explore")])
+		return _cost_or(["explore", "🍞"], _chord(parts, q, "explore each"), q, 0)
+	return {}
+
+
+## Wayfinding, second ask: turn the graph. Click-drag on empty space orbits (the
+## look-around is optional; the lesson credits it after a short grace).
+static func _orbit(pred: Dictionary, q: Dictionary) -> Dictionary:
+	if str(pred.get("type", "")) != "gate_sequence_contains" or str(pred.get("gate", "")) != "orbit":
+		return {}
+	return _wait("click and drag the empty dark to turn the graph", q, "orbit")
+
+
+static func _orbit_done() -> bool:
+	var qm = UIP._quest_manager()
+	return qm != null and qm.has_method("gate_count") and int(qm.gate_count("orbit")) > 0
+
+
+## Wayfinding, the mass asks: Shift-select the field, then Shift+R (strike: the
+## forest goes dark) and Shift+Q (gather: pull the bank, no disturbance). The
+## beat names only the selection and the verb; what a strike does to the fog or
+## the music is the simulation's business, not the guide's.
+static func _mass(pred: Dictionary, q: Dictionary, gate: String, label: String, verb: String) -> Dictionary:
+	if str(pred.get("type", "")) != "gate_sequence_contains" or str(pred.get("gate", "")) != gate:
+		return {}
+	var biome := UIP._active_biome_name()
+	var inst = UIP._instrument()
+	var marks: Array = inst.checked_plots if inst != null and "checked_plots" in inst else []
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_current_frame()) != "ace":
+		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+	var have := {}
+	if not marks.is_empty() and not _marks_here(marks):
+		parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
+	else:
+		for m in marks:
+			if m is Vector2i:
+				have[int(m.x)] = true
+	for c in range(_live_cols(biome)):
+		if not have.has(c):
+			parts.append(["mark", "shift+" + _plot_key(c)])
+	parts.append(["Mass " + label, "shift+" + _verb(verb)])
+	return _chord(parts, q, "mass " + label)
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.
