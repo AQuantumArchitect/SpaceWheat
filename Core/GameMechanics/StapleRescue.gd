@@ -21,11 +21,32 @@ extends RefCounted
 const VERB_STAPLE := {"pop": "🧺", "measure": "👥", "explore": "🍞"}
 ## Plain words beside the glyph in refusals: 👥 alone read as "handshake"
 ## to a playtester (issue #87).
-const STAPLE_NAMES := {"🧺": "baskets", "👥": "people", "🍞": "bread"}
+const STAPLE_NAMES := {"🧺": "baskets", "👥": "people", "🍞": "bread", "🍼": "milk"}
 ## Trades deep a chain may go (🧺 ← 👥 ← 🌾 is two).
 const CHAIN_DEPTH := 2
 ## Trades a chain may take in total (a bound, not a tuning knob).
 const CHAIN_TRADES := 8
+
+
+## Reap spends 🍼 (Fibonacci, BalanceService.get_reap_cost). 🍼 is no staple:
+## it has no Village trade and is never lent, so a short wallet is not
+## rescued here. It is routed instead (#93): the refusal and the Guide both
+## send the player to the Arc, where "Find the milk" is offered.
+const MILK := "🍼"
+## The toast route a 🍼-short reap refusal carries (PlayerShell._route_to_callable).
+const MILK_ROUTE := "arc"
+
+
+## True while the wallet holds less 🍼 than the next reap costs. State, not
+## a flag: it reads the wallet every call, so the cue stands as long as the
+## shortage does and goes the moment 🍼 is back.
+static func milk_short(farm) -> bool:
+	if farm == null or not ("economy" in farm) or farm.economy == null \
+			or not farm.economy.has_method("get_resource"):
+		return false
+	var cost: Dictionary = BalanceService.get_reap_cost(farm, ProbeActions._get_reap_count(farm))
+	var need := int(cost.get(MILK, 0))
+	return need > 0 and int(farm.economy.get_resource(MILK)) < need
 
 
 static func staple_for(action: String) -> String:

@@ -2242,6 +2242,12 @@ static func _reap(biome: String, q: Dictionary) -> Dictionary:
 			var bits := str(d).rsplit(":", true, 1)
 			if bits[0] == biome:
 				return _reveal(int(bits[1]), q)
+	# Out of 🍼 (#93): the reap would be refused, so the way to the milk is
+	# the next step: the Arc, where "Find the milk" is offered. State-derived,
+	# like every other shortage cue here.
+	if StapleRescue.milk_short(farm):
+		_t("short 🍼 for reap")
+		return _short_of(StapleRescue.MILK, _chord(_go("X/arc"), q, "find milk"))
 	var parts: Array = _close_first()
 	if _live_col() < 0:
 		parts.append_array(_pick_plot(0))
