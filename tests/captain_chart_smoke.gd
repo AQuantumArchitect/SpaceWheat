@@ -4,8 +4,9 @@ extends "res://tests/smoke_test_base.gd"
 ## deliberate, NON-random Captain action that still costs the chart price.
 ## Boots a real farm (StarterForest) and drives the real Farm.discover_biome:
 ##   - no open door        → R is the random Add Biome (draws from the pool)
-##   - woodlot_door open, 🦅 < 21 → R refuses, names holdings vs need, spends 0
-##   - woodlot_door open, 🦅 ≥ 21 → R loads Woodlot (not a draw), spends 🦅×21
+##   - woodlot_door open, 📜 < 5 → R refuses, names holdings vs need, spends 0
+##   - woodlot_door open, 📜 ≥ 5 → R loads Woodlot (not a draw), spends 📜×5
+##   (the price is 📜, Carrion Throne paperwork, since #103 — not 🦅)
 ##   - chip/label reads "Chart Woodlot" while R will chart (mouse chip parity)
 ##   - two doors open → the first in story-flag file order is charted
 ##   - a resolved door no longer charts
@@ -31,16 +32,16 @@ func _init() -> void:
 	call_deferred("_run")
 
 
-func _eagles(farm) -> int:
-	return int(floor(float(farm.economy.get_resource("🦅"))))
+func _scrolls(farm) -> int:
+	return int(floor(float(farm.economy.get_resource("📜"))))
 
 
-func _set_eagles(farm, n: int) -> void:
-	var have := _eagles(farm)
+func _set_scrolls(farm, n: int) -> void:
+	var have := _scrolls(farm)
 	if have < n:
-		farm.economy.add_resource("🦅", n - have, "chart_smoke")
+		farm.economy.add_resource("📜", n - have, "chart_smoke")
 	elif have > n:
-		farm.economy.remove_resource("🦅", have - n, "chart_smoke")
+		farm.economy.remove_resource("📜", have - n, "chart_smoke")
 
 
 func _run() -> void:
@@ -63,7 +64,8 @@ func _run() -> void:
 	_check(qm.flags.size() > 0, "story_flags.json loaded (%d flags)" % qm.flags.size())
 	_check(str(CampaignRuntime.charts().get("woodlot_door", "")) == "Woodlot",
 		"runtime charts woodlot_door → Woodlot")
-	_check(int(CampaignRuntime.chart_cost().get("🦅", 0)) == 21, "chart cost is 🦅×21")
+	_check(CampaignRuntime.chart_cost() == {"📜": 5}, "chart cost is 📜×5 (%s)" % str(CampaignRuntime.chart_cost()))
+	_check(CampaignRuntime.chart_resource() == "📜" and CampaignRuntime.chart_price() == 5, "chart_resource/price read the spec")
 
 	var state = gsm.save_load.new_game()
 	state.unlocked_biomes.clear()
@@ -119,44 +121,46 @@ func _run() -> void:
 	var r_info: Dictionary = ChipResolverRegistry.resolve(
 			ToolConfigScript.get_action("captain", "R"), ChipContext.new(null, -1, false, farm))
 	_check(str(r_info.get("label", "")) == "Add Biome", "chip reads Add Biome with no open door")
-	_set_eagles(farm, 30)
-	var before := _eagles(farm)
+	_set_scrolls(farm, 8)
+	var eagles_before := int(farm.economy.get_resource("🦅"))
+	var before := _scrolls(farm)
 	var r1: Dictionary = farm.discover_biome()
 	var drawn := str(r1.get("biome_name", ""))
 	_check(bool(r1.get("success", false)), "random discovery succeeds: %s" % str(r1.get("message", "")))
 	_check(pool.has(drawn), "random draw came from the side pool (%s)" % drawn)
 	_check(not bool(r1.get("charted", false)), "random discovery is not a chart")
-	_check(before - _eagles(farm) == 21, "Add Biome spent its 🦅×21 (%d→%d)" % [before, _eagles(farm)])
+	_check(before - _scrolls(farm) == 5, "Add Biome spent its 📜×5 (%d→%d)" % [before, _scrolls(farm)])
+	_check(int(farm.economy.get_resource("🦅")) == eagles_before, "Add Biome spent no 🦅")
 
-	# --- 2. woodlot_door open, 🦅 short: refuse, spend nothing -------------
+	# --- 2. woodlot_door open, 📜 short: refuse, spend nothing -------------
 	farm.story_flags_fired["woodlot_door"] = 0
 	_check(farm.chart_target_biome() == "Woodlot", "woodlot_door open → chart target Woodlot")
-	_set_eagles(farm, 10)
+	_set_scrolls(farm, 2)
 	var gate: Dictionary = farm.can_discover_biome()
-	_check(not bool(gate.get("ok", true)), "chart gate refuses at 🦅×10")
+	_check(not bool(gate.get("ok", true)), "chart gate refuses at 📜×2")
 	_check(bool(gate.get("chart_short", false)), "refusal is a chart shortfall")
 	var msg := str(gate.get("message", ""))
-	_check("Chart Woodlot" in msg and "🦅×21" in msg and "you hold 🦅×10" in msg,
+	_check("Chart Woodlot" in msg and "📜×5" in msg and "you hold 📜×2" in msg,
 		"refusal names need vs held: %s" % msg)
 	_check(not ActionValidator.can_execute_action_name("discover_biome", farm, [], Vector2i(-1, -1)),
 		"validator greys Captain R while short")
 	var r2: Dictionary = farm.discover_biome()
 	_check(not bool(r2.get("success", true)) and bool(r2.get("blocked", false)), "short chart is blocked")
-	_check(_eagles(farm) == 10, "short chart spent nothing")
+	_check(_scrolls(farm) == 2, "short chart spent nothing")
 	_check(not observation_frame.get_unlocked_biomes().has("Woodlot"), "Woodlot not loaded on refusal")
 
-	# --- 3. woodlot_door open, 🦅 ≥ 21: chart Woodlot deterministically ----
-	_set_eagles(farm, 30)
+	# --- 3. woodlot_door open, 📜 ≥ 5: chart Woodlot deterministically ----
+	_set_scrolls(farm, 8)
 	r_info = ChipResolverRegistry.resolve(
 			ToolConfigScript.get_action("captain", "R"), ChipContext.new(null, -1, false, farm))
 	_check(str(r_info.get("label", "")) == "Chart Woodlot", "chip reads Chart Woodlot (%s)" % str(r_info.get("label", "")))
 	_check(str(r_info.get("action", "")) == "discover_biome", "chip still dispatches discover_biome")
-	_check(int((r_info.get("cost", {}) as Dictionary).get("🦅", 0)) == 21, "chip advertises 🦅×21")
+	_check(int((r_info.get("cost", {}) as Dictionary).get("📜", 0)) == 5, "chip advertises 📜×5")
 	var r3: Dictionary = farm.discover_biome()
 	_check(bool(r3.get("success", false)), "chart succeeds: %s" % str(r3.get("message", "")))
 	_check(str(r3.get("biome_name", "")) == "Woodlot", "chart loaded Woodlot, not a random biome")
 	_check(bool(r3.get("charted", false)), "result is marked charted")
-	_check(_eagles(farm) == 9, "chart spent 🦅×21 (30→%d)" % _eagles(farm))
+	_check(_scrolls(farm) == 3, "chart spent 📜×5 (8→%d)" % _scrolls(farm))
 	_check(observation_frame.get_unlocked_biomes().has("Woodlot"), "Woodlot is on the spindle")
 	_check(not observation_frame.get_unexplored_biomes().has("Woodlot"), "Woodlot left the unexplored pool")
 	_check(farm.chart_target().is_empty(), "loaded door biome no longer charts")

@@ -489,38 +489,38 @@ def test_commerce_walk_names_the_market_key():
     assert "Market [Y]" in walk
 
 
-def test_eagle_short_names_gather_key():
-    """lantern_door: 21 eagles from Forest, Captain [R] Add Biome, no gather
-    key. Origin next-key was Forest with a blank chip. Name Forest rail,
-    [8] Ace, then [R]/[Q]. Do not discover for them."""
+def test_chart_short_names_the_village_walk():
+    """lantern_door: Captain [R] Add Biome short of the chart price, no walk
+    key. Origin next-key was a land with a blank chip. The price is 📜
+    (issue #103), sold on the Village board: name the trade walk, or the
+    trade's own short ask. Do not discover for them."""
     prog = src(PROG)
-    assert "func _eagle_gather_target" in prog
-    assert "func eagle_short_refusal" in prog
+    assert "func _chart_supply_target" in prog
+    assert "func chart_short_refusal" in prog
     target = prog.split("static func objective_target()")[1].split("static func ")[0]
-    assert "_eagle_short()" in target
-    assert "_eagle_gather_target()" in target
-    assert '{"key": "", "biome": "StarterForest"}' not in target.split("_eagle_short()")[1].split("if _is_discover_ask")[0]
-    gather = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
-    assert '"8"' in gather or "hat_key_for_frame" in gather or "ace" in gather
-    assert '"R"' in gather
-    assert '"Q"' in gather
-    assert "StarterForest" in gather
+    assert "_chart_short()" in target
+    assert "_chart_supply_target()" in target
+    gather = prog.split("static func _chart_supply_target()")[1].split("\nstatic func ")[0]
+    assert "_supply_target(CampaignRuntime.chart_resource())" in gather
+    assert "_chart_trade_short()" in gather
+    assert 'hat_key_for_frame("ace")' in gather
+    assert "StarterForest" not in gather
     detail = prog.split("static func objective_detail()")[1].split("static func ")[0]
-    assert "_eagle_short()" in detail
+    assert "_chart_short()" in detail
     disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
-    assert "_eagle_short" in disc
-    assert "_eagle_gather_line" in disc
+    assert "_chart_short" in disc
+    assert "_chart_supply_line" in disc
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
-    assert "eagle_short_refusal" in disc_arm
-    assert disc_arm.index("eagle_short_refusal") < disc_arm.index("slots_full_refusal")
+    assert "chart_short_refusal" in disc_arm
+    assert disc_arm.index("chart_short_refusal") < disc_arm.index("slots_full_refusal")
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
-    # Captain Chart: the authored hint names the 🦅 source and the chart key;
-    # the gather/cull choreography lives in the banner walk, not the hint.
-    assert "Forest" in hint
-    assert "🦅" in hint
+    # Captain Chart: the authored hint names the 📜 source and the chart key;
+    # the trade/cull choreography lives in the banner walk, not the hint.
+    assert "Village" in hint
+    assert "📜" in hint
     assert "[7]" in hint
     assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
@@ -557,17 +557,17 @@ def test_basket_short_walks_the_village_trade_not_a_plot():
     assert "supply_walk_cue" in walk
     assert "[C] opens the board" in walk
     assert "_cross_to(biome)" in walk
-    # Gather walks restock BEFORE the last basket: sprout and eagle both.
+    # Gather walks restock BEFORE the last basket: sprout and chart both.
     sprout = prog.split("static func _sprout_gather_line()")[1].split("\nstatic func ")[0]
     assert "_basket_short()" in sprout and "_basket_pay_line()" in sprout
-    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
+    gather = prog.split("static func _chart_supply_line()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in gather
     assert "_basket_pay_line" in gather
-    target = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
+    target = prog.split("static func _chart_supply_target()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in target
     assert "_basket_pay_target" in target
-    eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
-    assert "supply_refusal(\"🧺\", gather_price(), true)" in eagle_ref
+    chart_ref = prog.split("static func chart_short_refusal()")[1].split("\nstatic func ")[0]
+    assert "supply_refusal(\"🧺\", gather_price(), true)" in chart_ref
     # The board answers the walk with one next key.
     board = src(BOARD)
     cue = board.split("func supply_walk_cue(")[1].split("\nfunc _market_rows")[0]
@@ -592,9 +592,9 @@ def test_basket_short_walks_the_village_trade_not_a_plot():
     flags = json.loads(HANDOVER.read_text(encoding="utf-8"))
     lantern = next(f for f in flags if f.get("id") == "lantern_door")
     hint = str(lantern.get("arc_quest", {}).get("hint", ""))
-    # Captain Chart hint: 🦅 source + chart key (the 🧺 walk is the banner's).
-    assert "Forest" in hint
-    assert "🦅" in hint
+    # Captain Chart hint: 📜 source + chart key (the 🧺 walk is the banner's).
+    assert "Village" in hint
+    assert "📜" in hint
     assert "[7]" in hint
     assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
@@ -603,16 +603,16 @@ def test_basket_short_walks_the_village_trade_not_a_plot():
 
 def test_unreadable_wallet_fails_toward_village_basket():
     """lantern_door: empty/unreadable wallet, [R] Find Lanternfall does not
-    pay 🧺. Origin _eagle_short/_basket_short returned false when economy
+    pay 🧺. Origin _chart_short/_basket_short returned false when economy
     was missing or mute, so discover walk kept compass prose. Mute wallet
-    is 0; fail toward the Village 🧺 trade. Do not discover for them."""
+    is 0; fail toward the Village trade. Do not discover for them."""
     prog = src(PROG)
-    eagle = prog.split("static func _eagle_short()")[1].split("\nstatic func ")[0]
-    assert "farm == null" in eagle
-    assert "_eagle_have()" in eagle
-    assert eagle.count("return false") == 1
-    assert 'has_method("get_resource")' not in eagle
-    assert 'not ("economy" in farm)' not in eagle
+    chart = prog.split("static func _chart_short()")[1].split("\nstatic func ")[0]
+    assert "_active_farm() == null" in chart
+    assert "_chart_have()" in chart
+    assert chart.count("return false") == 1
+    assert 'has_method("get_resource")' not in chart
+    assert 'not ("economy" in farm)' not in chart
     # No farm is not a wallet; a mute economy reads 0 (via _wallet) → short.
     sup = prog.split("static func _supply_short(")[1].split("\nstatic func ")[0]
     assert "farm == null" in sup
@@ -623,32 +623,27 @@ def test_unreadable_wallet_fails_toward_village_basket():
     wallet = prog.split("static func _wallet(")[1].split("\nstatic func ")[0]
     assert "return 0.0" in wallet
     disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
-    assert "_eagle_short" in disc
-    assert "_eagle_gather_line" in disc
-    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
+    assert "_chart_short" in disc
+    assert "_chart_supply_line" in disc
+    gather = prog.split("static func _chart_supply_line()")[1].split("\nstatic func ")[0]
     assert "_basket_short" in gather
     assert "_basket_pay_line" in gather
-    eagle_ref = prog.split("static func eagle_short_refusal()")[1].split("\nstatic func ")[0]
-    assert "supply_refusal(\"🧺\", gather_price(), true)" in eagle_ref
+    chart_ref = prog.split("static func chart_short_refusal()")[1].split("\nstatic func ")[0]
+    assert "supply_refusal(\"🧺\", gather_price(), true)" in chart_ref
     qii = src(ROOT / "UI" / "Core" / "QuantumInstrumentInput.gd")
     disc_arm = qii.split('"discover_biome":')[1].split('"remove_biome":')[0]
-    assert "eagle_short_refusal" in disc_arm
+    assert "chart_short_refusal" in disc_arm
 
 
-def test_eagle_after_strike_names_q_not_explore():
-    """lantern_door: after 🧺, [R] Strike then [F] Explore; 🦅 stuck, [Q]
-    not the next key. Strike releases is_bound; Ace F named Explore and
-    wiped the measure. Name [Q] until the eagle lands. Do not Explore."""
+def test_after_strike_names_q_not_explore():
+    """lantern_door: after 🧺, [R] Strike then [F] Explore; the harvest stuck,
+    [Q] not the next key. Strike releases is_bound; Ace F named Explore and
+    wiped the measure. Name [Q] until the harvest lands. Do not Explore.
+    (The chart price is 📜 since #103 — bought, not struck — so the walk
+    itself no longer strikes; the measured-plot rules below still hold.)"""
     prog = src(PROG)
     ace = prog.split("static func ace_f_would_explore()")[1].split("\nstatic func ")[0]
     assert "_plot_measured(col)" in ace
-    gather = prog.split("static func _eagle_gather_line()")[1].split("\nstatic func ")[0]
-    assert "_plot_measured(focused)" in gather
-    assert gather.index("_plot_measured(focused)") < gather.index("ace_f_would_explore()")
-    assert "[Q] gather 🦅" in gather.split("_plot_measured(focused)")[1].split("if not _plot_bound")[0]
-    target = prog.split("static func _eagle_gather_target()")[1].split("\nstatic func ")[0]
-    assert target.index("_plot_measured(focused)") < target.index("ace_f_would_explore()")
-    assert '"Q"' in target.split("_plot_measured(focused)")[1].split("if not _plot_bound")[0]
     term = prog.split("static func _plot_terminal(")[1].split("\nstatic func ")[0]
     assert "get_terminal_at_grid_pos" in term
     pool = src(ROOT / "Core" / "GameMechanics" / "TerminalPool.gd")
@@ -666,7 +661,6 @@ def test_eagle_after_strike_names_q_not_explore():
     ctx = qii.split("func build_chip_context()")[1].split("\nfunc ")[0]
     assert "is_measured" in ctx
     block = qii.split("func _block_reason_for_player")[1].split("func _tracked_elsewhere_hint")[0]
-    assert "Explore does not harvest" in block
     assert "Already measured — Q harvests it." in block
 
 
@@ -988,8 +982,8 @@ def test_paid_eagles_name_lanternfall_and_the_chart_key():
     arc_preds = (lantern.get("arc_quest") or {}).get("state_predicates") or []
     assert any(p.get("biome") == "Lanternfall" for p in arc_preds)
     assert "Lanternfall" in hint
-    assert "Forest" in hint
-    assert "🦅" in hint
+    assert "Village" in hint
+    assert "📜" in hint
     assert "[7]" in hint
     assert "[R] Chart Lanternfall" in hint
     assert "F reads" not in hint
@@ -1107,15 +1101,15 @@ def test_plant_short_does_not_advertise_c_or_icon_first():
     assert "inject_icon" in plant_ask
     assert "func _is_discover_ask" in prog
     assert "func _discover_walk_line" in prog
-    assert "func _eagle_gather_line" in prog
+    assert "func _chart_supply_line" in prog
     assert "[7] Captain" in prog
     disc = prog.split("static func _discover_walk_line()")[1].split("\nstatic func ")[0]
-    assert "_eagle_short" in disc
+    assert "_chart_short" in disc
     assert "[R] Add Biome" in disc
     wood = next(f for f in flags if f.get("id") == "woodlot_door")
     whint = str(wood.get("arc_quest", {}).get("hint", ""))
-    assert "🦅" in whint
-    assert "Forest" in whint
+    assert "📜" in whint
+    assert "Village" in whint
     assert "[7]" in whint
     assert "[R]" in whint
     assert "F reads" not in whint

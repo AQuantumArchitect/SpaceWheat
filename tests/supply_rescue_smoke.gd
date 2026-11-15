@@ -159,8 +159,8 @@ func _run() -> void:
 		_fail("re-rolled board carries the 🧺 trade %d times" % n_same)
 	# Every Village standing trade that should stand is on the ring (paged past
 	# six if need be). Owner ruling 2026-10-29: the vitals 👥 🍞 🧺 stand
-	# while critical (≤ 2 held); 🌱 🔥 🔨 🪓 🌊 🦅 only while a live quest asks
-	# for them; anything else while under the table's low-water mark.
+	# while critical (≤ 2 held); 🌱 🔥 🔨 🪓 🌊 🪔 only while a live quest asks
+	# for them; anything else (📜, the chart price) while under the table's low-water mark.
 	var want_trades: Array = []
 	for t0 in CampaignRuntime.trades_for_biome("Village"):
 		var e0 := str(t0.get("emoji", ""))
@@ -170,7 +170,7 @@ func _run() -> void:
 			if int(econ.get_resource(e0)) <= 2 or fee_short:
 				want_trades.append(t0)
 			continue
-		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]:
+		if e0 in ["🌱", "🔥", "🔨", "🪓", "🌊", "🪔"]:
 			if UIProgression.quest_requests_resource(e0):
 				want_trades.append(t0)
 			continue

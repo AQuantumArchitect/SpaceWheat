@@ -53,7 +53,7 @@ def main():
         print("closed-ground pool: %d offers, wards=%d" % (len(closed_offers), len(wards_closed)))
 
         # Discover until a wet biome lands (bridge the door + cull costs).
-        t("add_resource", emoji="🦅", amount=2000)
+        t("add_resource", emoji="📜", amount=500)
         t("add_resource", emoji="💀", amount=400)
         CORE = {"TheDemos", "Village", "StarterForest"}
 

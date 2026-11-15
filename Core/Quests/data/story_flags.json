@@ -260,7 +260,7 @@
     },
     "arc_quest": {
       "body": "Find the Woodlot — follow the discovery compass upstream until timber country turns under your feet.",
-      "hint": "Need 🦅×21 from the Forest. Then Captain [7], [R] Chart Woodlot.",
+      "hint": "Need 📜×5 (Village board). Then Captain [7], [R] Chart Woodlot.",
       "faction": "Millwright's Union",
       "math_note": "Structural predicate: fires the instant the Woodlot biome is loaded and has a live QuantumComputer (1.0), no soft gate.",
       "state_predicates": [
@@ -457,7 +457,7 @@
     },
     "arc_quest": {
       "body": "Find the Spring — follow the discovery compass upstream to the cold water.",
-      "hint": "Need 🦅×21 from the Forest. Then Captain [7], [R] Chart the Spring.",
+      "hint": "Need 📜×5 (Village board). Then Captain [7], [R] Chart the Spring.",
       "faction": "Hearth Keepers",
       "math_note": "Structural predicate: fires the instant the FreshwaterSpring biome is loaded and has a live QuantumComputer (1.0), no soft gate.",
       "state_predicates": [
@@ -1424,7 +1424,7 @@
     },
     "arc_quest": {
       "body": "Read the Ledger's Monolith — find the Blood Ledger and take two of its words.",
-      "hint": "Need 🦅×21. Captain [7], [R] Chart the Ledger. Then Icon [5]: track and incorporate two Ledger loops (any Ledger plot counts).",
+      "hint": "Need 📜×5 (Village board). Captain [7], [R] Chart the Ledger. Then Icon [5]: track and incorporate two Ledger loops (any Ledger plot counts).",
       "faction": "Carrion Throne",
       "type": "DELIVER",
       "state_predicates": [
@@ -1575,7 +1575,7 @@
     },
     "arc_quest": {
       "body": "Find Lanternfall — follow the discovery compass to the coast where five lights stand in a row.",
-      "hint": "Need 🦅×21 from Forest. Then Captain [7], [R] Chart Lanternfall.",
+      "hint": "Need 📜×5 (Village board). Then Captain [7], [R] Chart Lanternfall.",
       "faction": "Lamplighters",
       "state_predicates": [
         {
@@ -1939,7 +1939,7 @@
     },
     "arc_quest": {
       "body": "Bring Light In — carry something coherent into the gilded rot: superpose a qubit there and hold its coherence.",
-      "hint": "Need 🦅×21. Captain [7], [R] Chart the Gilded Rot. Then Druid [0]: rotate a qubit off its poles and hold it. What happens to bright things here is the next lesson.",
+      "hint": "Need 📜×5 (Village board). Captain [7], [R] Chart the Gilded Rot. Then Druid [0]: rotate a qubit off its poles and hold it. What happens to bright things here is the next lesson.",
       "state_predicates": [
         {
           "type": "biome_evolving",
@@ -2018,7 +2018,7 @@
     },
     "arc_quest": {
       "body": "Keep the Horn — the Lamplighters' horn is dying into the open air. Watch it alive: measure it over and over, and keep 📯 burning.",
-      "hint": "Need 🦅×21. Captain [7], [R] Chart the Zeno Latch. Then Ace [8]: strike 📯 again and again — stop watching and the drain wins. Six glances is a start; a vigil is better.",
+      "hint": "Need 📜×5 (Village board). Captain [7], [R] Chart the Zeno Latch. Then Ace [8]: strike 📯 again and again — stop watching and the drain wins. Six glances is a start; a vigil is better.",
       "state_predicates": [
         {
           "type": "biome_evolving",

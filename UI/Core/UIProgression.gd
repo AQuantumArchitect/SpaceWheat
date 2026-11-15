@@ -352,8 +352,8 @@ static func objective_detail() -> String:
 	# 🌱 gather walk. One live beat. Do not plant for them.
 	if _is_plant_ask(best) and _sprout_short():
 		return ""
-	# lantern_door: authored [7] Captain [R] outran the 🦅 gather walk.
-	if _is_discover_ask(best) and _eagle_short():
+	# lantern_door: authored [7] Captain [R] outran the chart's supply walk.
+	if _is_discover_ask(best) and _chart_short():
 		return ""
 	# lantern_teaching: do not dump the Arc/Druid/E/C paragraph beside the walk.
 	if _is_teaching_ask(best):
@@ -760,9 +760,9 @@ static func objective_target() -> Dictionary:
 		if not _empty_plot_exists(plant_biome):
 			return {"key": "Q", "hat": icon_hat, "biome": plant_biome}
 		return {"key": _empty_plot_key(), "hat": icon_hat, "biome": plant_biome}
-	if _is_discover_ask(best) and _eagle_short():
-		# lantern_door: empty next-key while 🦅 short named Forest, no gather.
-		return _eagle_gather_target()
+	if _is_discover_ask(best) and _chart_short():
+		# lantern_door: empty next-key while the chart price was short named no walk.
+		return _chart_supply_target()
 	if _is_discover_ask(best):
 		var cap := _hat_key_for_frame("captain")
 		if _slots_full():
@@ -776,7 +776,7 @@ static func objective_target() -> Dictionary:
 					var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
 					return {"key": rail, "hat": cap, "biome": cull}
 				return {"key": "Q", "hat": cap, "biome": cull}
-		# lantern_door: paid eagles + open slots still named no coast.
+		# lantern_door: chart paid + open slots still named no coast.
 		# Chart names the door's biome first (what R will load).
 		var coast := _chart_target_biome()
 		if coast == "":
@@ -2677,27 +2677,23 @@ static func _berry_walk_line(q: Dictionary = {}) -> String:
 	return "▸ [F] Fast-Fwd — loop ripens (~90s)"
 
 
-static func _eagle_have() -> float:
-	var farm = _active_farm()
-	if farm == null or not ("economy" in farm) or farm.economy == null:
-		return 0.0
-	if not farm.economy.has_method("get_resource"):
-		return 0.0
-	return float(farm.economy.get_resource("🦅"))
+## The chart price in hand: CampaignRuntime.chart_resource() (📜, the
+## Carrion Throne's paperwork) — bought on the Village board, not gathered.
+static func _chart_have() -> float:
+	return _wallet(CampaignRuntime.chart_resource())
 
 
-static func _eagle_short() -> bool:
-	# lantern_door: empty/unreadable wallet never named the 🧺 supply walk.
-	# No farm yet is not a wallet. Mute economy is 0 eagles, so short.
-	var farm = _active_farm()
-	if farm == null:
+static func _chart_short() -> bool:
+	# lantern_door: empty/unreadable wallet never named the supply walk.
+	# No farm yet is not a wallet. Mute economy reads 0, so short.
+	if _active_farm() == null:
 		return false
-	return _eagle_have() < float(_chart_eagles())
+	return _chart_have() < float(_chart_price())
 
 
-## Chart / Add Biome price in 🦅 — the campaign spec's chart_cost.
-static func _chart_eagles() -> int:
-	return int(CampaignRuntime.chart_cost().get("🦅", 21))
+## Chart / Add Biome price — the campaign spec's chart_cost.
+static func _chart_price() -> int:
+	return CampaignRuntime.chart_price()
 
 
 # =============================================================================
@@ -2790,7 +2786,7 @@ static func _supply_step(emoji: String) -> Dictionary:
 ## than the resource's low-water reserve (gather: 1🧺 against 3) — a spend
 ## that would leave the wallet under the reserve while the trade that
 ## restocks it is in hand (restock BEFORE bottoming out). One-shot spends as
-## big as their reserve (13🪓, 21🦅, 5🌱) switch only when unaffordable: a
+## big as their reserve (13🪓, 5📜, 5🌱) switch only when unaffordable: a
 ## reserve the size of the spend would send the player round in circles.
 ## No farm yet is not a wallet; a mute economy reads 0, so short.
 static func _supply_short(emoji: String, cost: int) -> bool:
@@ -2912,15 +2908,15 @@ static func _supply_need_now(q: Dictionary) -> String:
 		if _plant_south_short():
 			return _plant_south_current()
 		return ""
-	if _is_discover_ask(q) and _eagle_short():
-		return _need_or_basket("🦅")
+	if _is_discover_ask(q) and _chart_short():
+		return _need_or_basket(CampaignRuntime.chart_resource())
 	return ""
 
 
 ## Which resource to walk when `emoji` is short. Playtest 2026-10-29: out of
 ## 🦅, the banner sent the player for 🧺 — it always walked baskets (the
 ## gather fee) even when the missing resource has its OWN market trade the
-## player can pay for (🦅: 10🌾 → 7🦅 at the Village). The direct trade is the
+## player can pay for (📜: 🍞×13 → 📜×5 at the Village). The direct trade is the
 ## honest route; baskets are named only when there is no payable trade for
 ## `emoji` and the gather that would mint it can't be paid. "" = callers keep
 ## their own gather walk.
@@ -2938,10 +2934,11 @@ static func _trade_walk_ok(emoji: String) -> bool:
 
 
 ## True while a live quest is asking for `emoji` — the banner's quest or any
-## accepted one. Owner ruling 2026-10-29: the 🌱 🔥 🔨 🪓 🌊 🦅 rescue trades
-## stand on the board only then ("not before, and not after"). 🦅: a Chart
-## ask (_is_discover_ask). 🌱: a plant ask (planting costs 5🌱). 🔥: a
-## Superpose ask (gate hadamard). Pole costs: an objective that plants the
+## accepted one. Owner ruling 2026-10-29: the 🌱 🔥 🔨 🪓 🌊 🪔 rescue trades
+## stand on the board only then ("not before, and not after"). The chart
+## resource (📜) answers true on a Chart ask (_is_discover_ask), though its
+## trade stands on low water instead so it is for sale before Captain.
+## 🌱: a plant ask (planting costs 5🌱). 🔥: a Superpose ask (gate hadamard). Pole costs: an objective that plants the
 ## north pole whose south is `emoji` (atom_in_biome 💨 → asks 🔨), or a plant
 ## the player just tried that needed it (_plant_south_current).
 static func quest_requests_resource(emoji: String) -> bool:
@@ -2951,7 +2948,7 @@ static func quest_requests_resource(emoji: String) -> bool:
 		return true
 	var north := CampaignRuntime.plant_north_for(emoji)
 	for q in _live_quests():
-		if emoji == "🦅" and _is_discover_ask(q):
+		if emoji == CampaignRuntime.chart_resource() and _is_discover_ask(q):
 			return true
 		if emoji == "🌱" and _is_plant_ask(q):
 			return true
@@ -3006,8 +3003,8 @@ static func _plant_south_short() -> bool:
 static func _supply_cost(emoji: String) -> int:
 	if emoji == "🧺":
 		return gather_price()
-	if emoji == "🦅":
-		return _chart_eagles()
+	if emoji == CampaignRuntime.chart_resource():
+		return _chart_price()
 	if emoji == "🌱":
 		return 5
 	if emoji == _plant_south_current():
@@ -3022,97 +3019,62 @@ static func _basket_short() -> bool:
 	return _supply_short("🧺", gather_price())
 
 
-static func _eagle_gather_target() -> Dictionary:
-	# Same walk as _eagle_gather_line: Forest rail, [8] Ace, then [R]/[Q].
-	# Spotlight must name the chip, not Forest with a blank key.
-	if _trade_walk_ok("🦅"):
-		var tgt := _supply_target("🦅")
-		if not tgt.is_empty():
-			return tgt
+## What the chart trade asks that the wallet lacks: {emoji, have, need, biome}
+## (🍞 for the 📜 trade). {} when the walk's trade is payable or there is none.
+static func _chart_trade_short() -> Dictionary:
+	var t := _supply_step(CampaignRuntime.chart_resource())
+	if t.is_empty() or _trade_affordable(t):
+		return {}
+	var give := CampaignRuntime.trade_give(t)
+	for g in give:
+		var e := str(g)
+		if _wallet(e) < float(give[g]):
+			var plots = CampaignRuntime.resource(e).get("plots", [])
+			var where := str(plots[0]) if plots is Array and not plots.is_empty() else ""
+			return {"emoji": e, "have": int(_wallet(e)), "need": int(give[g]), "biome": where}
+	return {}
+
+
+static func _chart_supply_target() -> Dictionary:
+	# Same walk as _chart_supply_line. 📜 has no home register: the Village
+	# board's trade is the route; when its ask is short, the ask's own land.
+	var short := _chart_trade_short()
+	if short.is_empty():
+		return _supply_target(CampaignRuntime.chart_resource())
 	# lantern_door: 🧺 short — Q gather still named Strike. Strike does not pay.
 	if _basket_short():
 		return _basket_pay_target()
-	var forest := "StarterForest"
-	var ace := _hat_key_for_frame("ace")
-	if _in_icon_submenu() or _menu_open():
-		return {"key": "", "hat": ace, "biome": forest}
-	if _sim_paused():
-		return {"key": "F", "hat": ace, "biome": forest}
-	var abm := _active_biome_manager()
-	if abm != null and str(abm.get_active_biome()) != forest:
-		var slot := int(abm.get_slot_for_biome(forest))
-		var rail := str(abm.get_slot_key(slot)).to_upper() if slot >= 0 else ""
-		return {"key": rail, "hat": ace, "biome": forest}
-	if str(ToolConfig.get_current_frame()) != ToolConfig.FRAME_ACE:
-		return {"key": ace, "hat": ace, "biome": forest}
-	var want := _glyph_plot_key("🦅")
-	var focused := _focused_col()
-	var token := ";" if want == ";" else want.to_upper()
-	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
-	if want != "" and focused != want_col:
-		return {"key": token, "hat": ace, "biome": forest}
-	# lantern_door: after Strike, is_bound drops and Ace F named Explore.
-	# The one next key stays [Q] until the eagle lands.
-	if _plot_measured(focused):
-		return {"key": "Q", "hat": ace, "biome": forest}
-	if not _plot_bound(focused):
-		if ace_f_would_explore():
-			return {"key": "F", "hat": ace, "biome": forest}
-		if want != "":
-			return {"key": token, "hat": ace, "biome": forest}
-		return {"key": "", "hat": ace, "biome": forest}
-	return {"key": "R", "hat": ace, "biome": forest}
+	var where := str(short.get("biome", ""))
+	return {"key": _rail_key_for(where), "hat": _hat_key_for_frame("ace"), "biome": where}
 
 
 static func _basket_pay_target() -> Dictionary:
 	return _supply_target("🧺")
 
 
-static func _eagle_gather_line() -> String:
-	# Wave 25 earnest: Captain R refused 21🦅 with 0 on hand. Same walk as
-	# sprouts: Forest, Ace, the 🦅 plot (H is 🦅🐇). Do not discover for them.
+static func _chart_supply_line() -> String:
+	# Wave 25 earnest: Captain R refused the chart price with none on hand.
+	# The price is 📜, sold on the Village board (Carrion Throne). One next
+	# key; never a trade made for them, never a discover.
 	if _in_icon_submenu() or _menu_open():
 		return "▸ ESC closes"
-	if _sim_paused():
-		return "▸ [F] Play"
-	# Short 🦅 with a payable 🦅 trade: walk that trade, not baskets.
-	if _trade_walk_ok("🦅"):
-		var walk := _supply_walk_line("🦅")
+	var res := CampaignRuntime.chart_resource()
+	var short := _chart_trade_short()
+	if short.is_empty():
+		var walk := _supply_walk_line(res)
 		if walk != "":
 			return walk
+		return "▸ needs %s %d/%d" % [res, int(_chart_have()), _chart_price()]
 	# lantern_door: 🧺 0, banner still named Strike. Strike does not mint 🧺.
 	if _basket_short():
 		return _basket_pay_line()
-	var have := int(_eagle_have())
-	var need := "🦅 %d/21" % have
-	var cross := _cross_to("StarterForest")
+	var count := "%s %d/%d for the %s trade" % [str(short.get("emoji", "")),
+			int(short.get("have", 0)), int(short.get("need", 0)), res]
+	var where := str(short.get("biome", ""))
+	var cross := _cross_to(where) if where != "" else ""
 	if cross != "":
-		return cross + " for " + need
-	var wearing := str(ToolConfig.get_current_frame())
-	if wearing != ToolConfig.FRAME_ACE:
-		return "▸ [8] Ace for " + need
-	var want := _glyph_plot_key("🦅")
-	var focused := _focused_col()
-	var token := ";" if want == ";" else want.to_upper()
-	var want_col := PLOT_HOMEROW.find(token) if want != "" else -1
-	if want != "" and focused != want_col:
-		return "▸ [%s] for %s" % [want, need]
-	# lantern_door: after Strike, is_bound drops. Banner named [F] Explore;
-	# F cleared the measure with no 🦅. Name [Q] until the eagle lands.
-	if _plot_measured(focused):
-		var got := _measured_glyph(focused)
-		if "🦅" in got:
-			return "▸ [Q] gather 🦅 (%d/21)" % have
-		if got != "":
-			return "▸ [Q] take %s" % got
-		return "▸ [Q] gather"
-	if not _plot_bound(focused):
-		if ace_f_would_explore():
-			return "▸ [F] Explore for " + need
-		if want != "":
-			return "▸ [%s] for %s" % [want, need]
-		return "▸ pick a sleeping 🦅 plot"
-	return "▸ [R] Strike for " + need
+		return "%s — gather %s" % [cross, count]
+	return "▸ gather " + count
 
 
 static func _basket_pay_line() -> String:
@@ -3149,13 +3111,13 @@ static func _chart_target_biome() -> String:
 
 
 static func _discover_walk_line() -> String:
-	# Captain R charts the open door's biome (deterministic, 🦅×21); with no
+	# Captain R charts the open door's biome (deterministic, 📜×5); with no
 	# open door it is the random Add Biome. Hint F=compass was a lie (Captain
-	# E is Compass, F is Play). Gather 🦅 first. Do not chart for them.
+	# E is Compass, F is Play). Buy the 📜 first. Do not chart for them.
 	# lantern_door: slots full made ▸ still [R] with no named cull.
-	# lantern_door: unreadable wallet is eagle-short — fail toward the gather.
-	if _eagle_short():
-		return _eagle_gather_line()
+	# lantern_door: unreadable wallet is chart-short — fail toward the walk.
+	if _chart_short():
+		return _chart_supply_line()
 	var q := _banner_quest()
 	# Unsigned leftover (The Bridge Holds) signs on Arc. Overlay ESC
 	# ping-ponged grind X/I/ESC and never Accepted.
@@ -3310,25 +3272,32 @@ static func _cull_walk_line() -> String:
 	return "▸ [Q] culls %s" % want
 
 
-static func eagle_short_refusal() -> String:
-	# Captain-R Chart / Add Biome while 🦅 short. Name the gather walk, not a dead [R].
-	# Only when 🦅 really is short — a full spindle keeps its own (cull) reason.
-	# Baskets are named only when the gather itself is unaffordable.
-	if not _eagle_short():
+static func chart_short_refusal() -> String:
+	# Captain-R Chart / Add Biome while the 📜 price is short. Name the walk,
+	# not a dead [R]. Only when it really is short — a full spindle keeps its
+	# own (cull) reason. Baskets are named only when a gather is the walk.
+	if not _chart_short():
 		return ""
-	# A payable 🦅 trade is the route — not the 🧺 that gathering would cost.
-	if _trade_walk_ok("🦅"):
-		var direct := supply_refusal("🦅", _chart_eagles())
+	var res := CampaignRuntime.chart_resource()
+	# A payable 📜 trade is the route.
+	if _chart_trade_short().is_empty():
+		var direct := supply_refusal(res, _chart_price())
 		if direct != "":
 			return direct
 	var basket := supply_refusal("🧺", gather_price(), true)
 	if basket != "":
 		return basket
-	var rest := _eagle_gather_line().replace("▸ ", "").strip_edges()
-	var need := "needs %d🦅" % _chart_eagles()
+	var rest := _chart_supply_line().replace("▸ ", "").strip_edges()
+	var need := chart_need_words()
 	if rest == "" or rest == "ESC closes":
 		return need
 	return "%s — %s" % [need, rest]
+
+
+## "needs 5📜" — the head of chart_short_refusal (callers that already named
+## the shortfall strip it).
+static func chart_need_words() -> String:
+	return "needs %d%s" % [_chart_price(), CampaignRuntime.chart_resource()]
 
 
 static func basket_short_refusal() -> String:

@@ -615,9 +615,9 @@ def main():
                       f"listener={'forest_listener' in fl} loop_remembers={'loop_remembers' in fl}")
                 if "forest_communion" in fl and "forest_listener" in fl and "loop_remembers" in fl:
                     break
-            bridge("🦅", 220); bridge("👥", 240); bridge("🍞", 500); bridge("❄", 500)
+            bridge("📜", 55); bridge("👥", 240); bridge("🍞", 500); bridge("❄", 500)
             bridge("🔨", 60); bridge("🌱", 60)
-            print("  bridged:", {k: res().get(k, 0) for k in ("🦅", "🍞", "👥", "❄", "🔨", "🌱")})
+            print("  bridged:", {k: res().get(k, 0) for k in ("📜", "🍞", "👥", "❄", "🔨", "🌱")})
 
             # ---- Learn Mill NOW (clean commitments, before Act-2 grinds clutter them) ----
             # village_stirs needs forest_listener (just fired) + Village berry; the apprentice
@@ -646,7 +646,7 @@ def main():
                     break
                 ensure_hat("7")
                 press("R", 6)
-                print(f"  discover #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+                print(f"  discover #{d}: grid={grid()} 📜={res().get('📜', 0)}")
 
             # Beats 2+3 (contact → teaching): Millwright contracts at Village. The door
             # grant (access 0.02) + ~2 deliveries × 0.02 clears contact (0.02 w.008)
@@ -706,10 +706,10 @@ def main():
                                              ("FreshwaterSpring",))
                     if cullable:
                         cull(cullable[0])
-                bridge("🦅", 80)
+                bridge("📜", 20)
                 ensure_hat("7")
                 press("R", 6)
-                print(f"  discover spring #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+                print(f"  discover spring #{d}: grid={grid()} 📜={res().get('📜', 0)}")
 
             # Beats 2+3 (contact → teaching gate): Hearth deliveries. Their channel
             # is TRUST (banked ~0.30 from act 1); +0.05/delivery clears contact
@@ -806,9 +806,9 @@ def main():
                                              ("Lanternfall",))
                     if cullable:
                         cull(cullable[0])
-                bridge("🦅", 80)
+                bridge("📜", 20)
                 ensure_hat("7"); press("R", 6)
-                print(f"  discover lantern #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+                print(f"  discover lantern #{d}: grid={grid()} 📜={res().get('📜', 0)}")
 
             if "Lanternfall" in grid():
                 # Beat 2 (witness): stand the watch — one berry in the chain fires
@@ -1014,9 +1014,9 @@ def main():
                 cullable = cullable_from(grid(), core | protected_landmarks(), ("BloodLedger",))
                 if cullable:
                     cull(cullable[0])
-                bridge("🦅", 80)
+                bridge("📜", 20)
                 ensure_hat("7"); press("R", 6)  # discover (BloodLedger pressured)
-                print(f"  discover BL #{d}: grid={grid()} 🦅={res().get('🦅', 0)}")
+                print(f"  discover BL #{d}: grid={grid()} 📜={res().get('📜', 0)}")
             if "BloodLedger" in grid():
                 farm_berries("BloodLedger", 2, "ledger_opens", rounds=12)
 
@@ -1102,7 +1102,7 @@ def main():
                     for cand in cullable:
                         if cull(cand):
                             break
-                    bridge("🦅", 80)
+                    bridge("📜", 20)
                     ensure_hat("7"); press("R", 6)
                     print(f"  discover {target} #{d}: grid={grid()}")
                 return target in grid()

@@ -90,7 +90,7 @@ def main():
         # ---- CULL with bridged 💀 ----
         print("\n=== CULL (discover a biome, then Captain Q+F with 💀 bridged) ===")
         before = set(grid())
-        bridge("🦅", 80)
+        bridge("📜", 20)
         ensure_hat("7"); press("R", 6)  # discover
         new = [b for b in grid() if b not in before]
         print(f"  discovered: {new}  grid={grid()}")

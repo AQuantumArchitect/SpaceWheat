@@ -2,7 +2,7 @@ class_name BiomeDiscoverySubmenu
 extends RefCounted
 
 ## Captain Add Biome picker — same Q/E/R + F-page grammar as Icon Plant.
-## 21 eagles seats the land; a plant-like claim (south good + 🌱) takes control.
+## 📜×5 (Throne paperwork) seats the land; a plant-like claim (south good + 🌱) takes control.
 
 const Forecast = preload("res://Core/Gameplay/BiomeDiscoveryForecastService.gd")
 
@@ -47,7 +47,7 @@ static func _collect_options(biome, farm) -> Array:
 		var south := Forecast.claim_south(name)
 		# w353 sitting: picker billed 🧊×13 + 🌱×5 on FreshwaterSpring
 		# before the land exists (same chicken-egg as BloodLedger 📜/🩸).
-		# 21 🦅 seats. South-good plant price is after unlock.
+		# 📜×5 seats. South-good plant price is after unlock.
 		var cost: Dictionary = ActionCostRuntime.get_action_cost(farm, "discover_biome")
 		var shared: Array = _shared_atoms(live_atoms, name)
 		var w: float = float(weights[i]) if i < weights.size() else 0.0

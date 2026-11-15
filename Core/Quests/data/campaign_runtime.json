@@ -297,8 +297,8 @@
     "hiding_in_the_light": "NullingChamber"
   },
   "chart_cost": {
-    "🦅": 21,
-    "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull."
+    "📜": 5,
+    "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull (action_costs.discover_biome). Paid in 📜: the Carrion Throne's paperwork commissions the Captain; 🦅 stays the Throne's emblem. One Village 📜 trade (🍞×13 → 📜×5) is one commission."
   },
   "resources": {
     "👥": {
@@ -369,20 +369,20 @@
         }
       ]
     },
-    "🦅": {
-      "low_water": 21,
+    "📜": {
+      "low_water": 5,
       "spent_by": "chart",
       "plots": [
-        "StarterForest"
+        "BloodLedger"
       ],
       "trades": [
         {
           "biome": "Village",
-          "faction": "Millwright's Union",
+          "faction": "Carrion Throne",
           "give": {
-            "🍞": 10
+            "🍞": 13
           },
-          "get": 7
+          "get": 5
         }
       ]
     },

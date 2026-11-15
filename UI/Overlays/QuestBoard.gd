@@ -383,7 +383,7 @@ func _on_activated() -> void:
 		_refresh_pool()
 		_pool_biome = here
 	else:
-		# Trades come and go with the live quest (🔨 🪓 🌊 🦅 stand
+		# Trades come and go with the live quest (🔨 🪓 🌊 🪔 stand
 		# only while asked for) — re-sync them on every open.
 		_sync_supply_offers()
 	_render_all()
@@ -2097,9 +2097,11 @@ func _vital_stock(emoji: String) -> int:
 
 
 ## When a standing (rescue) trade is on its board. The three vitals (👥 people,
-## 🍞 bread, 🧺 baskets) while critical (2 or fewer); 🌱 🔥 🔨 🪓 🌊 🦅 only
+## 🍞 bread, 🧺 baskets) while critical (2 or fewer); 🌱 🔥 🔨 🪓 🌊 🪔 only
 ## while a live quest asks for them; anything else while it is below the
-## campaign table's low-water mark. Everything else on a board is procedural or arc-spawned.
+## campaign table's low-water mark — 📜, the Captain's chart commission, is
+## one of those: it stands from the first day, so the Market sells it before
+## Captain is taught (no home register carries it). Everything else on a board is procedural or arc-spawned.
 func _rescue_open(emoji: String) -> bool:
 	if emoji == "":
 		return false
@@ -2113,7 +2115,7 @@ func _rescue_open(emoji: String) -> bool:
 		if emoji != "🧺" and _vital_stock("🧺") < UIProgression.gather_price():
 			return true
 		return _vital_stock(emoji) <= STAPLE_CRITICAL
-	# 🌱 🔥 🔨 🪓 🌊 🦅 🪔 stand only while a live quest asks for them: not
+	# 🌱 🔥 🔨 🪓 🌊 🪔 stand only while a live quest asks for them: not
 	# before (no stockpiling ahead of the story), not after (the door closes).
 	if emoji in QUEST_GATED_RESCUES:
 		return UIProgression.quest_requests_resource(emoji)
@@ -2744,7 +2746,7 @@ func _market_rows() -> Array:
 
 
 const STAPLES: Array = ["👥", "🍞", "🧺"]
-const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🦅", "🪔"]
+const QUEST_GATED_RESCUES: Array = ["🌱", "🔥", "🔨", "🪓", "🌊", "🪔"]
 const STAPLE_CRITICAL: int = 2
 
 ## Stable: staples in STAPLES order, then the rest in table order.

@@ -161,9 +161,9 @@ def run_campaign():
         # ── 3. Campaign ───────────────────────────────────────────────────────
         print("\n── Campaign: Berry-phase incorporation rounds ──")
 
-        # Give 🦅 for biome discovery (21 per discover, want up to 10 discovers)
-        eagle_added = try_add_resource(c, "🦅", 300)
-        print(f"  add 300🦅 for biome discovery: {'ok' if eagle_added else 'failed (will skip discover)'}")
+        # Give 📜 for biome discovery (5 per discover, want up to 10 discovers)
+        eagle_added = try_add_resource(c, "📜", 75)
+        print(f"  add 75📜 for biome discovery: {'ok' if eagle_added else 'failed (will skip discover)'}")
 
         # StarterForest: 2 rounds (fires first_breath on round 1, builds forest_* on round 2)
         for rnd in range(1, 3):
