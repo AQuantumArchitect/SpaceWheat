@@ -640,6 +640,11 @@ func action_reap() -> Dictionary:
 	action_performed.emit("reap", result)
 	# Quest-visible: the Rite arc counts seasons reaped (gate_sequence_contains "reap").
 	_notify_quest_projection("reap", {"rite_credits": result.get("rite_credits", 0), "success": result.get("success", false)})
+	# A reap refused for want of 🍼 is a fact the story can open on (#93):
+	# "milk_short" is a durable gate count that opens "Find the milk". The
+	# name must not contain "reap" (gate patterns match by substring).
+	if str(result.get("error", "")) == "insufficient_resources" and StapleRescue.milk_short(farm):
+		_notify_quest_projection("milk_short", {"success": true})
 	return result
 
 

@@ -43,7 +43,11 @@ TODO_STANDING_WIDTH = set()  # all standing gates carry authored widths — keep
 # the player had just done, its own hint admitting "the tutorial bar and this
 # meter are measuring the same gate"). The rule's intent — a numeric climb the
 # player can SEE — is satisfied by the tutorial bar, not violated.
-TODO_ARC_QUEST = {"first_harvest"}
+# milk_runs_out (#93): no arc_quest on purpose. Its gate (milk_short ×1) is
+# not a climb but one refused reap, and the player SEES it: the gold refusal
+# toast "Need 🍼 to reap", which taps through to the Arc where Find the Milk
+# is offered. A quest asking for the refusal would ask for a failure.
+TODO_ARC_QUEST = {"first_harvest", "milk_runs_out"}
 
 
 def _load_flags():

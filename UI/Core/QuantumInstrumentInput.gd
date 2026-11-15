@@ -2758,11 +2758,16 @@ const STAPLE_FOR_VERB := {"pop": "🧺", "measure": "👥", "explore": "🍞"}
 ## "supply:<emoji>" — tapping the toast takes the player to the Village Market
 ## board with that rescue trade selected. It NEVER accepts the trade for them.
 ## The verb's own staple first; a 🧺-walk refusal on Explore/Strike (those
-## refusals name the basket trade) routes to baskets. "" when no staple is short.
+## refusals name the basket trade) routes to baskets. A reap short of 🍼 routes
+## to the Arc ("arc"). "" when no staple is short.
 func _supply_route_for(action_name: String, message: String = "") -> String:
 	if farm == null or not ("economy" in farm) or farm.economy == null \
 			or not farm.economy.has_method("get_resource"):
 		return ""
+	# Reap short of 🍼 (#93): no Village trade sells milk, so the tap opens the
+	# Arc, where "Find the milk" is offered. Read from the wallet, not a flag.
+	if action_name == "reap":
+		return StapleRescue.MILK_ROUTE if StapleRescue.milk_short(farm) else ""
 	var staple := str(STAPLE_FOR_VERB.get(action_name, ""))
 	if staple != "":
 		var need := int(ActionCostRuntime.get_action_cost(farm, action_name).get(staple, 0))

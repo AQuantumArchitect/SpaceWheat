@@ -207,6 +207,65 @@
     }
   },
   {
+    "id": "milk_runs_out",
+    "display_name": "The Milk Runs Out",
+    "act": 1,
+    "campaign": "demos",
+    "campaign_act": 1,
+    "act_title": "The Village",
+    "chapter": "first_taste",
+    "chapter_title": "First Breath",
+    "arc_beat": "The season would not turn. Reaping costs 🍼, and the loom's gift is spent. The Demos has no milk of its own, and no Village stall sells it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_harvest"
+      },
+      {
+        "type": "gate_sequence_contains",
+        "gate": "milk_short",
+        "count": 1
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": null
+  },
+  {
+    "id": "find_the_milk",
+    "display_name": "Find the Milk",
+    "act": 1,
+    "campaign": "demos",
+    "campaign_act": 1,
+    "act_title": "The Village",
+    "chapter": "first_taste",
+    "chapter_title": "First Breath",
+    "arc_beat": "🍼 is a word of the deep web, held by the Reality Midwives and grazed in the Pastoral Commons, far past the lands you can chart from here. Nothing in the Demos makes it. Someone has to go and find it.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "milk_runs_out"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Find the Milk — 🍼 lives with the Reality Midwives and in the Pastoral Commons. Go find it, then trade for it or incorporate the word, Birth (🍼/✨).",
+      "hint": "Go find 🍼: Reality Midwives, Pastoral Commons. Trade or learn it. Neither land can be charted from the Demos yet, so this charge stays open until it can.",
+      "faction": "Hearth Keepers",
+      "math_note": "Opens once The Milk Runs Out (a reap refused for 🍼) and Incorporate is taught. Completes when Birth (🍼/✨) is on the incorporation ledger. A trade buys a season's 🍼 but does not close it.",
+      "state_predicates": [
+        {
+          "type": "icon_incorporated",
+          "north": "🍼",
+          "south": "✨"
+        }
+      ]
+    }
+  },
+  {
     "id": "new_voices",
     "display_name": "New Voices",
     "act": 1,
