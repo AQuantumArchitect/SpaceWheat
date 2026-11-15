@@ -179,7 +179,7 @@ static func summary(pred: Dictionary, qm = null) -> String:
 				return "%s awake — %s, then Captain [7] [R] Chart %s" % [evb, price, evb]
 			return "%s awake — %s, then Captain [7] [R] Add Biome" % [evb, price]
 		"biome_explored":
-			return "explore every plot in %s — Ace hat [8], then Shift+F" % str(pred.get("biome", "?"))
+			return "explore every plot in %s — Ace hat [8]: select a bubble, tap it again (or F)" % str(pred.get("biome", "?"))
 		"active_biome_is":
 			# The wayfinding gate: arrival is the whole ask. The objective banner's
 			# travel line already names the orb + key while you're elsewhere; this
@@ -269,6 +269,12 @@ static func summary(pred: Dictionary, qm = null) -> String:
 					return "Gather ×%d — %s: select a struck bubble, tap it again (or Q)" % [gcount, verb_home("ace")]
 				"explore":
 					return "Explore ×%d — %s: select a sleeping plot, tap it again (or F)" % [gcount, verb_home("ace")]
+				"orbit":
+					return "Look around — click and drag the empty dark to turn the 3D graph"
+				"batch_strike":
+					return "Mass Strike — Shift-select the bubbles, then Shift+R (the forest goes dark)"
+				"batch_gather":
+					return "Mass Gather — with them still selected, Shift+Q pulls what they banked"
 				"plant", "inject_icon":
 					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest + 13 of the south pole)" % [gcount, verb_home("icon")]
 				"hadamard":
