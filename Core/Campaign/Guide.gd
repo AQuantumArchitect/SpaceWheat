@@ -569,6 +569,8 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 				var only: Array = []
 				if str(pred.get("type", "")) == "icon_incorporated":
 					only = _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", "")))
+				else:
+					only = _prefer_cols(pred)
 				if _berry_needs_reveal(only):
 					return {}
 				# Mid-nudge in the Druid: the spin comes first, or "Druid hat [0]"
@@ -579,7 +581,7 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 						return nd
 			return _hat(arg, q)
 		"berry":
-			return _berry(q)
+			return _berry(q, _prefer_cols(pred))
 		"berry_axis":
 			return _berry(q, _axis_cols(UIP._active_biome_name(), str(pred.get("north", "")), str(pred.get("south", ""))))
 		"survey":
@@ -1564,6 +1566,27 @@ static func _axis_cols(biome: String, north: String, south: String) -> Array:
 	return out
 
 
+## A berry count that names a word it would rather teach (`prefer`: [north,
+## south], first_breath's 🔥/❄ in the Village, #125): the columns of the active
+## biome carrying that word and able to walk a loop. Empty when there is no
+## preference, or the word is not on the field (or stands still), so the walk
+## falls back to its own pick: the first trackable plot.
+static func _prefer_cols(pred: Dictionary) -> Array:
+	var want = pred.get("prefer", [])
+	if not (want is Array) or want.size() != 2:
+		return []
+	var biome := UIP._active_biome_name()
+	var cols := _axis_cols(biome, str(want[0]), str(want[1]))
+	var farm = UIP._active_farm()
+	var qc = farm.grid.get_biome(biome).quantum_computer if not cols.is_empty() else null
+	var out: Array = []
+	for col in cols:
+		if qc != null and qc.has_method("qubit_has_transverse_term") and not qc.qubit_has_transverse_term(col):
+			continue
+		out.append(col)
+	return out
+
+
 static func _unknown_cols(biome: String) -> Array:
 	var farm = UIP._active_farm()
 	var out: Array = []
@@ -1649,9 +1672,9 @@ static func _strike_pick(biome: String) -> int:
 ## register on the active biome (the forest the berries came from), explores
 ## it if it is in fog, then Ace R. Nothing to show when no word here is known.
 ## The word just learned comes first (#105): the newest entry in the ledger
-## that stands on this biome — 🔥/❄️ after fire and ice, 🦅/🐇 after the
-## forest's first loop — so the glow the player is sent to is the one they
-## just lit.
+## that stands on this biome — 🔥/❄ after First Breath's Village loop (#125),
+## 🦅/🐇 after a forest loop — so the glow the player is sent to is the one
+## they just lit.
 static func _strike_known(q: Dictionary) -> Dictionary:
 	var biome := UIP._active_biome_name()
 	var farm = UIP._active_farm()
