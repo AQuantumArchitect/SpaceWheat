@@ -436,7 +436,15 @@ static func explain() -> Array:
 ## want different hats never trade the hat back and forth: whichever can act
 ## in the current hat acts, and the other waits its turn. A held collapse
 ## (steer's "hold") is idle, ranked below everything.
+## An objective marked `"lead": true` in the campaign goes first while it is
+## open: the others are walked only when it offers nothing (spiral_breaks
+## sends you to the word you just learned before the second berry, #105).
 static func _across(preds: Array, q: Dictionary) -> Dictionary:
+	var lead: Array = preds.filter(func(p): return p is Dictionary and bool(p.get("lead", false)))
+	if not lead.is_empty() and lead.size() < preds.size():
+		var first := _across(lead, q)
+		if not first.is_empty():
+			return first
 	var wait := {}
 	var setup := {}
 	var idle := {}  # a held collapse: nothing to do, and nothing lost by doing something else
@@ -1633,19 +1641,18 @@ static func _strike_pick(biome: String) -> int:
 ## spiral_breaks: strike a plot whose word you have incorporated. Finds such a
 ## register on the active biome (the forest the berries came from), explores
 ## it if it is in fog, then Ace R. Nothing to show when no word here is known.
+## The word just learned comes first (#105): the newest entry in the ledger
+## that stands on this biome — 🔥/❄️ after fire and ice, 🦅/🐇 after the
+## forest's first loop — so the glow the player is sent to is the one they
+## just lit.
 static func _strike_known(q: Dictionary) -> Dictionary:
 	var biome := UIP._active_biome_name()
 	var farm = UIP._active_farm()
 	var b = farm.grid.get_biome(biome) if farm != null and farm.grid != null else null
 	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
 		return {}
-	var rm = b.quantum_computer.register_map
-	var col := -1
-	for c in range(_live_cols(biome)):
-		var ax: Dictionary = rm.axis(c)
-		if ProbeActions._icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", ""))):
-			col = c
-			break
+	var hit := known_word_col(farm, b.quantum_computer.register_map, _live_cols(biome))
+	var col := int(hit.get("col", -1))
 	if col < 0:
 		return {}
 	var h := _hat("ace", q)
@@ -1656,8 +1663,27 @@ static func _strike_known(q: Dictionary) -> Dictionary:
 	var parts: Array = _close_first()
 	if _live_col() != col:
 		parts.append_array(_pick_plot(col))
-	parts.append(["Strike", _verb("strike")])
+	parts.append(["Strike the glowing %s/%s" % [str(hit.get("north", "")), str(hit.get("south", ""))], _verb("strike")])
 	return _chord(parts, q, "strike known")
+
+
+## The plot (of the first `cols`) carrying the most recently incorporated word
+## that stands there: {col, north, south}, or {} when none of your words does.
+## Reads farm.incorporated_icons newest-first; the match is ProbeActions.same_word,
+## the entry test inside word_known — the check that lights the glow and pays the bonus.
+static func known_word_col(farm, rm, cols: int) -> Dictionary:
+	if farm == null or rm == null or not ("incorporated_icons" in farm):
+		return {}
+	var ledger: Array = farm.incorporated_icons
+	for i in range(ledger.size() - 1, -1, -1):
+		var ic = ledger[i]
+		for c in range(cols):
+			var ax: Dictionary = rm.axis(c)
+			var n := str(ax.get("north", ""))
+			var s := str(ax.get("south", ""))
+			if ProbeActions.same_word(ic, n, s):
+				return {"col": c, "north": n, "south": s}
+	return {}
 
 
 ## A lesson that is a delivery (resource × quantity): gather it, then claim.

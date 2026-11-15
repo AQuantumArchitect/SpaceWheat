@@ -41,6 +41,14 @@ const CHANNEL_EDGE_ENTANGLEMENT := "edge.entanglement"
 const CHANNEL_INFRA_GATE_TOPOLOGY := "infra.gate_topology"
 const CHANNEL_EVENT_DEATH := "event.death"
 const CHANNEL_EVENT_COHERENCE_STRIKE := "event.coherence_strike"
+const CHANNEL_BUBBLE_KNOWN_WORD := "bubble.known_word"
+const CHANNEL_BUBBLE_SHARED_EMOJI := "bubble.shared_emoji"
+
+## The known-word glow (#105). Pale lime: not ripeness gold, not selection
+## cyan, not berry violet, not descend indigo.
+const COLOR_KNOWN_WORD := Color(0.78, 1.0, 0.62)
+## The shared-emoji highlight: the same lime, much fainter and cooler.
+const COLOR_SHARED_EMOJI := Color(0.72, 0.92, 0.70)
 
 const CHANNELS := {
 	CHANNEL_BUBBLE_RADIUS: {
@@ -150,6 +158,18 @@ const CHANNELS := {
 		"source": "coherence strike event",
 		"motion_policy": MotionPolicy.EVENT_BOUND,
 		"rule": "Transient motion is allowed only while the event is active.",
+	},
+	CHANNEL_BUBBLE_KNOWN_WORD: {
+		"owner": "QuantumField3D",
+		"source": "ProbeActions.vocabulary_tier == icon: the plot's axis is in your vocabulary (home biome axes + incorporated)",
+		"motion_policy": MotionPolicy.STATIC,
+		"rule": "A steady halo on every plot whose word you know, in any biome. The same tier pays ×6 on strike, so the glow never promises a bonus the strike does not pay.",
+	},
+	CHANNEL_BUBBLE_SHARED_EMOJI: {
+		"owner": "QuantumField3D",
+		"source": "ProbeActions.vocabulary_tier == emoji: a pole is a vocabulary emoji, the word is not",
+		"motion_policy": MotionPolicy.STATIC,
+		"rule": "A faint thin shell, distinct from the known-word halo. Pays ×2 on strike.",
 	},
 }
 
