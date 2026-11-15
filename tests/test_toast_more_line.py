@@ -42,7 +42,10 @@ def test_more_path_never_accepts():
     for fn in (_func(SHELL, "toggle_objective_more"),
                _func(BANNER, "expand_more"), _func(BANNER, "collapse_more"),
                _func(PROG, "objective_more")):
-        assert not re.search(r"accept|complete|claim|submit", fn, re.I), fn
+        # actions, not words: read-only helpers like route_claim are fine
+        assert not re.search(
+            r"accept_quest\(|_accept_selected\(|complete_quest\(|claim_quest\(|submit\(|\.accept\(",
+            fn), fn
 
 
 def test_held_lesson_line_reads_u_then_e_after_charge_attended():
