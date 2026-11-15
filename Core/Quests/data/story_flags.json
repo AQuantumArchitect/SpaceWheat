@@ -266,6 +266,30 @@
     }
   },
   {
+    "id": "milk_at_home",
+    "display_name": "Milk at Home",
+    "act": 1,
+    "campaign": "demos",
+    "campaign_act": 1,
+    "act_title": "The Village",
+    "chapter": "first_taste",
+    "chapter_title": "First Breath",
+    "arc_beat": "Birth is your word now. A word you know is a word you can plant. Plant it at home, in the Forest or the Village, and the season will never wait on 🍼 again.",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "find_the_milk"
+      },
+      {
+        "type": "home_biome_has_emoji",
+        "emoji": "🍼"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": null,
+    "win": true
+  },
+  {
     "id": "new_voices",
     "display_name": "New Voices",
     "act": 1,

@@ -14,6 +14,10 @@ extends Control
 ## nothing here touches mechanics). Sim is soft-paused for the duration and
 ## restored on close. Spawned by RuntimeMount's story_flag_fired listener,
 ## headed sessions only.
+##
+## Two closes share it: the Demos ending (island_free, `ending`) and the
+## demo's win (#123, `win`: 🍼 planted at home). begin()'s flag picks the
+## words; the win's door says you won and that play goes on.
 
 signal ceremony_finished
 
@@ -35,6 +39,8 @@ var _stage_token: int = 0  # invalidates queued auto-advances after manual input
 var _we_paused: bool = false
 var _postcards: Array = []  # ImageTexture, oldest → newest
 var _content: Control = null
+## True when the flag that spawned us is the demo's win (`win`, #123).
+var _won_demo: bool = false
 
 ## The live cognifold field renderer (2D force graph OR 3D field), shown drifting
 ## behind the ceremony. Null in 2D-absent/headless setups → opaque backdrop fallback.
@@ -42,9 +48,10 @@ var _field: Node = null
 var _field_prev_process_mode: int = -1
 
 
-func begin(farm: Node, shell: Node) -> void:
+func begin(farm: Node, shell: Node, flag: Dictionary = {}) -> void:
 	_farm = farm
 	_shell = shell
+	_won_demo = is_win(flag)
 	# The overlay layer doesn't impose a rect on children — size to the
 	# viewport explicitly (anchors alone left this 0×0: invisible backdrop,
 	# stage text clipped at the origin).
@@ -191,10 +198,23 @@ func _pause_sim(value: bool) -> void:
 # STAGES
 # =============================================================================
 
+## True for the flag that is the demo's win (campaign beat `win: true`).
+static func is_win(flag: Dictionary) -> bool:
+	return bool(flag.get("win", false))
+
+
+## [title, subtitle] for the opening card.
+func title_lines() -> Array:
+	if _won_demo:
+		return ["You've won the demo.", "🍼 grows at home now. Every season is paid for."]
+	return ["The Demos are free.", "Your island never collapsed."]
+
+
 func _build_title_stage() -> void:
 	var box := _centered_vbox()
-	box.add_child(_big_label("The Demos are free.", 44, Color(0.98, 0.92, 0.62)))
-	var sub := _big_label("Your island never collapsed.", 20, Color(0.85, 0.9, 0.82, 0.0))
+	var lines := title_lines()
+	box.add_child(_big_label(str(lines[0]), 44, Color(0.98, 0.92, 0.62)))
+	var sub := _big_label(str(lines[1]), 20, Color(0.85, 0.9, 0.82, 0.0))
 	box.add_child(sub)
 	var tw := create_tween()
 	tw.tween_interval(1.4)
@@ -350,7 +370,12 @@ func _build_door_stage() -> void:
 	box.add_child(_big_label("🚪", 52, Color(0.98, 0.92, 0.62)))
 	box.add_child(_spacer(10))
 	box.add_child(_big_label("The door stays open.", 28, Color(0.95, 0.9, 0.7)))
-	var unfinished := CampaignRuntime.in_development_after("island_free")
+	var unfinished: Array = [] if _won_demo else CampaignRuntime.in_development_after("island_free")
+	if _won_demo:
+		# The win (#123) is the demo's end, not the campaign's: say so, and
+		# that the island keeps going.
+		box.add_child(_spacer(22))
+		box.add_child(_big_label("You found the milk and made it yours. That is the end of the demo.\nThank you for playing. The island keeps going: play on as long as you like.", 16, Color(0.9, 0.88, 0.8)))
 	if not unfinished.is_empty():
 		# An honest notice, not a gate: the post-game campaigns open now and
 		# they are not finished. The player should know before walking through.

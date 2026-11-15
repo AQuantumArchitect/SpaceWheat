@@ -465,8 +465,9 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 				var shell_ref = shell
 				var overlay_layer_ref = shell_overlay_layer
 				var ending_cb := func(_flag_id: String, flag: Dictionary):
-					# The main campaign's ending (spec: campaigns[demos].ending).
-					if not bool(flag.get("ending", false)) \
+					# The main campaign's ending (spec: campaigns[demos].ending),
+					# or the demo's win (#123: `win`, 🍼 planted at home).
+					if not (bool(flag.get("ending", false)) or EndingOverlay.is_win(flag)) \
 							or str(flag.get("campaign", "")) != StoryAtlas.MAIN_CAMPAIGN \
 							or CampaignFixture.replaying:
 						return
@@ -475,7 +476,7 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 					var ending := EndingOverlay.new()
 					ending.name = "EndingOverlay"
 					overlay_layer_ref.add_child(ending)
-					ending.begin(farm_ref, shell_ref)
+					ending.begin(farm_ref, shell_ref, flag)
 				if not shell.quest_manager.story_flag_fired.is_connected(ending_cb):
 					shell.quest_manager.story_flag_fired.connect(ending_cb)
 					_verbose.info("boot", "🚪", "island_free ceremony listener armed")
