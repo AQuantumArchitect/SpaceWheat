@@ -656,7 +656,8 @@
         "go:StarterForest",
         "explore_each",
         "orbit",
-        "survey"
+        "mass_strike",
+        "mass_gather"
       ],
       "lesson:superposition": [
         "go:StarterForest",
