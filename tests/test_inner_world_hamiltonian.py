@@ -50,7 +50,7 @@ def probe(tmp_path_factory):
     lines = {}
     for line in out.splitlines():
         tag, _, payload = line.partition(" ")
-        if tag in ("INNER_H", "INNER_EVO", "OUTER_EVO", "PAIR_ATOMS", "INNER_LOAD"):
+        if tag in ("INNER_H", "INNER_DORMANT", "INNER_EVO", "OUTER_EVO", "PAIR_ATOMS", "INNER_LOAD"):
             lines[tag] = json.loads(payload)
     assert "SCRIPT ERROR" not in out, out[-4000:]
     assert result.returncode == 0, out[-4000:]
@@ -70,8 +70,16 @@ def test_inner_world_viz_cache_carries_h(probe):
     assert probe["INNER_H"]["viz_h_terms"] > 0, probe["INNER_H"]
 
 
+def test_inner_world_is_dormant_when_all_dark(probe):
+    d = probe["INNER_DORMANT"]
+    assert d["lit"] == 0 and d["dormant"], d
+    assert d["steps"] == 0, d
+    assert d["drift"] == 0.0, d
+
+
 def test_inner_world_evolves_and_stays_pure(probe):
     evo = probe["INNER_EVO"]
+    assert evo["explored"] and evo["lit"] > 0, evo
     assert evo["steps"] > 0, evo
     assert evo["drift"] > 1e-3, evo
     assert evo["min_purity"] > 0.999, evo
@@ -80,6 +88,7 @@ def test_inner_world_evolves_and_stays_pure(probe):
 
 def test_outer_biome_still_evolves(probe):
     evo = probe["OUTER_EVO"]
+    assert evo["explored"] and evo["lit"] > 0, evo
     assert evo["drift"] > 1e-3, evo
 
 

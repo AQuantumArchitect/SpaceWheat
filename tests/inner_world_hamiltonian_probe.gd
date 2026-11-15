@@ -8,6 +8,7 @@ extends SceneTree
 ##
 ##   INNER_H {...}   H of the inner world: dimension, max |H_ij|, Hermiticity
 ##                   error, Lindblad count, regime, the viz cache's H couplings
+##   INNER_DORMANT {...} every plot dark: inner steps and drift (both must be 0)
 ##   INNER_EVO {...} max drift of ρ's diagonal over N frames, and purity
 ##   OUTER_EVO {...} the same for the outer biome before descending (no regression)
 ##   PAIR_ATOMS {...} H of a world opened from a pair whose library record has
@@ -116,10 +117,22 @@ func _run() -> void:
 	# --- Outer biome: still evolves (no regression). ---
 	var outer_name := str(abm.get_active_biome())
 	var outer_qc = farm.grid.get_biome(outer_name).quantum_computer
+	# Attention rule (#75): a world with no lit plot is dormant. Light one
+	# outer plot so the outer biome is attended while we measure it.
+	var outer_pos: Array = farm.grid.get_plot_positions_for_biome(outer_name)
+	var outer_ex: Dictionary = {}
+	if not outer_pos.is_empty():
+		outer_ex = inst.action_explore(outer_name, outer_pos[outer_pos.size() - 1])  # not register 0: that one opens the inner world
 	var o0 := _diag(outer_qc)
 	for _f in range(FRAMES):
 		await process_frame
-	_emit("OUTER_EVO", {"biome": outer_name, "drift": _drift(o0, _diag(outer_qc)), "purity": outer_qc.get_purity()})
+	_emit("OUTER_EVO", {"biome": outer_name, "drift": _drift(o0, _diag(outer_qc)),
+		"purity": outer_qc.get_purity(), "lit": farm.terminal_pool.get_lit_count(),
+		"explored": bool(outer_ex.get("success", false))})
+	# Back to all-dark before descending, so the inner world starts unattended.
+	for t in farm.terminal_pool.terminals:
+		if t.is_bound and bool(t.lit):
+			t.darken()
 
 	# --- Open the 🦅/🐇 inner world through the fractal service. ---
 	var north := "🦅"
@@ -145,6 +158,22 @@ func _run() -> void:
 	hs["active"] = str(abm.get_active_biome()) == inner_name
 	_emit("INNER_H", hs)
 
+	# All dark = dormant: the inner world takes no steps and ρ does not move.
+	var d0 := _diag(qc)
+	var dsteps0: int = int(batcher.get_biome_evolution_count(inner_name))
+	for _f in range(FRAMES):
+		await process_frame
+	_emit("INNER_DORMANT", {
+		"lit": farm.terminal_pool.get_lit_count(),
+		"dormant": batcher.is_attention_dormant(),
+		"steps": int(batcher.get_biome_evolution_count(inner_name)) - dsteps0,
+		"drift": _drift(d0, _diag(qc)),
+	})
+
+	# Attend to the inner world: light a plot in it, then measure.
+	var inner_pos: Array = farm.grid.get_plot_positions_for_biome(inner_name)
+	var inner_ex: Dictionary = inst.action_explore(inner_name,
+		inner_pos[0] if not inner_pos.is_empty() else GridSentinel.INVALID_POSITION)
 	var r0 := _diag(qc)
 	var min_purity := 1.0
 	for f in range(FRAMES):
@@ -155,7 +184,9 @@ func _run() -> void:
 		"drift": _drift(r0, _diag(qc)),
 		"purity": qc.get_purity(),
 		"min_purity": min_purity,
-		"steps": int(batcher.get_biome_evolution_count(inner_name)),
+		"steps": int(batcher.get_biome_evolution_count(inner_name)) - dsteps0,
+		"lit": farm.terminal_pool.get_lit_count(),
+		"explored": bool(inner_ex.get("success", false)),
 	})
 
 	# --- A pair with no physics in its library record: H from its atoms. ---
