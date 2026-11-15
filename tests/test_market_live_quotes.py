@@ -11,7 +11,7 @@ the issuer's standing factor.
   the board on Market with the player's keys (C, Y) and watches one offer:
   live asks move across heartbeats; F locks it and the ask holds while the live
   ask keeps moving; E re-deals and the lock stays; the paused world holds the
-  lock clock; the lock survives a save (GameState v8 market_state); R accepts
+  lock clock; the lock survives a save (GameState market_state); R accepts
   at the locked ask; a lock that runs out moves again.
 - Source pins: one price function, the regime of the place (not the world
   switch) decides the prior and the collapse, and a delivery settles on its
@@ -19,6 +19,7 @@ the issuer's standing factor.
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 
@@ -88,7 +89,9 @@ def test_refresh_keeps_the_lock_and_pause_stops_its_clock(phases):
 
 def test_a_lock_survives_save_and_load(phases):
     save = phases["save"]
-    assert save["version"] == 8
+    assert save["version"] == int(re.search(
+        r"^const CURRENT_SAVE_VERSION\s*:?=\s*(\d+)",
+        read_source("Core/GameState/GameState.gd"), re.M).group(1))
     assert save["disk_ok"], "the GameState with market_state must write and read back as a .tres"
     assert save["state_locks"] == 1, "GameStateSerializer must capture market_state"
     assert save["saved_locks"] == 1 and save["restored_locked"]

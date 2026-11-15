@@ -250,6 +250,7 @@ func _build_tab_row(container: Control) -> void:
 		ClickWire.attach(lbl, _show_tab.bind(int(entry.get("tab", 0))))
 		_tab_row_box.add_child(lbl)
 		_tab_labels[str(entry.get("key", ""))] = lbl
+		ObjectiveTargets.register(str(entry.get("key", "")), lbl)
 
 # =============================================================================
 # RENDER
@@ -2219,6 +2220,7 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 	var kind := str(entry.get("kind", ""))
 	var row := PanelContainer.new()
 	row.name = "ArcRow_%d" % idx
+	ObjectiveTargets.register(ObjectiveTargets.row_id(key_str), row)
 	var sb := StyleBoxFlat.new()
 	sb.set_corner_radius_all(3)
 	sb.content_margin_left = 8
@@ -2586,6 +2588,7 @@ func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) 
 	var ready := str(q.get("status", "")) == "ready"
 	var row := PanelContainer.new()
 	row.name = "ChargeRow_%d" % idx
+	ObjectiveTargets.register(ObjectiveTargets.row_id(key_str), row)
 	var sb := StyleBoxFlat.new()
 	sb.set_corner_radius_all(3)
 	sb.content_margin_left = 8
