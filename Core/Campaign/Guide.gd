@@ -1090,7 +1090,7 @@ static func _gather(res: String, need: int, q: Dictionary, depth: int = 0) -> Di
 	if not h.is_empty():
 		return h
 	var col := _live_col()
-	var label := "gather %s %d/%d" % [res, int(UIP._wallet(res)), need]
+	var label := "gather %s %d of %d" % [res, need, int(UIP._wallet(res))]
 	var frozen = _frozen(col, UIP._active_biome_name()) if col >= 0 else null
 	if col >= 0 and (UIP._plot_measured(col) or frozen != null):
 		# Strike as often as you like; Q gathers the bank (Ace R). When the
