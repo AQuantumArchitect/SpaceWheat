@@ -202,3 +202,20 @@ def test_legacy_plant_banner_skips_keys_the_wallet_cannot_pay():
     assert "static func _plant_affordable" in prog
     aff = prog.split("static func _plant_affordable")[1].split("\nstatic func ")[0]
     assert "_get_injection_cost" in aff and "_wallet" in aff
+
+
+def test_incorporation_writes_only_the_players_vocabulary():
+    """Incorporate (and the faction pump it triggers) never seats or alters the
+    player's words on a faction's behalf. discover_icon is the player's own
+    ledger; _pump_for_icon only pumps FactionDensityMatrix, the lexicon and the
+    market lattice."""
+    farm = src("Core/Farm.gd")
+    pump = farm.split("func _pump_for_icon")[1].split("\nfunc ")[0]
+    for forbidden in ("known_icons", "incorporated_icons", "discover_icon",
+                      "mark_icon_incorporated", "active_icon_slots"):
+        assert forbidden not in pump, forbidden
+    assert "faction_density.pump(" in pump
+    qi = src("Core/Instrumentation/QuantumInstrument.gd")
+    inc = qi.split("func action_incorporate")[1].split("\nfunc ")[0]
+    assert "gsm.player_progress.discover_icon(north, south)" in inc
+    assert "faction_density" not in inc and "Millwright" not in inc
