@@ -33,16 +33,16 @@
               "title": "The Wheel Is Yours"
             },
             {
-              "id": "the_mill",
-              "title": "Apprentice to the Mill"
-            },
-            {
               "id": "first_taste",
               "title": "First Breath"
             },
             {
               "id": "new_voices",
               "title": "New Voices"
+            },
+            {
+              "id": "the_milk",
+              "title": "Find the Milk"
             }
           ]
         },
@@ -296,6 +296,92 @@
     "the_chain_tested": "Lanternfall",
     "hiding_in_the_light": "NullingChamber"
   },
+  "arcs": [
+    {
+      "id": "the_wheel",
+      "title": "The Wheel Is Yours",
+      "body": "The Village hands you the wheel. Read the Arc, and keep the Millwrights' contracts until they teach you the windmill.",
+      "campaign": "demos",
+      "act": 1,
+      "chapter": "the_wheel",
+      "charges": [
+        "arc_handover",
+        "village_stirs"
+      ],
+      "requires": [
+        "first_harvest",
+        "loom_opens"
+      ],
+      "after": [],
+      "next": [
+        "breath"
+      ],
+      "large_event": false
+    },
+    {
+      "id": "breath",
+      "title": "First Breath",
+      "body": "The first word you take from the land itself, not from a faction. Incorporate is taught here.",
+      "campaign": "demos",
+      "act": 1,
+      "chapter": "first_taste",
+      "charges": [
+        "first_breath"
+      ],
+      "requires": [
+        "arc_handover",
+        "village_stirs"
+      ],
+      "after": [
+        "the_wheel"
+      ],
+      "next": [
+        "voices",
+        "the_milk"
+      ],
+      "large_event": true
+    },
+    {
+      "id": "voices",
+      "title": "New Voices",
+      "body": "Spend what you know. Strike the word you took, take a second from the land, and put a taught word in the ground.",
+      "campaign": "demos",
+      "act": 1,
+      "chapter": "new_voices",
+      "charges": [
+        "spiral_breaks",
+        "new_voices"
+      ],
+      "requires": [
+        "first_breath"
+      ],
+      "after": [
+        "breath"
+      ],
+      "next": [],
+      "large_event": false
+    },
+    {
+      "id": "the_milk",
+      "title": "Find the Milk",
+      "body": "The season will not turn without 🍼, and nothing in the Demos makes it. Find where the milk lives.",
+      "campaign": "demos",
+      "act": 1,
+      "chapter": "the_milk",
+      "charges": [
+        "find_the_milk"
+      ],
+      "requires": [
+        "milk_runs_out",
+        "first_breath"
+      ],
+      "after": [
+        "breath"
+      ],
+      "next": [],
+      "large_event": true
+    }
+  ],
   "chart_cost": {
     "📜": 5,
     "_doc": "Captain [7] Chart: the deliberate, non-random way to reach a story biome while its door beat is open. Same price as a random Add Biome pull (action_costs.discover_biome). Paid in 📜: the Carrion Throne's paperwork commissions the Captain; 🦅 stays the Throne's emblem. One Village 📜 trade (🍞×13 → 📜×5) is one commission."

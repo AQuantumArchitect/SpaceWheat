@@ -62,52 +62,60 @@ def _pass(by_id: dict, order: list, fired: set, completed: set, physics_true: bo
     return newly
 
 
-def test_village_stirs_waits_on_the_wheel():
+def test_village_stirs_rides_the_wheel_arc():
+    """#94: the mill is a charge of the Wheel's own arc — one Arc row, one
+    Accept — not a second door that cascades off the same reap."""
     flags = _flags()
     prereqs = {p.get("id") for p in flags["village_stirs"]["predicates"]
                if p.get("type") == "story_flag_set"}
-    assert prereqs == {"arc_handover"}, prereqs
-    # first_harvest is reached through the Wheel (one door, one path).
     wheel = {p.get("id") for p in flags["arc_handover"]["predicates"]
              if p.get("type") == "story_flag_set"}
+    assert prereqs == wheel
+    assert flags["village_stirs"]["arc"] == flags["arc_handover"]["arc"]
+    # first_harvest is reached through the Wheel (one arc, one path).
     assert "first_harvest" in wheel
 
 
 def test_one_reap_does_not_open_the_woodlot():
     """File-order evaluate pass with physics treated as already true (Village
-    evolving, mill access paid) — the loom-then-lumber-yard dump."""
+    evolving, mill access paid) — the loom-then-lumber-yard dump. Since #94
+    the reap opens ONE arc (the Wheel: handshake + mill); each later arc
+    opens only when every charge of the one before is claimed."""
     flags = _flags()
     order = [f["id"] for f in json.loads(FLAGS.read_text(encoding="utf-8"))]
     fired = {"tutorial_seen", "loom_opens"}
     completed: set = set()
     newly = _pass(flags, order, fired, completed, physics_true=True)
     assert "first_harvest" in newly
-    assert "arc_handover" in newly
-    assert "village_stirs" not in newly, newly
+    assert {"arc_handover", "village_stirs"} <= set(newly), newly
+    assert "first_breath" not in newly, newly
     assert "new_voices" not in newly, newly
     assert "woodlot_door" not in newly, newly
-    # Wheel handshake claimed → mill may open (physics already true).
+    # Half the arc claimed → nothing new opens.
     completed.add("arc_handover")
     newly2 = _pass(flags, order, fired, completed, physics_true=True)
-    assert "village_stirs" in newly2
+    assert "first_breath" not in newly2, newly2
     assert "new_voices" not in newly2, newly2
-    assert "woodlot_door" not in newly2, newly2
-    # Mill teaching claimed → Incorporate (First Breath, Act 1) may open.
+    # Mill teaching claimed → the Wheel is complete → Incorporate (First Breath, Act 1).
     completed.add("village_stirs")
     newly3 = _pass(flags, order, fired, completed, physics_true=True)
     assert "first_breath" in newly3
     assert "new_voices" not in newly3, newly3
     assert "woodlot_door" not in newly3, newly3
-    # Incorporate claimed → plant may open.
+    # Incorporate claimed → the New Voices arc: strike + plant, together.
     completed.add("first_breath")
     newly4 = _pass(flags, order, fired, completed, physics_true=True)
-    assert "new_voices" in newly4
+    assert {"new_voices", "spiral_breaks"} <= set(newly4), newly4
     assert "woodlot_door" not in newly4, newly4
-    # Plant claimed → both country doors.
+    # Plant claimed alone → the arc is not done; no country door yet.
     completed.add("new_voices")
     newly5 = _pass(flags, order, fired, completed, physics_true=True)
-    assert "woodlot_door" in newly5
-    assert "spring_door" in newly5
+    assert "woodlot_door" not in newly5, newly5
+    # Both charges claimed → both country doors.
+    completed.add("spiral_breaks")
+    newly6 = _pass(flags, order, fired, completed, physics_true=True)
+    assert "woodlot_door" in newly6
+    assert "spring_door" in newly6
 
 
 def test_engine_requires_parent_door_resolved():

@@ -323,9 +323,14 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 	var live_id := str(live.get("id", ""))
 	# The Arc lists doors you have not signed. A signed story beat lives on
 	# Charge (X → U), beside nothing else; Act 0 lessons stay here.
-	if not live.is_empty() and not _is_signed_story(live.get("data", {}), qm):
+	# A live door that is a charge of an arc is shown AS its arc: the arc's
+	# row goes first and carries it, so Accept [R] there signs the bundle.
+	var live_arc := ""
+	if live.get("data", {}) is Dictionary and str(live.get("kind", "")) == "arc_quest" and qm.has_method("arc_of"):
+		live_arc = str(qm.arc_of(live.get("data", {})))
+	if not live.is_empty() and live_arc == "" and not _is_signed_story(live.get("data", {}), qm):
 		rows.append(_row_from_beat(live))
-	var live_quest_id := int(live.get("data", {}).get("id", -1)) if live.get("data", {}) is Dictionary else -1
+	var live_quest_id := int(live.get("data", {}).get("id", -1)) if live.get("data", {}) is Dictionary and live_arc == "" else -1
 	if qm.has_method("get_story_offers"):
 		var tables := _catalog_rank_tables(qm, farm)
 		var offers: Array = []
@@ -343,10 +348,29 @@ static func doors_ahead(limit: int = 6, qm = null, farm = null) -> Array:
 		offers.sort_custom(func(a, b):
 			return _catalog_rank(a, tables) < _catalog_rank(b, tables)
 		)
+		if live_arc != "":
+			var head: Array = offers.filter(func(q): return str(qm.arc_of(q)) == live_arc)
+			var tail: Array = offers.filter(func(q): return str(qm.arc_of(q)) != live_arc)
+			offers = head + tail
+		# An arc is ONE row: its unsigned charges ride along in "charges"
+		# and Accept [R] signs them all (#94). "data" is the lead charge, so
+		# every reader keyed on one quest (Guide's row index, the shunt,
+		# Dismiss) still finds it.
+		var arc_rows: Dictionary = {}
 		for q in offers:
-			rows.append({"kind": "arc_quest", "data": q, "beat": beat_from_quest(q, "ahead")})
+			var aid: String = str(qm.arc_of(q)) if qm.has_method("arc_of") else ""
+			if aid != "" and arc_rows.has(aid):
+				(rows[int(arc_rows[aid])]["charges"] as Array).append(q)
+				continue
 			if rows.size() >= limit:
-				return rows
+				continue
+			var row := {"kind": "arc_quest", "data": q, "beat": beat_from_quest(q, "ahead")}
+			if aid != "":
+				row["arc"] = CampaignRuntime.arc(aid)
+				row["charges"] = [q]
+				arc_rows[aid] = rows.size()
+			rows.append(row)
+		return rows
 	# Unfired flags are not doors. They become offers when they fire.
 	# Listing a 99% Village / Woodlot row shunted players out of the loom
 	# into a country whose quest did not exist yet.

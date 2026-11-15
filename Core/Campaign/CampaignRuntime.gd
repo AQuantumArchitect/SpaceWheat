@@ -258,3 +258,32 @@ static func act_title(campaign_id: String, campaign_act: int) -> String:
 		if a is Dictionary and int(a.get("act", -1)) == campaign_act:
 			return str(a.get("title", ""))
 	return ""
+
+
+# ── Arcs (docs/design/ARC_CHARGE_STRUCTURE.md): an arc bundles 1-6 charge
+# beats. Accepting the arc signs every charge; it completes when all are
+# claimed, and then its `next` arcs open. ──
+
+static func arcs() -> Array:
+	var a = data().get("arcs", [])
+	return a if a is Array else []
+
+
+## The arc dict ({id, title, body, charges, requires, after, next, …}), {} if none.
+static func arc(arc_id: String) -> Dictionary:
+	if arc_id == "":
+		return {}
+	for a in arcs():
+		if a is Dictionary and str(a.get("id", "")) == arc_id:
+			return a
+	return {}
+
+
+## The arc a charge beat belongs to ("" for a beat in no arc).
+static func arc_of_beat(beat_id: String) -> String:
+	if beat_id == "":
+		return ""
+	for a in arcs():
+		if a is Dictionary and (a.get("charges", []) as Array).has(beat_id):
+			return str(a.get("id", ""))
+	return ""

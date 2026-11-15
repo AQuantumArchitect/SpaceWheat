@@ -70,7 +70,8 @@
     "act_title": "The Village",
     "chapter": "the_wheel",
     "chapter_title": "The Wheel Is Yours",
-    "arc_beat": "Six lessons and the banner goes quiet. From here the island does not queue its asks one at a time — the Arc keeps every open quest on one page, and the wheel passes to you. Check it the way a millwright checks the wind: often, and before committing the grain.",
+    "arc_beat": "Six lessons and the banner goes quiet. From here the island does not queue its asks one at a time. The Arc offers them in bundles: accept one and every charge in it goes on Charge together, and when the last is claimed the Arc offers the next. The wheel passes to you. Check it the way a millwright checks the wind: often, and before committing the grain.",
+    "arc": "the_wheel",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -83,10 +84,11 @@
     ],
     "standing_grants": {},
     "arc_quest": {
-      "body": "The Wheel Is Yours — open the Arc and read the island's open doors.",
-      "hint": "Open the Arc. Tap a row; Accept [R] takes a quest.",
+      "body": "The Wheel Is Yours — open the Arc and read the island's open doors. An arc is a bundle of charges; accepting it takes them all.",
+      "hint": "Open the Arc. Tap the arc; Accept [R] takes all its charges.",
       "math_note": "Handshake, not a second reap. The old state_predicates asked for gate_sequence_contains reap×1 — the same durable ledger count first_harvest and the tutorial capstone already spent. Accepting on the Arc IS the beat; the quest auto-claims. Parallel-dev leftover: a ready stall on C for work the player had just finished.",
-      "state_predicates": []
+      "state_predicates": [],
+      "arc": "the_wheel"
     }
   },
   {
@@ -96,13 +98,18 @@
     "campaign": "demos",
     "campaign_act": 1,
     "act_title": "The Village",
-    "chapter": "the_mill",
-    "chapter_title": "Apprentice to the Mill",
+    "chapter": "the_wheel",
+    "chapter_title": "The Wheel Is Yours",
     "arc_beat": "Fire and water are in permanent contest at the hearth. The mill gears are idle. Labor turns flour into bread, but the village has two ways to run and only one of them is turning. Something upstream is missing, and the village knows it. The Millwright's Union knows it too — and they have started counting which deliveries arrive with your name on them.",
+    "arc": "the_wheel",
     "predicates": [
       {
         "type": "story_flag_set",
-        "id": "arc_handover"
+        "id": "first_harvest"
+      },
+      {
+        "type": "story_flag_set",
+        "id": "loom_opens"
       }
     ],
     "standing_grants": {
@@ -126,6 +133,7 @@
           "width": 0.01
         }
       ],
+      "arc": "the_wheel",
       "reward_north": "💨",
       "reward_south": "🔨",
       "reward_icon_north": "💨",
@@ -142,7 +150,12 @@
     "chapter": "first_taste",
     "chapter_title": "First Breath",
     "arc_beat": "The forest keeps more than fog. Take the eagle and the rabbit for a walk: track their qubit, let the Hamiltonian carry it around its sphere, and when it comes back to where it began, keep the shape of the walk. Every word you hold so far was taught to you. This one you will take from the land itself, and no faction owns it. 🦅 and 🐇 are the hunter and the hunted, the two ends of everything you will strike and gather. A word you take is yours in every land: each plot that carries it will glow, and a strike on a glowing plot pays ×6. A plot that only shares one of your emojis wears a faint highlight and pays ×2.",
+    "arc": "breath",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "arc_handover"
+      },
       {
         "type": "story_flag_set",
         "id": "village_stirs"
@@ -166,6 +179,7 @@
           "value": 1
         }
       ],
+      "arc": "breath",
       "done_beat": "You did something. A qubit you tracked came back to where it started, and you incorporated the shape of its walk — the signed solid angle the loop enclosed. And notice what did NOT happen: nothing leaked, nothing faded, nothing was forgotten. The enclave holds. Here, only measurement leaves a scar — and the scar is yours. Look at the field: every plot carrying the word you kept now glows, here and in every land you reach. That glow is your own vocabulary, seen in the ground."
     }
   },
@@ -176,9 +190,10 @@
     "campaign": "demos",
     "campaign_act": 1,
     "act_title": "The Village",
-    "chapter": "first_taste",
-    "chapter_title": "First Breath",
+    "chapter": "new_voices",
+    "chapter_title": "New Voices",
     "arc_beat": "Contracts fed you; teachings armed you. There is a third economy, and it is nobody's to grant. The word you just took glows wherever it stands: strike one of those plots and read the receipt twice. Then take a second word from the land.",
+    "arc": "voices",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -203,7 +218,41 @@
           "value": 2
         }
       ],
+      "arc": "voices",
       "done_beat": "Because you KNOW it — because you walked its loop and kept the shape — every harvest of that word pays more than the strike cost. Six times more. The spiral of spending to look breaks here. Incorporated words pay; taught words plant."
+    }
+  },
+  {
+    "id": "new_voices",
+    "display_name": "New Voices",
+    "act": 1,
+    "campaign": "demos",
+    "campaign_act": 1,
+    "act_title": "The Village",
+    "chapter": "new_voices",
+    "chapter_title": "New Voices",
+    "arc_beat": "Every word taught to you wants ground. The village listens for new voices: put a word you know into an empty plot — if one already stands there, the village heard it land. A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
+    "arc": "voices",
+    "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "first_breath"
+      }
+    ],
+    "standing_grants": {},
+    "arc_quest": {
+      "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
+      "hint": "Need 🌱×5 from the Forest. Then Icon [5], empty plot, [R] plants.",
+      "faction": "Millwright's Union",
+      "math_note": "Structural count over the durable gate ledger: 1.0 the instant one plant lands (clamped hits/count, same law as the tutorial's strike and reap gates). The ledger is saved with the run — a load does not forget it, and a refused plant never counts.",
+      "state_predicates": [
+        {
+          "type": "gate_sequence_contains",
+          "gate": "inject_icon",
+          "count": 1
+        }
+      ],
+      "arc": "voices"
     }
   },
   {
@@ -213,8 +262,8 @@
     "campaign": "demos",
     "campaign_act": 1,
     "act_title": "The Village",
-    "chapter": "first_taste",
-    "chapter_title": "First Breath",
+    "chapter": "the_milk",
+    "chapter_title": "Find the Milk",
     "arc_beat": "The season would not turn. Reaping costs 🍼, and the loom's gift is spent. The Demos has no milk of its own, and no Village stall sells it.",
     "predicates": [
       {
@@ -237,9 +286,10 @@
     "campaign": "demos",
     "campaign_act": 1,
     "act_title": "The Village",
-    "chapter": "first_taste",
-    "chapter_title": "First Breath",
+    "chapter": "the_milk",
+    "chapter_title": "Find the Milk",
     "arc_beat": "🍼 is a word of the deep web, held by the Reality Midwives and grazed in the Pastoral Commons, far past the lands you can chart from here. Nothing in the Demos makes it. Someone has to go and find it.",
+    "arc": "the_milk",
     "predicates": [
       {
         "type": "story_flag_set",
@@ -262,7 +312,8 @@
           "north": "🍼",
           "south": "✨"
         }
-      ]
+      ],
+      "arc": "the_milk"
     }
   },
   {
@@ -272,8 +323,8 @@
     "campaign": "demos",
     "campaign_act": 1,
     "act_title": "The Village",
-    "chapter": "first_taste",
-    "chapter_title": "First Breath",
+    "chapter": "the_milk",
+    "chapter_title": "Find the Milk",
     "arc_beat": "Birth is your word now. A word you know is a word you can plant. Plant it at home, in the Forest or the Village, and the season will never wait on 🍼 again.",
     "predicates": [
       {
@@ -290,37 +341,6 @@
     "win": true
   },
   {
-    "id": "new_voices",
-    "display_name": "New Voices",
-    "act": 1,
-    "campaign": "demos",
-    "campaign_act": 1,
-    "act_title": "The Village",
-    "chapter": "new_voices",
-    "chapter_title": "New Voices",
-    "arc_beat": "Every word taught to you wants ground. The village listens for new voices: put a word you know into an empty plot — if one already stands there, the village heard it land. A planted word is a new qubit, and a new qubit is new law: the Hamiltonian you farm is the one you author. Every act ahead asks for more words than the enclave seeded you — your signature is your reach.",
-    "predicates": [
-      {
-        "type": "story_flag_set",
-        "id": "first_breath"
-      }
-    ],
-    "standing_grants": {},
-    "arc_quest": {
-      "body": "Plant a New Voice — put a word you know into the ground and hear the biome change key.",
-      "hint": "Need 🌱×5 from the Forest. Then Icon [5], empty plot, [R] plants.",
-      "faction": "Millwright's Union",
-      "math_note": "Structural count over the durable gate ledger: 1.0 the instant one plant lands (clamped hits/count, same law as the tutorial's strike and reap gates). The ledger is saved with the run — a load does not forget it, and a refused plant never counts.",
-      "state_predicates": [
-        {
-          "type": "gate_sequence_contains",
-          "gate": "inject_icon",
-          "count": 1
-        }
-      ]
-    }
-  },
-  {
     "id": "woodlot_door",
     "display_name": "Timber Country — The Door",
     "act": 2,
@@ -331,6 +351,10 @@
     "chapter_title": "Timber Country",
     "arc_beat": "A new word took root in the village and the Millwright's Union heard it land. Their ledgers all lean the same way: upstream, where axes ring against trunks. They have opened their board to you — and past the forest's edge, timber country is waiting to be found.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spiral_breaks"
+      },
       {
         "type": "story_flag_set",
         "id": "new_voices"
@@ -529,6 +553,10 @@
     "chapter_title": "Spring Country",
     "arc_beat": "A new voice took root in the village, and the Hearth Keepers heard it from their kitchens — they hear everything the water carries. They keep no ledgers, only kettles, and every kettle on the island fills from one cold thread upstream. They have watched you tend what you touch, and to tenders they extend the table. Follow the water up.",
     "predicates": [
+      {
+        "type": "story_flag_set",
+        "id": "spiral_breaks"
+      },
       {
         "type": "story_flag_set",
         "id": "new_voices"

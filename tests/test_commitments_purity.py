@@ -82,12 +82,18 @@ def test_first_harvest_dedupe_and_handover_repredication():
     assert {"loom_opens", "first_harvest"} <= prereqs, (
         f"arc_handover must gate on Act 0's real completion, got {prereqs}"
     )
+    # #94: the mill rides the Wheel's own arc (one row, accepted together);
+    # plant and Woodlot wait on later arcs, so the reap still opens one arc.
     mill_prereqs = {p.get("id") for p in flags["village_stirs"]["predicates"]
                     if p.get("type") == "story_flag_set"}
-    assert "arc_handover" in mill_prereqs, (
-        "village_stirs must wait on the Wheel handshake — otherwise mill, "
-        "plant, and Woodlot cascade on the same reap"
-    )
+    assert flags["village_stirs"]["arc"] == flags["arc_handover"]["arc"] == "the_wheel"
+    assert mill_prereqs == prereqs
+    for later in ("new_voices", "woodlot_door"):
+        later_prereqs = {p.get("id") for p in flags[later]["predicates"]
+                         if p.get("type") == "story_flag_set"}
+        assert not later_prereqs & {"first_harvest", "loom_opens", "arc_handover"}, (
+            f"{later} must wait on a later arc — otherwise mill, plant, and "
+            "Woodlot cascade on the same reap")
     wheel_preds = flags["arc_handover"].get("arc_quest", {}).get("state_predicates") or []
     assert wheel_preds == [], (
         "Wheel is a handshake — Accept on Arc is the beat. The old reap×1 "

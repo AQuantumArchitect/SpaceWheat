@@ -136,7 +136,11 @@ def test_the_glow_is_taught_on_the_beat_after_the_millwright_vocabulary():
     beats = _beats()
     assert beats["village_stirs"]["offer"]["teaches"] == ["💨", "🔨"]
     fb = beats["first_breath"]
-    assert fb["requires"] == ["village_stirs"]
+    # its arc (First Breath) waits on the Wheel arc, which holds the mill (#94)
+    arcs = {a["id"]: a for ch in (c for act in json.loads(read_source("Core/Campaign/campaign.json"))["campaigns"][0]["acts"]
+                                  for c in act["chapters"]) for a in ch.get("arcs", [])}
+    assert "village_stirs" in arcs[arcs["breath"]["requires"][0]]["charges"]
+    assert "first_breath" in arcs["breath"]["charges"]
     for text in (fb["beat"], fb["offer"]["body"]):  # body + hint are the E-inspect text
         assert "glow" in text, text
     assert "×6" in fb["beat"] and "×2" in fb["beat"]

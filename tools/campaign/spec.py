@@ -13,6 +13,13 @@ story. Model: Campaign > Act > Chapter > Beat.
   * `on_open` effects (standing grants, unlocks, world changes) apply when the
     beat opens.
 
+  * An ARC (`chapter.arcs[]`) bundles 1-6 offered beats, its CHARGES. The
+    arc owns `requires`; every charge inherits it, so all of an arc's
+    charges open together and are accepted together. An arc completes when
+    all of its charges are claimed. A `requires` entry may name an arc id:
+    it stands for every charge of that arc ("after that arc completes").
+    A one-charge arc is for a large event only (`large_event: true`).
+
 Runtime mapping (build.py): each beat compiles to one story flag. The flag
 fires when the beat opens; its arc quest is the offer, scored on the
 objective; QuestManager's door rule (a child waits until the parent's arc
@@ -36,8 +43,65 @@ class SpecError(ValueError):
     pass
 
 
+ARC_MAX_CHARGES = 6
+
+
 def load(path: Path | None = None) -> dict:
-    return json.loads((path or SPEC_PATH).read_text(encoding="utf-8"))
+    return apply_arcs(json.loads((path or SPEC_PATH).read_text(encoding="utf-8")))
+
+
+def iter_arcs(spec: dict):
+    """Yield (campaign, act, chapter, arc) in reading order."""
+    for camp in spec["campaigns"]:
+        for act in camp["acts"]:
+            for ch in act["chapters"]:
+                for arc in ch.get("arcs", []):
+                    yield camp, act, ch, arc
+
+
+def arcs_by_id(spec: dict) -> dict:
+    return {a["id"]: (c, ac, ch, a) for c, ac, ch, a in iter_arcs(spec)}
+
+
+def expand_requires(ids, arcs: dict) -> list:
+    """Beat ids for a `requires` list: an arc id stands for all its charges."""
+    out: list = []
+    for r in ids:
+        for x in (arcs[r][3].get("charges", []) if r in arcs else [r]):
+            if x not in out:
+                out.append(x)
+    return out
+
+
+def apply_arcs(spec: dict) -> dict:
+    """Fold arcs into their beats, in place (idempotent): each charge gets
+    `arc` and the arc's `requires` (expanded to beat ids); any other beat's
+    `requires` naming an arc id is expanded too. Downstream (build, validate,
+    fixtures) then reads plain beat requires. A charge that authors its own,
+    different `requires` is a SpecError: the arc is the one source."""
+    arcs = arcs_by_id(spec)
+    if not arcs:
+        return spec
+    charge_of: dict = {}
+    for aid, (_c, _a, _ch, arc) in arcs.items():
+        for cid in arc.get("charges", []):
+            charge_of[cid] = aid
+    for camp in spec["campaigns"]:
+        for act in camp["acts"]:
+            for ch in act["chapters"]:
+                for b in ch.get("beats", []):
+                    aid = charge_of.get(b["id"])
+                    if aid is None:
+                        if any(r in arcs for r in b.get("requires", [])):
+                            b["requires"] = expand_requires(b["requires"], arcs)
+                        continue
+                    want = expand_requires(arcs[aid][3].get("requires", []), arcs)
+                    if "requires" in b and b.get("arc") != aid and list(b["requires"]) != want:
+                        raise SpecError(f"{b['id']}: a charge of arc {aid!r} takes the arc's requires; "
+                                        f"drop its own {b['requires']!r}")
+                    b["arc"] = aid
+                    b["requires"] = want
+    return spec
 
 
 def _lookup(params: dict, ref: str):

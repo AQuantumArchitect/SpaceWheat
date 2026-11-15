@@ -44,6 +44,8 @@ def compile_flag(camp: dict, act: dict, ch: dict, b: dict) -> dict:
         "chapter_title": ch.get("title", ch["id"]),
         "arc_beat": b.get("beat", ""),
     }
+    if b.get("arc"):
+        flag["arc"] = b["arc"]
     if "conditional_beat" in b:
         flag["conditional_beat"] = b["conditional_beat"]
     flag["predicates"] = preds
@@ -52,6 +54,8 @@ def compile_flag(camp: dict, act: dict, ch: dict, b: dict) -> dict:
     if offer is not None:
         aq = {k: offer[k] for k in OFFER_KEYS if k in offer}
         aq["state_predicates"] = b.get("objective", [])
+        if b.get("arc"):
+            aq["arc"] = b["arc"]
         # `done` is the payoff prose, read when the quest is claimed. `beat`
         # is read when the door opens, so it must not describe the deed as done.
         if str(b.get("done", "")).strip():
@@ -71,6 +75,32 @@ def compile_flag(camp: dict, act: dict, ch: dict, b: dict) -> dict:
         if k in b:
             flag[k] = b[k]
     return flag
+
+
+def compile_arcs(spec: dict) -> list:
+    """Arcs in reading order. `requires` is beat ids (an arc id expanded to its
+    charges); `after` names the arcs it waits on and `next` the arcs that wait
+    on it, so the Arc can offer more than one next arc."""
+    arcs = S.arcs_by_id(spec)
+    params = spec.get("params", {})
+    out = []
+    for camp, act, ch, arc in S.iter_arcs(spec):
+        after = [r for r in arc.get("requires", []) if r in arcs]
+        nxt = [a["id"] for _c, _a, _ch, a in S.iter_arcs(spec) if arc["id"] in a.get("requires", [])]
+        out.append({
+            "id": arc["id"],
+            "title": S.resolve(arc.get("title", arc["id"]), params),
+            "body": S.resolve(arc.get("body", ""), params),
+            "campaign": camp["id"],
+            "act": S.global_act(camp, act),
+            "chapter": ch["id"],
+            "charges": list(arc.get("charges", [])),
+            "requires": S.expand_requires(arc.get("requires", []), arcs),
+            "after": after,
+            "next": nxt,
+            "large_event": bool(arc.get("large_event", False)),
+        })
+    return out
 
 
 def compile_runtime(spec: dict) -> dict:
@@ -110,6 +140,7 @@ def compile_runtime(spec: dict) -> dict:
         "unlocks": unlocks,
         "menu_steps": spec.get("menu_steps", {}),
         "charts": charts,
+        "arcs": compile_arcs(spec),
         "chart_cost": spec.get("chart_cost", {}),
         "resources": res,
         "guide": {k: v for k, v in spec.get("guide", {}).items() if not k.startswith("_")},
@@ -117,6 +148,7 @@ def compile_runtime(spec: dict) -> dict:
 
 
 def compile_all(spec: dict) -> dict:
+    S.apply_arcs(spec)
     flags = [compile_flag(c, a, ch, b) for c, a, ch, b in S.iter_beats(spec)]
     # File order is the Arc tab's documented tiebreak: act order, stable.
     flags.sort(key=lambda f: f["act"])

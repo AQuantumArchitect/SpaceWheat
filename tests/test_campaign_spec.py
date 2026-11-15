@@ -43,7 +43,9 @@ def test_incorporate_is_taught_in_act_one():
     idx = S.beats_by_id(S.load())
     camp, act, _ch, beat = idx["first_breath"]
     assert camp["id"] == "demos" and int(act["act"]) == 1
-    assert beat["requires"] == ["village_stirs"]
+    # right after the mill apprenticeship: it waits on the whole Wheel arc (#94)
+    assert beat["arc"] == "breath"
+    assert beat["requires"] == ["arc_handover", "village_stirs"]
 
 
 def test_offered_beats_open_on_requires_alone():

@@ -23,6 +23,11 @@ registries, the spec's teachings, plants, charts, grants and unlocks):
               ladders ask for at least one and at most `max_deliveries` kept
               deliveries beyond what the story already grants
   one ask     an offered beat's objective is not a copy of its own trigger
+  arcs        an arc bundles 1-6 offered beats of its chapter (one only for a
+              `large_event`), no beat sits in two arcs, a chapter with arcs
+              leaves no offered beat out of them, and the ARC LOOP (accept an
+              arc, finish all its charges, accept what it opens) reaches
+              every campaign's ending and every beat
 """
 from __future__ import annotations
 
@@ -163,6 +168,11 @@ def claim_delta(offer: dict) -> dict:
 
 def validate(spec: dict, report_table: bool = False) -> Report:
     R = Report()
+    try:
+        S.apply_arcs(spec)
+    except S.SpecError as e:
+        R.err("arcs", str(e))
+        return R
     fs, bs, owners = load_world()
     start = scenario_start(ROOT / "Scenarios" / "demos_normal.tres")
     params = spec.get("params", {})
@@ -451,6 +461,7 @@ def validate(spec: dict, report_table: bool = False) -> Report:
         if not res.startswith("_") and res not in resources:
             R.err(res, "chart cost has no resources entry (supply + rescue)")
 
+    check_arcs(spec, R)
     check_guide(spec, R)
     check_hints(spec, R)
 
@@ -459,6 +470,79 @@ def validate(spec: dict, report_table: bool = False) -> Report:
         for r in rows:
             print(f"{r[0]:>3} {r[1]:<11} {r[2]:<24} {r[5]:>3} {r[6]:>5} {','.join(r[3])} / {','.join(r[4])}")
     return R
+
+
+def check_arcs(spec: dict, R: "Report") -> None:
+    """Arc structure (docs/design/ARC_CHARGE_STRUCTURE.md), then the arc loop:
+    from the roots, open what its requires allow, finish every milestone and
+    every open arc (all of its charges at once) or lone offered beat, and
+    repeat. Every campaign ending and every beat must be reached. Choice
+    triggers are taken as met: the replay above checks the world they need."""
+    index = S.beats_by_id(spec)
+    arcs = S.arcs_by_id(spec)
+    seen_ids = [a["id"] for _c, _a, _ch, a in S.iter_arcs(spec)]
+    for aid in {i for i in seen_ids if seen_ids.count(i) > 1}:
+        R.err(aid, "duplicate arc id")
+    held_by: dict = {}
+    for c, a, ch, arc in S.iter_arcs(spec):
+        aid = arc["id"]
+        if aid in index:
+            R.err(aid, "arc id is also a beat id")
+        charges = arc.get("charges", [])
+        if not 1 <= len(charges) <= S.ARC_MAX_CHARGES:
+            R.err(aid, f"an arc bundles 1-{S.ARC_MAX_CHARGES} charges, not {len(charges)}")
+        if len(charges) == 1 and not arc.get("large_event"):
+            R.err(aid, "a one-charge arc is for a large event only (mark it large_event)")
+        if not str(arc.get("title", "")).strip():
+            R.err(aid, "arc has no title")
+        mine = {b["id"] for b in ch.get("beats", [])}
+        for cid in charges:
+            if cid not in index:
+                R.err(aid, f"charge {cid!r} is not a beat")
+                continue
+            if cid not in mine:
+                R.err(aid, f"charge {cid!r} is not a beat of chapter {ch['id']}")
+            if not index[cid][3].get("offer"):
+                R.err(aid, f"charge {cid!r} has no offer (a milestone is not a charge)")
+            if cid in held_by:
+                R.err(cid, f"charge sits in two arcs ({held_by[cid]}, {aid})")
+            held_by[cid] = aid
+        for r in arc.get("requires", []):
+            if r == aid:
+                R.err(aid, "arc requires itself")
+            elif r not in index and r not in arcs:
+                R.err(aid, f"requires unknown beat or arc {r!r}")
+    for c in spec["campaigns"]:
+        for a in c["acts"]:
+            for ch in a["chapters"]:
+                if not ch.get("arcs"):
+                    continue
+                for b in ch.get("beats", []):
+                    if b.get("offer") and b["id"] not in held_by:
+                        R.err(b["id"], f"offered beat in chapter {ch['id']} is in none of its arcs")
+    if R.errors:
+        return
+    # the arc loop
+    done: set = set()
+    while True:
+        opened = [bid for bid, v in index.items()
+                  if bid not in done and all(r in done for r in v[3].get("requires", []))]
+        if not opened:
+            break
+        for bid in opened:
+            aid = held_by.get(bid)
+            if aid is not None:
+                # an arc is accepted whole: every charge must open on this same pass
+                late = [x for x in arcs[aid][3]["charges"] if x not in opened and x not in done]
+                if late:
+                    R.err(aid, f"charges {late} do not open with the rest of the arc")
+            done.add(bid)
+    for c in spec["campaigns"]:
+        if c.get("ending") and c["ending"] not in done:
+            R.err(c["id"], f"the arc loop never reaches the ending {c['ending']!r}")
+    for bid in index:
+        if bid not in done:
+            R.err(bid, "the arc loop never opens this beat")
 
 
 # Step kinds Core/Campaign/Guide.gd implements (`kind` or `kind:arg`).

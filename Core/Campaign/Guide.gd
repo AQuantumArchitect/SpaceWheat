@@ -23,6 +23,7 @@ const BERRY_ROWS := 6
 const UIP = preload("res://UI/Core/UIProgression.gd")
 const ToolConfig = preload("res://Core/GameState/ToolConfig.gd")
 const GranularityController = preload("res://Core/Utilities/GranularityController.gd")
+const PredicateGloss = preload("res://Core/Quests/PredicateGloss.gd")
 
 # ---------------------------------------------------------------- keymap
 
@@ -653,6 +654,149 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 	return {}
 
 
+# ---------------------------------------------------------------- preview
+
+## E on Charge (#94): the steps the gold toast will walk for `q`, in plain
+## words and pressing order, ending where it is claimed. It reads the walk
+## (campaign.json guide.walks), not the screen, so it can say what comes
+## after the step the toast shows now. Each open objective is one line; the
+## lead objective first, as _across walks it.
+static func preview(q: Dictionary, with_claim: bool = true) -> Array:
+	var out: Array = []
+	if q.is_empty():
+		return out
+	if _is_ready(q):
+		out.append("It is done. Claim it here: its row key, then Claim [%s]." % _verb("claim"))
+		return out
+	var open := _open_predicates(q)
+	var lead: Array = open.filter(func(p): return bool(p.get("lead", false)))
+	var rest: Array = open.filter(func(p): return not bool(p.get("lead", false)))
+	for pred in lead + rest:
+		for line in _preview_pred(pred, q):
+			if line != "" and not out.has(line):
+				out.append(line)
+	if with_claim:
+		out.append("When it reads READY, claim it here on %s: its row key, then Claim [%s]." % [
+				_tab_name("X", "charge"), _verb("claim")])
+	return out
+
+
+## One objective's steps: each walk step is one or more plain sentences.
+static func _preview_pred(pred: Dictionary, q: Dictionary) -> Array:
+	var walk = _walks().get(str(pred.get("type", "")), null)
+	var out: Array = []
+	if walk is Array:
+		for st in walk:
+			for w in _preview_step(str(st), pred, q):
+				var t := str(w).strip_edges()
+				if t != "":
+					out.append(t.substr(0, 1).to_upper() + t.substr(1) + ("" if t.ends_with(".") else "."))
+	if out.is_empty():
+		out.append(PredicateGloss.summary(pred, UIP._quest_manager()))
+	return out
+
+
+static func _menu_words(menu: String, tab_id: String) -> String:
+	var m = _km().get("surfaces", {}).get(menu, {})
+	if not (m is Dictionary):
+		return ""
+	var out := "%s [%s]" % [str(m.get("name", menu)), str(m.get("open", menu))]
+	for t in m.get("tabs", []):
+		if t is Dictionary and str(t.get("id", "")) == tab_id:
+			out += " → %s [%s]" % [str(t.get("name", tab_id)), str(t.get("key", ""))]
+	return out
+
+
+static func _tab_name(menu: String, tab_id: String) -> String:
+	var m = _km().get("surfaces", {}).get(menu, {})
+	if m is Dictionary:
+		for t in m.get("tabs", []):
+			if t is Dictionary and str(t.get("id", "")) == tab_id:
+				return "%s [%s]" % [str(t.get("name", tab_id)), str(t.get("key", ""))]
+	return tab_id
+
+
+## "go to the Village [Y]": the biome rail key when it is loaded, else the chart.
+static func _preview_travel(biome: String) -> String:
+	if biome == "" or UIP._active_biome_name() == biome:
+		return ""
+	var abm := UIP._active_biome_manager()
+	var slot := int(abm.get_slot_for_biome(biome)) if abm != null else -1
+	if slot < 0:
+		return "chart %s first: %s hat [%s] → Chart [%s]" % [biome_label(biome), _hat_name("captain"),
+				_hat_key("captain"), _verb("chart")]
+	# Rail keys are field keys ([Y] is also the Arc tab): say where they work.
+	return "on the field (%s closes this menu), go to %s [%s]" % [str(_km().get("close", "ESC")),
+			biome_label(biome), str(abm.get_slot_key(slot)).to_upper()]
+
+
+static func _preview_hat(hat: String) -> String:
+	if str(ToolConfig.get_current_frame()) == hat:
+		return ""
+	return "put on the %s hat [%s]" % [_hat_name(hat), _hat_key(hat)]
+
+
+static func _preview_plant(biome: String, atom: String, fresh: bool) -> Array:
+	var what := "a word carrying %s" % atom if atom != "" else ("a word new to this land" if fresh else "a word you know")
+	return [_preview_travel(biome), _preview_hat("icon"),
+			"pick an empty plot → Plant [%s] → choose %s" % [_verb("plant"), what]]
+
+
+static func _preview_step(step: String, pred: Dictionary, q: Dictionary) -> Array:
+	var parts := step.split(":", true, 1)
+	var kind := parts[0]
+	var arg := parts[1] if parts.size() > 1 else ""
+	match kind:
+		"travel", "chart":
+			return [_preview_travel(str(pred.get("biome", "")))]
+		"go":
+			return [_preview_travel(arg)]
+		"hat":
+			return [_preview_hat(arg)]
+		"berry", "berry_axis":
+			var which := "a plot"
+			if kind == "berry_axis" and str(pred.get("north", "")) != "":
+				which = "the %s/%s plot" % [str(pred.get("north", "")), str(pred.get("south", ""))]
+			return ["track %s [%s]" % [which, _verb("track")],
+					"let the clock walk its loop: about 90 s, [%s] runs it faster" % _verb("faster"),
+					"when the loop ripens, Incorporate [%s]" % _verb("incorporate")]
+		"deliver_to":
+			var faction := str(pred.get("faction", ""))
+			var home := str(q.get("biome", "")) if q.get("lesson_offer", null) is Dictionary else ""
+			if home == "":
+				home = str(_km().get("boards", {}).get(faction, "Village"))
+			var steps: Array = [_preview_travel(home)]
+			steps.append("in %s: %s → take a %s delivery [%s]" % [biome_label(home), _menu_words("C", "market"),
+					faction, _verb("accept")])
+			steps.append("gather what it asks, then %s → Deliver [%s]" % [_tab_name("C", "commitments"), _verb("deliver")])
+			if str(pred.get("type", "")) in ["standing_gte", "contracts_kept_gte"]:
+				steps.append("keep %s deliveries until this charge reads READY" % faction)
+			return steps
+		"gate":
+			var gate := str(pred.get("gate", "")).to_lower()
+			if gate == "strike_known":
+				return [_preview_hat("ace"),
+						"pick a glowing plot (a word you know) → Strike [%s]; it pays ×6" % _verb("strike")]
+			if gate == "reap":
+				return [_preview_hat("ace"), "Reap the season CTRL+SHIFT [F]"]
+			if gate == "inject_icon" or gate == "plant":
+				return _preview_plant(str(pred.get("biome", _km().get("plant_home", "Village"))), "", false)
+			return []
+		"plant_atom":
+			var b := str(pred.get("biome", ""))
+			if b == "" and str(pred.get("type", "")) == "home_biome_has_emoji":
+				b = str(_km().get("plant_home", "Village"))
+			return _preview_plant(b, str(pred.get("atom", pred.get("emoji", ""))), false)
+		"plant_new":
+			return _preview_plant(str(pred.get("biome", _km().get("plant_home", "Village"))), "", true)
+		"learn_word":
+			return ["learn a word: accept and claim a teaching, or incorporate a loop (%s hat [%s])" % [
+					_hat_name("icon"), _hat_key("icon")]]
+		"take_door":
+			return ["take one of the doors: %s" % _menu_words("X", "arc")]
+	return []
+
+
 # ---------------------------------------------------------------- doors
 
 static func _door_accept(q: Dictionary) -> Dictionary:
@@ -662,8 +806,20 @@ static func _door_accept(q: Dictionary) -> Dictionary:
 	# signed doors nobody chose (night 2, sfz6).
 	if idx < 0:
 		return {}
-	var row: Array = _page_to(idx) + _row(_title(q), idx)
-	return _chord(_go("X/arc") + row + [["Accept", _verb("accept")]], q, "accept")
+	# An arc row is named by its arc, and Accept signs every charge in it.
+	var label := _title(q)
+	var accept: Array = ["Accept", _verb("accept")]
+	var arc_title := str(CampaignRuntime.arc(_arc_id(q)).get("title", ""))
+	if arc_title != "":
+		label = arc_title
+		accept = ["Accept all", _verb("accept")]
+	var row: Array = _page_to(idx) + _row(label, idx)
+	return _chord(_go("X/arc") + row + [accept], q, "accept")
+
+
+static func _arc_id(q: Dictionary) -> String:
+	var qm = UIP._quest_manager()
+	return str(qm.arc_of(q)) if qm != null and qm.has_method("arc_of") else ""
 
 
 ## Claimed where it is held: a signed story beat on X's Charge tab, a
@@ -726,6 +882,10 @@ static func _arc_row_index(q: Dictionary) -> int:
 		var data = rows[i].get("data", {})
 		if data is Dictionary and int(data.get("id", -1)) == int(q.get("id", -2)):
 			return i
+		# An arc row carries its other charges; accepting the row signs them all (#94).
+		for c in rows[i].get("charges", []):
+			if c is Dictionary and int(c.get("id", -1)) == int(q.get("id", -2)):
+				return i
 	return -1
 
 

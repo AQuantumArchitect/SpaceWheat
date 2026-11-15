@@ -60,6 +60,21 @@ A **beat** is one story step:
   hint that names a price ("Need 📜×5") must match `chart_cost`; the
   validator checks it.
 
+An **arc** bundles 1–6 offered beats, its **charges**
+([design](design/ARC_CHARGE_STRUCTURE.md)). It is declared in its chapter
+(`chapter.arcs[]`: `id`, `title`, `body`, `requires`, `charges`):
+
+- The arc owns `requires`, and every charge inherits it, so its charges
+  open together.
+- Accept on the Arc puts all of them on Charge [U].
+- The arc completes when all of its charges are claimed, and what waits on
+  it opens then. A `requires` entry may name an arc id, which means all of
+  that arc's charges.
+- A one-charge arc is for a large event only (`"large_event": true`).
+- A chapter that declares arcs puts every offered beat in one.
+- Act 0–1 of the Demos are in arcs. Later acts are still one beat per row
+  until phases 2+ regroup them.
+
 An objective may carry `"lead": true`. While it is open the Guide walks it
 before the beat's other objectives (`Guide._across`); `spiral_breaks` uses it to
 send the player to the word they just incorporated before the second berry.
@@ -127,6 +142,12 @@ It fails when any of these is true:
   for none.
 - a resource has no Village rescue trade, or a trade asks for something no
   nearby plot yields
+- an arc has more than 6 charges or none, has one without being a
+  `large_event`, bundles a milestone or a beat from another chapter, or
+  leaves an offered beat of its chapter out
+- the arc loop never reaches a campaign's ending or a beat. The loop
+  accepts each open arc whole, finishes all its charges, and opens what
+  follows.
 
 `tests/test_campaign_spec.py` also checks that the validator catches the classic
 walls.
@@ -139,10 +160,10 @@ walls.
 |---|---|---|
 | 0 The Loop | Six Lessons | 6 tutorial steps |
 | 0 The Loop | First Fruits | first_harvest, loom_opens |
-| 1 The Village | The Wheel Is Yours | arc_handover |
-| 1 The Village | Apprentice to the Mill | village_stirs |
-| 1 The Village | First Breath | first_breath (Incorporate), spiral_breaks, milk_runs_out, find_the_milk, milk_at_home (the demo's win) |
-| 1 The Village | New Voices | new_voices |
+| 1 The Village | The Wheel Is Yours | arc **The Wheel Is Yours**: arc_handover, village_stirs |
+| 1 The Village | First Breath | arc **First Breath** (large event): first_breath (Incorporate) |
+| 1 The Village | New Voices | arc **New Voices**: spiral_breaks, new_voices |
+| 1 The Village | Find the Milk | milk_runs_out; arc **Find the Milk** (large event): find_the_milk; milk_at_home (the demo's win) |
 | 2 Two Countries | Timber Country | woodlot_door, woodlot_contact, lumber_flows, woodlot_wakes, timber_rhythm |
 | 2 Two Countries | Spring Country | spring_door, spring_contact, spring_connects, spring_wakes, pond_depths, pond_breathes |
 | 2 Two Countries | Two Tables | two_tables |

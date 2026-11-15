@@ -1334,25 +1334,92 @@ func is_market_hold(q: Dictionary) -> bool:
 	return not is_charge_hold(q)
 
 
-## Signed story beats, the newest act first (the one the story is on now),
-## ready ones ahead of the rest within an act. X → Charge lists these.
+## Signed story beats, the newest act first (the one the story is on now).
+## The charges of one arc sit together (the arc that has a ready charge
+## first, then the oldest), ready ones ahead of the rest inside the group.
+## X → Charge lists these, under one header per arc.
 func charge_quests() -> Array:
 	var out: Array = []
 	for q in active_quests.values():
 		if q is Dictionary and is_charge_hold(q):
 			out.append(q)
 	var now_act := _furthest_fired_story_act()
+	# group key → [any ready, oldest id] across the group's held charges
+	var groups: Dictionary = {}
+	for q in out:
+		var g := _charge_group(q)
+		var cur: Array = groups.get(g, [false, 1 << 30])
+		groups[g] = [bool(cur[0]) or str(q.get("status", "")) == "ready", mini(int(cur[1]), int(q.get("id", 0)))]
 	out.sort_custom(func(a, b):
 		var aa := absi(_story_act_of(a) - now_act)
 		var bb := absi(_story_act_of(b) - now_act)
 		if aa != bb:
 			return aa < bb
+		var ga: Array = groups[_charge_group(a)]
+		var gb: Array = groups[_charge_group(b)]
+		if ga != gb:
+			if bool(ga[0]) != bool(gb[0]):
+				return bool(ga[0])
+			return int(ga[1]) < int(gb[1])
 		var ar := str(a.get("status", "")) == "ready"
 		var br := str(b.get("status", "")) == "ready"
 		if ar != br:
 			return ar
 		return int(a.get("id", 0)) < int(b.get("id", 0)))
 	return out
+
+
+func _charge_group(q: Dictionary) -> String:
+	var a := arc_of(q)
+	return ("arc:" + a) if a != "" else ("q:%d" % int(q.get("id", 0)))
+
+
+# ── Arcs: a bundle of 1-6 charges (docs/design/ARC_CHARGE_STRUCTURE.md). ──
+
+## The arc a quest's beat belongs to ("" for a lone beat, a lesson or a
+## contract). Saves from before arcs carry no "arc" key: the spec answers.
+func arc_of(q: Dictionary) -> String:
+	var a := str(q.get("arc", ""))
+	if a != "":
+		return a
+	return CampaignRuntime.arc_of_beat(str(q.get("source_flag", "")))
+
+
+## {"done": claimed charges, "total": charges} for an arc. A charge is done
+## when its door is resolved (claimed, or passed through on an old save).
+func arc_progress(arc_id: String) -> Dictionary:
+	var arc := CampaignRuntime.arc(arc_id)
+	var charges: Array = arc.get("charges", [])
+	var farm = _get_active_farm()
+	var done := 0
+	for cid in charges:
+		var fid := str(cid)
+		if farm != null and "story_flags_fired" in farm and farm.story_flags_fired.has(fid) \
+				and _flag_door_is_resolved(fid):
+			done += 1
+	return {"done": done, "total": charges.size()}
+
+
+## Pending story offers (unsigned) that belong to `arc_id`, oldest first.
+func arc_offers(arc_id: String) -> Array:
+	var out: Array = []
+	if arc_id == "":
+		return out
+	for q in get_story_offers():
+		if q is Dictionary and arc_of(q) == arc_id:
+			out.append(q)
+	out.sort_custom(func(a, b): return int(a.get("id", 0)) < int(b.get("id", 0)))
+	return out
+
+
+## Accept an arc: every one of its charges still on offer goes on Charge
+## together. Returns how many were signed.
+func accept_arc(arc_id: String) -> int:
+	var n := 0
+	for q in arc_offers(arc_id):
+		if accept_quest(q):
+			n += 1
+	return n
 
 
 func _story_act_of(q: Dictionary) -> int:

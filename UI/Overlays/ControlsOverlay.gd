@@ -172,6 +172,8 @@ var _arc_inspect_open: bool = false        # E / first tap unfolds physics in th
 # Charge tab state: the story beats you have signed (QuestManager.charge_quests).
 var _charge_selected_idx: int = 0
 var _charge_page: int = 0
+var _charge_row_tapped: bool = false     # the selected Charge row was picked by a tap/key (not the default)
+var _charge_inspect_open: bool = false   # E on Charge: the selected charge's upcoming guide steps
 
 # UI refs.
 var _status_line: Label = null
@@ -288,7 +290,7 @@ func _declare_tab_actions() -> void:
 				infos = {
 					"Q": {"label": "Dismiss"},
 					"E": {"label": "Flatten" if _arc_inspect_open else "Inspect"},
-					"R": {"label": "Accept"},
+					"R": {"label": "Accept all" if _selected_arc_is_bundle() else "Accept"},
 				}
 			else:
 				infos = {
@@ -301,10 +303,11 @@ func _declare_tab_actions() -> void:
 				"R": {"label": "Assign"},
 			}
 		Tab.CHARGE:
+			infos = {}
+			if not _charge_rows().is_empty():
+				infos["E"] = {"label": "Less" if _charge_inspect_open else "Steps"}
 			if _selected_charge_ready():
-				infos = {"R": {"label": "Claim"}}
-			else:
-				infos = {}
+				infos["R"] = {"label": "Claim"}
 		_:
 			infos = {}
 	push_action_infos(infos)
@@ -335,7 +338,12 @@ func _refresh_tab_row() -> void:
 	var arc_waiting := 0
 	var qm = _arc_quest_manager()
 	if qm != null and "story_offers" in qm and qm.story_offers is Dictionary:
-		arc_waiting = qm.story_offers.size()
+		# One arc is one thing to accept, however many charges it bundles (#94).
+		var seen := {}
+		for q in qm.story_offers.values():
+			var aid: String = str(qm.arc_of(q)) if q is Dictionary and qm.has_method("arc_of") else ""
+			seen[("arc:" + aid) if aid != "" else ("q:%d" % int(q.get("id", -1)) if q is Dictionary else "?")] = true
+		arc_waiting = seen.size()
 	for entry in TAB_ROW:
 		var key_str := str(entry.get("key", ""))
 		var tab_enum = int(entry.get("tab", Tab.SELF))
@@ -1907,6 +1915,10 @@ func _on_action_e() -> void:
 			_arc_inspect_open = not _arc_inspect_open
 			_refresh_body()
 			_declare_tab_actions()
+		Tab.CHARGE:
+			_charge_inspect_open = not _charge_inspect_open
+			_refresh_body()
+			_declare_tab_actions()
 		_:
 			pass
 
@@ -1989,7 +2001,7 @@ func _build_arc_body() -> void:
 		# wall, 2026-11-09). Say where the step went when something is held.
 		var held: int = _charge_rows().size()
 		if held > 0:
-			_body_box.add_child(_make_muted_label("accepted — %d on %s [%s]; the next door opens when it is claimed" % [
+			_body_box.add_child(_make_muted_label("accepted — %d on %s [%s]; the next arc opens when they are all claimed" % [
 					held, SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD], 12))
 		else:
 			_body_box.add_child(_make_muted_label("the next door hasn't opened", 12))
@@ -2026,7 +2038,7 @@ func _make_arc_footer() -> Control:
 	if _selected_arc_kind() == "arc_quest":
 		var accept_lbl := Label.new()
 		accept_lbl.name = "ArcFooterAccept"
-		accept_lbl.text = "[R] Accept"
+		accept_lbl.text = "[R] Accept all" if _selected_arc_is_bundle() else "[R] Accept"
 		accept_lbl.add_theme_font_size_override("font_size", 13)
 		accept_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
 		ClickWire.attach(accept_lbl, func() -> void: handle_action("R"))
@@ -2173,6 +2185,15 @@ func _selected_arc_kind() -> String:
 	return str(rows[_arc_selected_idx].get("kind", ""))
 
 
+## The selected Arc row is an arc (a bundle of charges), not a lone beat.
+func _selected_arc_is_bundle() -> bool:
+	var rows: Array = _arc_rows()
+	if _arc_selected_idx < 0 or _arc_selected_idx >= rows.size():
+		return false
+	var arc = rows[_arc_selected_idx].get("arc", {})
+	return arc is Dictionary and not (arc as Dictionary).is_empty()
+
+
 ## One-shot brightness bounce on a visible Arc row — the same feedback shape
 ## ContractChip's accept pulse uses, for "yes, this row, it's already yours".
 func _flash_arc_row(idx: int) -> void:
@@ -2252,6 +2273,9 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 	vbox.add_child(top_hbox)
 	top_hbox.add_child(_make_key_chip(key_str))
 
+	if kind == "arc_quest" and entry.get("arc", {}) is Dictionary and not (entry.get("arc", {}) as Dictionary).is_empty():
+		_fill_arc_bundle_row(vbox, top_hbox, entry, selected)
+		return row
 	if kind == "live_tutorial" or kind == "arc_quest":
 		var data: Dictionary = entry.get("data", {})
 		var card: Dictionary = IntroVoice.quest_postcard(data)
@@ -2366,6 +2390,95 @@ func _make_arc_row(entry: Dictionary, key_str: String, selected: bool, idx: int)
 
 	return row
 
+## An arc row (#94): the arc's title, how many of its charges are done, and
+## its charge list: what Accept [R] puts on Charge, all at once.
+func _fill_arc_bundle_row(vbox: VBoxContainer, top_hbox: HBoxContainer, entry: Dictionary, selected: bool) -> void:
+	var arc: Dictionary = entry.get("arc", {})
+	var qm = _arc_quest_manager()
+	var prog: Dictionary = qm.arc_progress(str(arc.get("id", ""))) if qm != null and qm.has_method("arc_progress") else {}
+	var badge := Label.new()
+	badge.text = "ARC"
+	badge.add_theme_font_size_override("font_size", 11)
+	badge.add_theme_color_override("font_color", Color(0.5, 0.9, 0.55, 0.95))
+	badge.custom_minimum_size = Vector2(52, 0)
+	top_hbox.add_child(badge)
+	var title_lbl := Label.new()
+	title_lbl.text = str(arc.get("title", "an arc"))
+	title_lbl.add_theme_font_size_override("font_size", 14)
+	title_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_TAB_ACTIVE if selected else UIStyleFactory.COLOR_ITEM_IDLE)
+	title_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	top_hbox.add_child(title_lbl)
+	var total := int(prog.get("total", (arc.get("charges", []) as Array).size()))
+	var count_lbl := Label.new()
+	count_lbl.name = "ArcRowProgress"
+	count_lbl.text = "%d/%d done" % [int(prog.get("done", 0)), total] if int(prog.get("done", 0)) > 0 \
+			else ("%d charge" % total if total == 1 else "%d charges" % total)
+	count_lbl.add_theme_font_size_override("font_size", 12)
+	count_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+	top_hbox.add_child(count_lbl)
+	if selected:
+		var r_lbl := Label.new()
+		r_lbl.name = "ArcRowAccept"
+		r_lbl.text = "[R] Accept all"
+		r_lbl.add_theme_font_size_override("font_size", 13)
+		r_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
+		ClickWire.attach(r_lbl, func() -> void: handle_action("R"))
+		top_hbox.add_child(r_lbl)
+		call_deferred("_start_hint_pulse", r_lbl)
+		var body := str(arc.get("body", "")).strip_edges()
+		if body != "":
+			var body_lbl := Label.new()
+			body_lbl.text = body
+			body_lbl.add_theme_font_size_override("font_size", 13)
+			body_lbl.add_theme_color_override("font_color", Color(0.88, 0.92, 0.84, 0.95))
+			body_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			vbox.add_child(body_lbl)
+	for line in _arc_charge_lines(entry, selected):
+		var c_lbl := Label.new()
+		c_lbl.name = "ArcCharge"
+		c_lbl.text = line
+		c_lbl.add_theme_font_size_override("font_size", 13 if selected else 12)
+		c_lbl.add_theme_color_override("font_color", Color(0.78, 0.86, 0.76, 0.95))
+		c_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		vbox.add_child(c_lbl)
+	if selected:
+		if _arc_inspect_open:
+			_append_arc_inspect(vbox, entry)
+		else:
+			vbox.add_child(_make_muted_label("[E] what each charge asks  ·  [R] puts them all on %s [%s]" % [
+					SurfaceRooms.NAME_CHARGE, SurfaceRooms.KEY_HELD], 11))
+
+
+## One line per charge of the arc: "• Title" for one this Accept signs,
+## "✓ Title" for one already claimed, "· Title (on Charge)" for one held.
+## A selected row adds each offered charge's ask under its title.
+func _arc_charge_lines(entry: Dictionary, with_asks: bool) -> Array:
+	var out: Array = []
+	var arc: Dictionary = entry.get("arc", {})
+	var qm = _arc_quest_manager()
+	var offered: Dictionary = {}
+	for q in entry.get("charges", []):
+		if q is Dictionary:
+			offered[str(q.get("source_flag", ""))] = q
+	var farm = InstrumentLocator.resolve_active_farm(self)
+	for cid in arc.get("charges", []):
+		var fid := str(cid)
+		var name := str(qm.flag_display_name(fid)) if qm != null and qm.has_method("flag_display_name") else fid
+		if offered.has(fid):
+			var q: Dictionary = offered[fid]
+			out.append("• " + str(IntroVoice.quest_postcard(q).get("title", name)))
+			if with_asks:
+				var hint := str(q.get("hint", "")).strip_edges()
+				if hint != "":
+					out.append("    " + hint)
+		elif qm != null and qm.has_method("flag_door_is_resolved") and farm != null \
+				and "story_flags_fired" in farm and farm.story_flags_fired.has(fid) and qm.flag_door_is_resolved(fid):
+			out.append("✓ " + name)
+		else:
+			out.append("· %s (on %s)" % [name, SurfaceRooms.NAME_CHARGE])
+	return out
+
+
 func _make_arc_chapter_header() -> Control:
 	var lbl := _make_muted_label(_current_chapter_label(), 12)
 	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
@@ -2393,6 +2506,15 @@ func _arc_inspect_physics(entry: Dictionary) -> String:
 		# gate … (ProbeActions.action_measure → …)" (lost-lamb, wave 4).
 		var data: Dictionary = entry.get("data", {})
 		var lines: Array[String] = []
+		if entry.get("charges", []) is Array and (entry.get("charges", []) as Array).size() > 1:
+			for q in entry.get("charges", []):
+				if not (q is Dictionary):
+					continue
+				lines.append(str(IntroVoice.quest_postcard(q).get("title", "a charge")))
+				var b := str(q.get("body", "")).strip_edges()
+				if b != "":
+					lines.append("    " + b)
+			return "\n".join(lines)
 		for key in ["body", "hint"]:
 			var t := str(data.get(key, "")).strip_edges()
 			if t != "" and not lines.has(t):
@@ -2478,7 +2600,13 @@ func _accept_selected_arc() -> void:
 		RefusalVoice.note("story beat — nothing to accept; Accept [R] works on offer rows")
 		return
 	var data: Dictionary = entry.get("data", {})
-	if qm.has_method("accept_quest") and qm.accept_quest(data):
+	var arc_id := str((entry.get("arc", {}) as Dictionary).get("id", "")) if entry.get("arc", {}) is Dictionary else ""
+	var signed := false
+	if arc_id != "" and qm.has_method("accept_arc"):
+		signed = int(qm.accept_arc(arc_id)) > 0   # every charge of the arc, together (#94)
+	elif qm.has_method("accept_quest"):
+		signed = qm.accept_quest(data)
+	if signed:
 		_disarm_arc_confirm()  # the accepted offer leaves the list; rows shift
 		# …and the next door slid under the cursor, so a second R accepted it
 		# (masher wave 22, keeper sitting 7). Nothing is selected after an accept.
@@ -2498,9 +2626,13 @@ func _acknowledge_selected_arc() -> void:
 		# Normally unreachable (blank verb chips gate Q off flag rows) — speak anyway.
 		RefusalVoice.note("story beat — nothing to dismiss; Dismiss [Q] works on offer rows")
 		return
-	var qid: int = int(entry.get("data", {}).get("id", -1))
-	if qid >= 0 and qm.has_method("dismiss_story_offer"):
-		qm.dismiss_story_offer(qid)
+	var qids: Array = []
+	for q in entry.get("charges", [entry.get("data", {})]):
+		if q is Dictionary:
+			qids.append(int(q.get("id", -1)))
+	for qid in qids:
+		if int(qid) >= 0 and qm.has_method("dismiss_story_offer"):
+			qm.dismiss_story_offer(int(qid))
 	_disarm_arc_confirm()  # the dismissed offer leaves the list; rows shift
 	_arc_selected_idx = -1
 	_refresh_body()
@@ -2562,12 +2694,21 @@ func _build_charge_body() -> void:
 	_charge_page = clampi(_charge_page, 0, page_count - 1)
 	_charge_selected_idx = clampi(_charge_selected_idx, 0, rows.size() - 1)
 	var base: int = _charge_page * MAX_VISIBLE_ITEMS
+	var last_group := "~"
 	for i in range(MAX_VISIBLE_ITEMS):
 		var idx: int = base + i
 		if idx < rows.size():
+			# Held charges sit under their arc, with the arc's progress (#94).
+			var aid: String = str(qm.arc_of(rows[idx])) if qm != null and qm.has_method("arc_of") else ""
+			if aid != last_group:
+				last_group = aid
+				if aid != "":
+					_body_box.add_child(_make_charge_arc_header(aid))
 			_body_box.add_child(_make_charge_row(rows[idx], ITEM_KEYS[i], idx == _charge_selected_idx, idx))
 		else:
 			_body_box.add_child(_make_empty_row(ITEM_KEYS[i]))
+	# Overflow (#94): an arc holds up to six charges and the window shows six;
+	# more than that pages with A/D, like every other paged tab.
 	if page_count > 1:
 		_body_box.add_child(_make_muted_label("page %d/%d  ·  A/D" % [_charge_page + 1, page_count], 11))
 	_body_box.add_child(_make_spacer(6))
@@ -2582,6 +2723,20 @@ func _build_charge_body() -> void:
 		_body_box.add_child(claim_lbl)
 	else:
 		_body_box.add_child(_make_muted_label("ESC closes, the work is on the field  ·  the line at the top names it", 11))
+
+
+## "The Wheel Is Yours · 1/3 done": the arc a group of held charges belongs to.
+func _make_charge_arc_header(arc_id: String) -> Control:
+	var arc := CampaignRuntime.arc(arc_id)
+	var qm = _arc_quest_manager()
+	var prog: Dictionary = qm.arc_progress(arc_id) if qm != null and qm.has_method("arc_progress") else {}
+	var lbl := Label.new()
+	lbl.name = "ChargeArcHeader"
+	lbl.text = "%s  ·  %d/%d done" % [str(arc.get("title", arc_id)), int(prog.get("done", 0)),
+			int(prog.get("total", (arc.get("charges", []) as Array).size()))]
+	lbl.add_theme_font_size_override("font_size", 13)
+	lbl.add_theme_color_override("font_color", Color(0.78, 0.72, 0.45, 0.95))
+	return lbl
 
 
 func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) -> Control:
@@ -2632,8 +2787,8 @@ func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) 
 				continue
 			var ask_lbl := Label.new()
 			ask_lbl.text = ask_str
-			ask_lbl.add_theme_font_size_override("font_size", 11)
-			ask_lbl.add_theme_color_override("font_color", UIStyleFactory.COLOR_MUTED)
+			ask_lbl.add_theme_font_size_override("font_size", 13)
+			ask_lbl.add_theme_color_override("font_color", Color(0.82, 0.86, 0.80, 0.95))
 			ask_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 			vbox.add_child(ask_lbl)
 		# Where each end condition stands now (owner call 2026-11-11): the
@@ -2649,11 +2804,50 @@ func _make_charge_row(q: Dictionary, key_str: String, selected: bool, idx: int) 
 				var now_lbl := Label.new()
 				now_lbl.name = "ChargeNow"
 				now_lbl.text = "• " + now_str
-				now_lbl.add_theme_font_size_override("font_size", 11)
+				now_lbl.add_theme_font_size_override("font_size", 12)
 				now_lbl.add_theme_color_override("font_color", Color(0.6, 0.75, 0.85, 0.95))
 				now_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 				vbox.add_child(now_lbl)
+		if _charge_inspect_open:
+			_append_charge_steps(vbox, q)
+		else:
+			vbox.add_child(_make_muted_label("[E] steps: where the gold toast leads next", 11))
 	return row
+
+
+## E on Charge (Luke, #94): what to do for this charge in plain steps, in
+## the order the gold toast will ask for them, ending where it is claimed.
+func _append_charge_steps(vbox: VBoxContainer, q: Dictionary) -> void:
+	var steps: Array = Guide.preview(q)
+	var panel := PanelContainer.new()
+	panel.name = "ChargeSteps"
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.06, 0.08, 0.10, 0.94)
+	sb.border_color = UIStyleFactory.COLOR_ACCENT_GOLD
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(3)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 10
+	sb.content_margin_top = 6
+	sb.content_margin_bottom = 6
+	panel.add_theme_stylebox_override("panel", sb)
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 3)
+	panel.add_child(box)
+	var head := Label.new()
+	head.text = "What to do — the gold toast leads you through:"
+	head.add_theme_font_size_override("font_size", 13)
+	head.add_theme_color_override("font_color", UIStyleFactory.COLOR_ACCENT_GOLD)
+	box.add_child(head)
+	for i in range(steps.size()):
+		var lbl := Label.new()
+		lbl.name = "ChargeStep_%d" % i
+		lbl.text = "%d. %s" % [i + 1, str(steps[i])]
+		lbl.add_theme_font_size_override("font_size", 14)
+		lbl.add_theme_color_override("font_color", Color(0.92, 0.94, 0.88, 0.98))
+		lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		box.add_child(lbl)
+	vbox.add_child(panel)
 
 
 ## Mean predicate score of a signed beat (0..1); 1.0 once ready.
@@ -2672,12 +2866,15 @@ func _charge_progress(q: Dictionary) -> float:
 
 
 ## First tap selects; a second tap on a row that isn't ready goes to the work.
+## The tab opens with row G picked but not yet tapped, so the first G there
+## is the select (Luke, #94: "U → G → E for more" must not leave the tab).
 func _select_charge_row(idx: int) -> void:
 	var rows: Array = _charge_rows()
 	if idx < 0 or idx >= rows.size():
 		return
-	if _charge_selected_idx != idx:
+	if _charge_selected_idx != idx or not _charge_row_tapped:
 		_charge_selected_idx = idx
+		_charge_row_tapped = true
 		_refresh_body()
 		_declare_tab_actions()
 		return
@@ -2711,6 +2908,7 @@ func _claim_selected_charge() -> void:
 	if ok:
 		_charge_selected_idx = 0
 		_charge_page = 0
+		_charge_row_tapped = false
 	_render_all()
 
 
@@ -2765,6 +2963,7 @@ func _show_tab(tab: int) -> void:
 	_arc_selected_idx = 0
 	_charge_page = 0
 	_charge_selected_idx = 0
+	_charge_row_tapped = false
 	_current_tab = tab
 	var target_frame: String = TAB_TO_FRAME.get(tab, FRAME_SELF)
 	if frame_id != target_frame:

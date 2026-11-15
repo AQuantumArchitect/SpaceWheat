@@ -252,7 +252,8 @@ def test_the_incorporation_teaching_survives_the_banner_and_names_the_wait() -> 
         "apprenticeship (owner decision 2026-10-17)"
     )
     prereqs = {p.get("id") for p in fb.get("predicates", []) if p.get("type") == "story_flag_set"}
-    assert prereqs == {"village_stirs"}, prereqs
+    # Its arc (First Breath) waits on the whole Wheel arc, mill included (#94).
+    assert prereqs == {"arc_handover", "village_stirs"}, prereqs
     hint = str((fb.get("arc_quest") or {}).get("hint", ""))
     first = re.split(r"(?<=[.!?])\s", hint)[0]
     assert len(first) <= max_chars(), (
