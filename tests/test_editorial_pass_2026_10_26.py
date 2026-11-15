@@ -90,7 +90,9 @@ def test_spiral_breaks_requires_the_strike_it_teaches():
 
 def test_mass_explore_ignores_marks_from_another_country():
     qii = src("UI/Core/QuantumInstrumentInput.gd").split("func _mass_explore(")[1].split("\nfunc ")[0]
-    assert "positions.filter(" in qii and "== here" in qii
+    assert "_selection_here()" in qii
+    sel = src("UI/Core/QuantumInstrumentInput.gd").split("func _selection_here(")[1].split("\nfunc ")[0]
+    assert ".filter(" in sel and "== here" in sel
     guide = src("Core/Campaign/Guide.gd")
     assert "_any_mark_here(inst.checked_plots)" in guide.split("static func _survey(")[1].split("\nstatic func ")[0]
 
