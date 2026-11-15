@@ -19,6 +19,8 @@ func bind_batcher(p_batcher) -> void:
 func get_observation_stride(biome) -> int:
 	if batcher == null or not batcher._is_valid_biome(biome):
 		return 1
+	if biome.has_method("evolution_stride"):
+		return clampi(int(biome.evolution_stride()), 0, 256)
 	if "observation_stride" in biome:
 		return clampi(int(biome.observation_stride), 0, 256)
 	return 1
