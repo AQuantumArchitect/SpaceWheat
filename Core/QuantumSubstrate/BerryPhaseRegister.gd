@@ -17,6 +17,8 @@ const BERRY_EPSILON: float = 0.05                # |r| below this freezes integr
 const BERRY_DEFAULT_RIPE_THRESHOLD: float = TAU  # default ripeness: 2π solid angle ≈ one hemisphere
 const BERRY_DECAY_PER_STEP: float = 0.0001       # ~1.5%/sec at 156 steps/sec; half-life ~47s untracked
 const BERRY_RESIDUAL_MIN: float = 0.001          # below this, drop the entry
+const BERRY_STRING_EPS: float = 1e-12            # float-noise scale at the apex's antipode −ẑ (see _slice_solid_angle)
+const BERRY_STRING_NUDGE := Vector2(0.6, 0.8)    # fixed horizontal side that breaks the −ẑ tie; generic, not an axis
 
 ## The walk (loop records for KnotRegister — docs/design/ENGINE_FRONTIER.md, Machine 2).
 ## Tracked qubits also keep a decimated polyline of their Bloch path; when the
@@ -116,11 +118,18 @@ func integrate_step(packed: PackedFloat64Array, num_qubits: int) -> void:
 					var bx: float = cur_x / cur_r
 					var by: float = cur_y / cur_r
 					var bz: float = cur_z / cur_r
+					if 1.0 + bz < BERRY_STRING_EPS and 1.0 + az >= BERRY_STRING_EPS:
+						# Landed ON the apex's antipode −ẑ: no azimuth here, so no
+						# honest triangle. Hold prev off the string; the next slice
+						# bridges across it and _slice_solid_angle signs the pass.
+						_path_advance(entry, qid, bx, by, bz)
+						continue
 					# L'Huilier: Ω = 2·atan2(ẑ·(a×b), 1 + ẑ·a + a·b + b·ẑ)
 					var cross_z: float = ax * by - ay * bx
 					var dot_ab: float = ax * bx + ay * by + az * bz
 					var denom: float = 1.0 + az + dot_ab + bz
-					entry["accumulated"] = float(entry.get("accumulated", 0.0)) + 2.0 * atan2(cross_z, denom)
+					entry["accumulated"] = float(entry.get("accumulated", 0.0)) + _slice_solid_angle(
+							ax, ay, az, bx, by, bz, cross_z, denom)
 					_path_advance(entry, qid, bx, by, bz)
 				entry["prev_x"] = cur_x
 				entry["prev_y"] = cur_y
@@ -140,6 +149,36 @@ func integrate_step(packed: PackedFloat64Array, num_qubits: int) -> void:
 				entry["accumulated"] = residual
 	for qid in to_remove:
 		_state.erase(qid)
+
+
+static func _slice_solid_angle(ax: float, ay: float, az: float, bx: float, by: float, bz: float,
+		cross_z: float, denom: float) -> float:
+	# Signed solid angle of the triangle (ẑ, a, b). The apex ẑ has a Dirac string
+	# at −ẑ, and two step shapes put it at float precision (issue #124):
+	#   • an endpoint ON the string (a qubit seeded at the south pole): the
+	#     triangle has no defined azimuth there, cross_z and denom are both
+	#     rounding noise, and atan2 of noise is any angle up to ±2π. Leaving the
+	#     string counts 0; landing on it is skipped by integrate_step, so the
+	#     step that bridges over it is signed by the rule below.
+	#   • a step whose arc runs THROUGH the string (a resonant 🔥↔❄ hop is a
+	#     great circle through both poles): the triangle is a hemisphere, ±2π,
+	#     but the sign was left to the sign of a float zero, so successive
+	#     loops cancelled and the walk read 0 for a loop worth 2π. The sign
+	#     comes instead from which side of a fixed horizontal direction the
+	#     step's plane turns — the limit of nudging the apex an infinitesimal
+	#     step toward BERRY_STRING_NUDGE. Reversing the step flips it (retraces
+	#     still cancel); repeating the loop repeats it (windings add).
+	# Every other step goes through the formula untouched.
+	if 1.0 + az < BERRY_STRING_EPS or 1.0 + bz < BERRY_STRING_EPS:
+		return 0.0
+	if denom < 0.0 and absf(cross_z) < BERRY_STRING_EPS:
+		var nx: float = ay * bz - az * by
+		var ny: float = az * bx - ax * bz
+		var side: float = nx * BERRY_STRING_NUDGE.x + ny * BERRY_STRING_NUDGE.y
+		if side == 0.0:
+			side = ny * BERRY_STRING_NUDGE.x - nx * BERRY_STRING_NUDGE.y
+		return TAU if side >= 0.0 else -TAU
+	return 2.0 * atan2(cross_z, denom)
 
 
 func reseed_tracked() -> void:
