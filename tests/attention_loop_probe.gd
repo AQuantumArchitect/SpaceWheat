@@ -199,8 +199,15 @@ func _max_diff(a: Dictionary, b: Dictionary) -> Dictionary:
 
 
 func _wallet() -> Dictionary:
+	# Every resource the wallet knows, not a fixed list: which emoji a plot
+	# banks depends on the field (e.g. 🦌 in the Starter Forest).
 	var out := {}
-	for e in ["🌱", "🌿", "🍂", "💀", "🍄", "🌾", "🐺", "🐇", "🍞", "👥", "🧺"]:
+	var emojis: Array = ["🌱", "🌿", "🍂", "💀", "🍄", "🌾", "🐺", "🐇", "🍞", "👥", "🧺"]
+	if farm.economy.has_method("get_all_resources"):
+		for e in farm.economy.get_all_resources().keys():
+			if not emojis.has(e):
+				emojis.append(e)
+	for e in emojis:
 		out[e] = int(farm.economy.get_resource(e)) if farm.economy.has_method("get_resource") else 0
 	return out
 
