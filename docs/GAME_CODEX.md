@@ -187,14 +187,6 @@ a biome's state depends only on how long it has run, not on which biomes shared
 its packet or which lane ran it: a state can be found again
 (`tests/test_shared_clock.py`; owner ruling 2026-11-13).
 
-**Tracked biomes run faster.** While a qubit is Berry-tracked and the player is
-in its biome, that biome's clock runs at `observation_stride × berry_track_boost`
-(`BiomeBase.evolution_stride()`; `biomes.json`, Village 8, default 1). The boost
-is derived each phrame, never written to `observation_stride`, so saves and the
-dial never hold it; it ends when tracking ends or the player steps away. A
-dormant world still does not step. Village's 🔥/❄ walk ripens in 2 Ace-F presses
-instead of 11 (`tests/test_village_track_boost.py`).
-
 ---
 
 ## 5. UI: surfaces, archetype frames, QERF

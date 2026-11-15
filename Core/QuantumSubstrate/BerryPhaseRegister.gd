@@ -351,14 +351,6 @@ func is_tracked(qubit_index: int) -> bool:
 	return entry != null and entry.get("tracked", false)
 
 
-## Any qubit in this register being tracked (drives BiomeBase.evolution_stride).
-func has_tracked() -> bool:
-	for entry in _state.values():
-		if entry.get("tracked", false):
-			return true
-	return false
-
-
 func has_entry(qubit_index: int) -> bool:
 	return _state.has(qubit_index)
 

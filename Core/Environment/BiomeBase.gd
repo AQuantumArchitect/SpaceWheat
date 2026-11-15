@@ -114,31 +114,8 @@ var observation_stride: int = 1:
 			if batcher != null and batcher.has_method("note_stride_changed"):
 				batcher.note_stride_changed(self)
 
-# Issue #126: clock multiplier while one of this biome's qubits is Berry-tracked
-# and the player is here (from biomes.json "berry_track_boost"; 1 = none).
-# Derived each phrame, never stored in observation_stride, so saves, the =/-
-# dial and other biomes never see it, and it ends the phrame tracking ends or
-# the player steps to another biome.
-var berry_track_boost: int = 1
-
 # BUILD mode pause
 var evolution_paused: bool = false
-
-
-## The stride the clock actually runs at: the player's observation_stride, times
-## berry_track_boost while a qubit here is tracked and this is the biome on
-## screen. Locked (0) stays locked; a dormant world (#75) still does not step.
-func evolution_stride() -> int:
-	var s: int = observation_stride
-	if s <= 0 or berry_track_boost <= 1:
-		return s
-	var qc = quantum_computer
-	if qc == null or qc.berry_register == null or not qc.berry_register.has_tracked():
-		return s
-	var abm = get_node_or_null("/root/ActiveBiomeManager") if is_inside_tree() else null
-	if abm != null and str(abm.get_active_biome()) != get_biome_type():
-		return s
-	return s * berry_track_boost
 
 # ============================================================================
 # FACADE PROPERTY ACCESSORS
