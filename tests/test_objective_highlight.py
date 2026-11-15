@@ -36,3 +36,25 @@ def test_use_counts_persist():
     ser = src("Core/GameState/GameStateSerializer.gd")
     assert ser.count("highlight_uses") >= 4  # capture + restore, both directions
     assert "ObjectiveTargets.note_use(" in src("UI/Core/QuantumInstrumentInput.gd")
+
+
+def test_rows_chips_and_arc_register_specific_targets():
+    assert "func row_id(" in src("UI/Core/ObjectiveTargets.gd")
+    board = src("UI/Overlays/QuestBoard.gd")
+    assert board.count("ObjectiveTargets.row_id(") >= 2   # offer rows + commitment rows
+    assert "ObjectiveTargets.register(key, cell)" in board  # R accept/deliver, F flatten chips
+    ctl = src("UI/Overlays/ControlsOverlay.gd")
+    assert ctl.count("ObjectiveTargets.row_id(") >= 2     # arc + charge rows
+    assert "ObjectiveTargets.row_id(row)" in src("UI/Core/UIProgression.gd")
+
+
+def test_dummy_control_is_tinted_gold_by_the_spotlight():
+    import shutil
+    import subprocess
+
+    import pytest
+    if shutil.which("godot") is None:
+        pytest.skip("godot not available on PATH")
+    r = subprocess.run(["godot", "--headless", "--script", "tests/objective_highlight_smoke.gd"],
+                       cwd=ROOT, capture_output=True, text=True, timeout=180)
+    assert "Objective highlight smoke:" in r.stdout and r.returncode == 0, (r.stdout + r.stderr)[-1500:]

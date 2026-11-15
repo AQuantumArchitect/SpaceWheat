@@ -804,6 +804,11 @@ static func objective_target() -> Dictionary:
 		# The story waits on an Arc offer (objective_text names it): pulse the
 		# book key that opens the Arc, nothing else.
 		if not waiting_arc_offer().is_empty():
+			var om = _overlay_manager()
+			if om != null and om.has_method("is_event_home_open") and bool(om.is_event_home_open("arc")):
+				var row := _waiting_arc_row_key()
+				if row != "":
+					return {"key": ObjectiveTargets.row_id(row), "biome": ""}
 			return {"key": "X", "biome": ""}
 		return {}
 	var status := str(best.get("status", ""))

@@ -282,6 +282,9 @@ func _build_verb_chips(container: Control) -> void:
 	for key in ["Q", "E", "R", "F"]:
 		var cell := VBoxContainer.new()
 		cell.name = "BoardVerb_%s" % key
+		# Accept / Claim / Deliver is [R], Flatten [F]: a chip is the target
+		# when the objective names its key and no action-bar button took it.
+		ObjectiveTargets.register(key, cell)
 		cell.alignment = BoxContainer.ALIGNMENT_CENTER
 		cell.add_theme_constant_override("separation", 2)
 		cell.custom_minimum_size = Vector2(90, 0)
@@ -1299,6 +1302,7 @@ func _build_market_body() -> void:
 			else:
 				made = _make_offer_row(data, ITEM_KEYS[i], lit)
 			made.name = "BoardRow_%d" % i
+			ObjectiveTargets.register(ObjectiveTargets.row_id(ITEM_KEYS[i]), made)
 			made.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			made.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(made)
@@ -1503,6 +1507,7 @@ func _build_commitments_body() -> void:
 		if abs_i < rows.size():
 			var c_row := _make_commitment_row(rows[abs_i], ITEM_KEYS[i], abs_i == _selected_index)
 			c_row.name = "BoardRow_%d" % i
+			ObjectiveTargets.register(ObjectiveTargets.row_id(ITEM_KEYS[i]), c_row)
 			c_row.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 			c_row.gui_input.connect(_on_row_gui_input.bind(abs_i))
 			_body_box.add_child(c_row)

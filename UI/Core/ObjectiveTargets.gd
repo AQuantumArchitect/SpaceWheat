@@ -44,6 +44,11 @@ static func resolve(id: String) -> Control:
 	return null
 
 
+## Target id for one numbered list row (G H J K L ;) on the open surface.
+static func row_id(row_key: String) -> String:
+	return "row:%s" % row_key
+
+
 static func clear_registry() -> void:
 	_registry.clear()
 
