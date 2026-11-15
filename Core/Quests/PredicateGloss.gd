@@ -271,8 +271,10 @@ static func summary(pred: Dictionary, qm = null) -> String:
 					return "Explore ×%d — %s: select a sleeping plot, tap it again (or F)" % [gcount, verb_home("ace")]
 				"orbit":
 					return "Look around — click and drag the empty dark to turn the 3D graph"
-				"batch_explore":
-					return "Mass Explore — hold Shift and press F (or the multi-select button, then F)"
+				"batch_strike":
+					return "Mass Strike — Shift-select the bubbles, then Shift+R (the forest goes dark)"
+				"batch_gather":
+					return "Mass Gather — with them still selected, Shift+Q pulls what they banked"
 				"plant", "inject_icon":
 					return "Plant ×%d — %s: empty plot, R (need 🌱×5 from Forest + 13 of the south pole)" % [gcount, verb_home("icon")]
 				"hadamard":

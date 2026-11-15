@@ -580,6 +580,10 @@ static func _step(step: String, pred: Dictionary, q: Dictionary) -> Dictionary:
 			return _attend_charge(q)
 		"explore_each":
 			return _explore_each(pred, q)
+		"mass_strike":
+			return _mass(pred, q, "batch_strike", "strike", "strike")
+		"mass_gather":
+			return _mass(pred, q, "batch_gather", "gather", "gather")
 		"orbit":
 			return _orbit(pred, q)
 		"deliver_to":
@@ -2084,7 +2088,7 @@ static func _entangle(q: Dictionary) -> Dictionary:
 
 
 ## Wayfinding, first ask: open the bubbles one at a time (select, then explore).
-## Hands off to "orbit" and "survey" once the player has looked around; {} when
+## Hands off to "orbit" and the mass asks once the player has looked around; {} when
 ## this is not that phase or nothing here is still fog.
 static func _explore_each(pred: Dictionary, q: Dictionary) -> Dictionary:
 	if str(pred.get("type", "")) != "biome_explored" or _orbit_done():
@@ -2113,6 +2117,33 @@ static func _orbit(pred: Dictionary, q: Dictionary) -> Dictionary:
 static func _orbit_done() -> bool:
 	var qm = UIP._quest_manager()
 	return qm != null and qm.has_method("gate_count") and int(qm.gate_count("orbit")) > 0
+
+
+## Wayfinding, the mass asks: Shift-select the field, then Shift+R (strike: the
+## forest goes dark) and Shift+Q (gather: pull the bank, no disturbance). The
+## beat names only the selection and the verb; what a strike does to the fog or
+## the music is the simulation's business, not the guide's.
+static func _mass(pred: Dictionary, q: Dictionary, gate: String, label: String, verb: String) -> Dictionary:
+	if str(pred.get("type", "")) != "gate_sequence_contains" or str(pred.get("gate", "")) != gate:
+		return {}
+	var biome := UIP._active_biome_name()
+	var inst = UIP._instrument()
+	var marks: Array = inst.checked_plots if inst != null and "checked_plots" in inst else []
+	var parts: Array = _close_first()
+	if str(ToolConfig.get_current_frame()) != "ace":
+		parts.append([_hat_name("ace") + " hat", _hat_key("ace")])
+	var have := {}
+	if not marks.is_empty() and not _marks_here(marks):
+		parts.append(["clear marks", str(_km().get("clear_marks", "'"))])
+	else:
+		for m in marks:
+			if m is Vector2i:
+				have[int(m.x)] = true
+	for c in range(_live_cols(biome)):
+		if not have.has(c):
+			parts.append(["mark", "shift+" + _plot_key(c)])
+	parts.append(["Mass " + label, "shift+" + _verb(verb)])
+	return _chord(parts, q, "mass " + label)
 
 
 ## Explore every unexplored plot of the biome you stand in: Ace, Shift+F.

@@ -1947,9 +1947,6 @@ func _mass_explore() -> void:
 		_verbose.info("input", "•", "Mass Explore: every plot here is already explored")
 		return
 	_run_shift_batch("explore", positions, "⇧F", VerbGrammar.MASS_EXPLORE_LABEL)
-	# Quest-visible: wayfinding's last ask is one Mass Explore (gate "batch_explore").
-	if _instrument != null and _instrument.has_method("_notify_quest_projection"):
-		_instrument._notify_quest_projection("batch_explore", {"biome": here, "count": positions.size()})
 
 
 ## The Focus biome follows the biome under the player's feet. A load restores
@@ -2596,6 +2593,11 @@ func _run_shift_batch(action_name: String, positions: Array, symbol: String, log
 		fired += 1
 		_refresh_plot_tiles([pos])
 	_restore_selection(original_selection)
+	# Quest-visible: wayfinding's mass asks (Shift+R strike, Shift+Q gather) are
+	# one batch over two or more plots. Facts only; the lesson reads the gates.
+	var mass_gate := {"measure": "batch_strike", "pop": "batch_gather"}.get(action_name, "") as String
+	if mass_gate != "" and fired >= 2 and _instrument != null and _instrument.has_method("_notify_quest_projection"):
+		_instrument._notify_quest_projection(mass_gate, {"biome": str(_instrument.current_biome), "count": fired})
 	if fired == 0:
 		# Every checked plot refused — say so instead of pretending nothing happened.
 		_toast_player("%s: no valid targets among %d checked plots." % [log_label, positions.size()])

@@ -420,8 +420,8 @@ const FLAG_FIRE_THRESHOLD: float = 0.85
 
 
 ## Wayfinding (issue #83): explore every bubble by hand, look around, then Mass
-## Explore. The step's `redarken_biome` names the field that goes back to fog once
-## the player has looked around, so Shift+F has something to open. The look-around
+## Strike (Shift+R) and Mass Gather (Shift+Q). The step's `redarken_biome` names
+## the field that goes dark once the mass strike lands. The look-around
 ## is optional: a player who never drags (keyboard, no pointer) is credited after
 ## ORBIT_GRACE_SEC with the field explored. COSMETIC fog only (anti-gating law).
 const ORBIT_GRACE_SEC: float = 25.0
@@ -469,9 +469,10 @@ func _tick_wayfinding_lesson(delta: float) -> void:
 			if _orbit_wait < ORBIT_GRACE_SEC:
 				return
 			_state_projection.record_action("orbit", {"auto": true})
-		if not explored:
+		# The mass strike collapses the whole forest: everything is unknown again.
+		# (Cosmetic fog only; idempotent with whatever the strike itself darkens.)
+		if int(_state_projection.gate_counters.get("batch_strike", 0)) == 0:
 			return
-		# Looked around: fog the field again for the Mass Explore half.
 		_redarkened_quest_ids[qid] = true
 		var assigned: Dictionary = farm.grid.get_plot_biome_assignments()
 		for pos in assigned:
