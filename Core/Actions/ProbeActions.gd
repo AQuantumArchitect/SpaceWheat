@@ -945,6 +945,8 @@ static func action_reap(farm, economy = null) -> Dictionary:
 				"message": "Explore every bubble before you reap — %d still dark." % dark.size()
 			}
 	var reap_cost = BalanceService.get_reap_cost(farm, reap_count_before)
+	# 🍼 planted in the player's home biome (#123) covers the reap from then on.
+	StapleRescue.draw_home_milk(farm, reap_cost)
 	var reap_cost_gate = _preflight_cost(economy, reap_cost)
 	if not reap_cost_gate.get("ok", true):
 		return {

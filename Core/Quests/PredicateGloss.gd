@@ -43,6 +43,7 @@ const TARGETS := {
 	"active_biome_is":          {"kind": "biome"},
 	"biome_explored":           {"kind": "biome"},
 	"icon_incorporated":        {"kind": "hat", "frame": "icon"},
+	"home_biome_has_emoji":     {"kind": "hat", "frame": "icon"},
 	# What Turns (gauge/holonomy): compass verbs live on Operator, the mirror
 	# and the loop-walking on Icon.
 	"biome_betti_gte":          {"kind": "hat", "frame": "icon"},

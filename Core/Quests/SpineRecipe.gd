@@ -100,6 +100,8 @@ static func _kind_for_pred(pred: Dictionary) -> String:
 			return "gate"
 		"icon_incorporated":
 			return "berry"
+		"home_biome_has_emoji":
+			return "plant"
 		"gate_sequence_contains", "gate_order", "lesson_receipt":
 			return "gate"
 		"berry_consumed_count_gte", "berry_total_phase_gte":
