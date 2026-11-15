@@ -107,6 +107,9 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 				biome = str(_quantum_viz.active_biome)
 			var pos := _station_position(biome, int(result.get("register_id", -1)))
 			_spawn_burst(pos, 0.0, Color(0.45, 0.95, 1.0, 0.9), true)
+			if str(result.get("known_tier", "none")) != "none":
+				spawn_known_strike(str(result.get("outcome", "")), int(result.get("amount", 0)),
+						str(result.get("known_tier", "none")), pos)
 		"reap":
 			_cascade_reap(result)
 			_surge_flow()
@@ -357,6 +360,46 @@ func spawn_reward(emoji: String, amount: int, from_global: Vector2, rel: float =
 	tw.tween_property(flier, "scale", Vector2(0.6, 0.6), 0.5)
 	tw.set_parallel(false)
 	tw.tween_callback(_on_flier_landed.bind(flier, emoji))
+
+
+## A strike on a plot that shares your vocabulary (#105): the banked amount and
+## the multiplier it paid, in the known-word glow's colour, rising off the plot. The
+## strike banks (Q pays), so the flier fades in place instead of flying to
+## the resource bar.
+func spawn_known_strike(emoji: String, amount: int, tier: String, from_global: Vector2) -> void:
+	if amount <= 0:
+		return
+	var kc: Color = QuantumVisualGrammar.COLOR_KNOWN_WORD
+	var flier := HBoxContainer.new()
+	flier.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	flier.z_index = 5
+	var label := Label.new()
+	label.text = known_strike_text(amount, tier)
+	label.add_theme_font_size_override("font_size", 22)
+	label.add_theme_color_override("font_color", kc)
+	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
+	label.add_theme_constant_override("outline_size", 4)
+	flier.add_child(label)
+	if emoji != "":
+		var glyph := EmojiDisplay.new()
+		glyph.font_size = 24
+		glyph.emoji = emoji
+		glyph.custom_minimum_size = Vector2(28, 28)
+		flier.add_child(glyph)
+	add_child(flier)
+	flier.position = (get_global_transform().affine_inverse() * from_global) - Vector2(40, 70)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(flier, "position:y", flier.position.y - 50.0, 1.4) \
+			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(flier, "modulate:a", 0.0, 0.6).set_delay(0.9)
+	tw.set_parallel(false)
+	tw.tween_callback(flier.queue_free)
+
+
+## "+12  ×6 known word" / "+12  ×2 shared emoji": the tier the strike paid.
+static func known_strike_text(amount: int, tier: String) -> String:
+	return "+%d  %s" % [amount, ProbeActions.tier_label(tier)]
 
 
 func _on_flier_landed(flier: Control, emoji: String) -> void:

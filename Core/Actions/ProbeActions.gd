@@ -302,10 +302,17 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 	terminal.bank_strike(outcome, amount, recorded_probability)
 	# spiral_breaks: a strike on a word you have incorporated is the lesson
 	# ("harvest what you know"); the quest ledger counts it as strike_known.
+	# `known` and `known_multiplier` are the glow's own check (word_known) and
+	# the payout's own factor, so the receipt can show the bonus it paid.
 	var known := false
+	var known_multiplier := 1.0
+	var known_tier := TIER_NONE
 	if biome and biome.quantum_computer and biome.quantum_computer.register_map and register_id >= 0:
 		var ax: Dictionary = biome.quantum_computer.register_map.axis(register_id)
-		known = _icon_incorporated(farm, str(ax.get("north", "")), str(ax.get("south", "")))
+		var vt := vocabulary_tier(farm, str(ax.get("north", "")), str(ax.get("south", "")))
+		known_tier = str(vt.get("tier", TIER_NONE))
+		known_multiplier = float(vt.get("multiplier", 1.0))
+		known = known_tier == TIER_ICON
 
 	# 6. Commit cost after successful measurement
 	if not _commit_cost(economy, measure_cost, "measure"):
@@ -320,6 +327,8 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 		"outcome": outcome,
 		"amount": amount,
 		"known": known,
+		"known_multiplier": known_multiplier,
+		"known_tier": known_tier,
 		"banked": terminal.banked_totals(),
 		"strikes": terminal.strikes.size(),
 		"probability": recorded_probability,
@@ -509,53 +518,98 @@ static func _finalize_measurement_terminal(terminal, outcome: String, recorded_p
 	terminal.release_register()
 
 
-## Incorporation-reward multiplier — harvesting a register whose ICON you have
-## INCORPORATED (the Icon-hat ripening ritual, farm.incorporated_icons) boosts
-## the yield. This is the escape from the resource spiral, and it is the RITUAL's
-## reward, not knowledge's: taught words plant (they author the Hamiltonian),
-## incorporated words pay. The early game runs on contract profit; the ×4 arrives
-## with the act-3 berry chapter, exactly when the ritual is taught (owner ruling
-## 2026-08-17 — the code briefly keyed this on known_icons, which would have paid
-## the bonus for merely-taught words and flattened the mid-game power spike).
+## THE vocabulary rule (#105). One function reads the player's vocabulary and
+## answers for any plot axis; the glow (QuantumField3D, PlotTile), the strike
+## receipt and every payout (strike, gather, pop) read this and nothing else.
+## No biome is a special case.
 ##
-## Quantum-derived "purity" curve on the INCORPORATED branch only:
-##   incorporated     → mult = (bloch_r + signature_r_bonus) ^ signature_reward_exponent
-##                      (pure r=1 → (1+1)^2 = 4×; entangled r<1 → smoothly less —
-##                      purity vs entanglement is a real trade-off, not a trap)
-##   not incorporated → mult = 1× (flat baseline)
-## The old code also RAN the curve on un-incorporated harvests (r^2 < 1), which
-## silently punished the game's own core mechanic: any entangled register has
-## r ≪ 1, so almost every harvest was crushed to the floor of 1 — "what happened
-## to the vocab bonus? i seem to only ever get 1" (playtest 3). The bonus is a
-## bonus; there is no hidden penalty. Both params stay tunable via the
-## FarmVariableGraph board (tuning.signature_r_bonus / signature_reward_exponent).
-static func _incorporation_reward_multiplier(north: String, south: String, bloch_r: float, farm = null) -> float:
+## Vocabulary = the home biome's own axes (the Demos: its words are yours) +
+## farm.incorporated_icons (the ripening ritual). Taught faction words stay out
+## unless incorporated: injection/teaching writes known_icons, and paying for a
+## word a faction handed you would make the ritual pointless.
+##
+## Tiers, stacking, exactly (no r-dependence; signature_r_bonus and
+## signature_reward_exponent are no longer read here):
+##   none   ×1  nothing on the plot is in your vocabulary
+##   emoji  ×2  a pole is a vocabulary emoji, but the axis (the word) is not
+##              known: a subtle highlight
+##   icon   ×6  the full axis is known: ×2 (it shares its emojis) × ×3, the glow
+const TIER_NONE := "none"
+const TIER_EMOJI := "emoji"
+const TIER_ICON := "icon"
+const MULT_EMOJI := 2.0
+const MULT_ICON_ON_TOP := 3.0
+const HOME_BIOME := "TheDemos"
+
+
+## {tier, multiplier} for the axis north/south against farm's vocabulary.
+static func vocabulary_tier(farm, north: String, south: String) -> Dictionary:
+	var none := {"tier": TIER_NONE, "multiplier": 1.0}
+	if farm == null or (north == "" and south == ""):
+		return none
+	var words: Array = vocabulary_words(farm)
+	var emojis := {}
+	for w in words:
+		if same_word(w, north, south):
+			return {"tier": TIER_ICON, "multiplier": MULT_EMOJI * MULT_ICON_ON_TOP}
+		emojis[str(w.get("north", ""))] = true
+		emojis[str(w.get("south", ""))] = true
+	if (north != "" and emojis.has(north)) or (south != "" and emojis.has(south)):
+		return {"tier": TIER_EMOJI, "multiplier": MULT_EMOJI}
+	return none
+
+
+## The player's words: [{north, south}], the home biome's axes then the ledger.
+static func vocabulary_words(farm) -> Array:
+	var out: Array = []
 	if farm == null:
-		return 1.0
-	if not _icon_incorporated(farm, north, south):
-		return 1.0
-	var bonus: float = float(BalanceService.get_tuning_value(farm, "signature_r_bonus"))
-	var exponent: float = float(BalanceService.get_tuning_value(farm, "signature_reward_exponent"))
-	return pow(clampf(bloch_r, 0.0, 1.0) + bonus, exponent)
+		return out
+	var home = farm.grid.get_biome(HOME_BIOME) if ("grid" in farm and farm.grid != null) else null
+	if home != null and home.quantum_computer != null and home.quantum_computer.register_map != null:
+		var rm = home.quantum_computer.register_map
+		for q in range(int(rm.num_qubits)):
+			var ax: Dictionary = rm.axis(q)
+			out.append({"north": str(ax.get("north", "")), "south": str(ax.get("south", ""))})
+	if "incorporated_icons" in farm:
+		for ic in farm.incorporated_icons:
+			if ic is Dictionary:
+				out.append(ic)
+	return out
 
 
-## True iff the icon (pole-pair AXIS) is in the player's incorporation ledger
-## (farm.incorporated_icons — written ONLY by action_incorporate's success path).
-## known_icons deliberately does NOT count: injection/teaching auto-discovers
-## into known_icons, and paying the ×4 for a word a faction handed you would
-## make the ripening ritual economically pointless.
-## Orientation-blind: an icon IS its axis, so 🌾/👥 and 👥/🌾 are the same icon —
-## the starter signature stores north=🌾 while TheDemos register mounts north=👥,
-## and an exact-order compare would never match them (the ×4 escape never fired).
-static func _icon_incorporated(farm, north: String, south: String) -> bool:
-	if north == "" or south == "" or farm == null or not ("incorporated_icons" in farm):
+## The payout factor for an axis: 1, 2 or 6. `bloch_r` is kept for the call
+## sites' signature; purity no longer enters.
+static func _incorporation_reward_multiplier(north: String, south: String, _bloch_r: float, farm = null) -> float:
+	return float(vocabulary_tier(farm, north, south).get("multiplier", 1.0))
+
+
+## The full-word test: the glow, and the strike_known ledger.
+static func word_known(farm, north: String, south: String) -> bool:
+	return vocabulary_tier(farm, north, south).get("tier", TIER_NONE) == TIER_ICON
+
+
+## A pole of this axis is in your vocabulary but the word is not: the subtle highlight.
+static func emoji_shared(farm, north: String, south: String) -> bool:
+	return vocabulary_tier(farm, north, south).get("tier", TIER_NONE) == TIER_EMOJI
+
+
+## The receipt label for a tier.
+static func tier_label(tier: String) -> String:
+	match tier:
+		TIER_ICON:
+			return "×%d known word" % int(MULT_EMOJI * MULT_ICON_ON_TOP)
+		TIER_EMOJI:
+			return "×%d shared emoji" % int(MULT_EMOJI)
+	return ""
+
+
+## One ledger entry against one axis, orientation-blind (an icon is its axis).
+static func same_word(ic, north: String, south: String) -> bool:
+	if not (ic is Dictionary) or north == "" or south == "":
 		return false
-	for ic in farm.incorporated_icons:
-		var a := str(ic.get("north", ""))
-		var b := str(ic.get("south", ""))
-		if (a == north and b == south) or (a == south and b == north):
-			return true
-	return false
+	var a := str(ic.get("north", ""))
+	var b := str(ic.get("south", ""))
+	return (a == north and b == south) or (a == south and b == north)
 
 
 ## What one strike of `resource` at strike-time probability `p` pays: the

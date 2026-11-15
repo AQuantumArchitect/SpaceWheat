@@ -654,7 +654,10 @@
       ],
       "lesson:wayfinding": [
         "go:StarterForest",
-        "survey"
+        "explore_each",
+        "orbit",
+        "mass_strike",
+        "mass_gather"
       ],
       "lesson:superposition": [
         "go:StarterForest",

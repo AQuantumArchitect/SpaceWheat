@@ -56,6 +56,10 @@ A **beat** is one story step:
   hint that names a price ("Need 📜×5") must match `chart_cost`; the
   validator checks it.
 
+An objective may carry `"lead": true`. While it is open the Guide walks it
+before the beat's other objectives (`Guide._across`); `spiral_breaks` uses it to
+send the player to the word they just incorporated before the second berry.
+
 Each beat asks for **one thing**. A beat opens on its requires alone. The old
 pattern, where a flag's predicates, its arc quest and the next flag's predicates
 all re-checked the same condition, is gone.

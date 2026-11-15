@@ -367,6 +367,51 @@ static func objective_detail() -> String:
 	return hint
 
 
+## What the banner's "[E] more about this" opens: the live quest's own body
+## (the story / teaching behind the ask), then its how-line. Empty when there
+## is nothing beyond the one-line ask — then the banner shows no E line.
+static func objective_more() -> String:
+	var best := _banner_quest()
+	if best.is_empty():
+		return ""
+	var parts: Array[String] = []
+	var body := str(best.get("body", "")).strip_edges()
+	if body != "":
+		parts.append(body)
+	var how := objective_detail()
+	if how != "" and how != body:
+		parts.append(how)
+	# Claiming on Charge always has something to say: where the held lesson
+	# is claimed. The dim line shows there too, never an empty card.
+	if parts.is_empty() and _is_charge_ready(best):
+		parts.append(_charge_route(best))
+	return "\n\n".join(parts)
+
+
+static func _is_charge_ready(q: Dictionary) -> bool:
+	var qm = _quest_manager()
+	return qm != null and qm.has_method("is_charge_hold") and bool(qm.is_charge_hold(q)) \
+			and str(q.get("status", "")) == "ready"
+
+
+static func _charge_route(q: Dictionary) -> String:
+	return route_claim(q)
+
+
+## The dim under-line's wording. Once the player has attended to Charge it is
+## optional, so a held (accepted, not yet claimable) lesson reads
+## "[U] then [E] for more": go to Charge, then E for the held lesson's detail.
+## Otherwise the plain "[E] more about this". Info only either way.
+static func objective_more_hint() -> String:
+	var best := _banner_quest()
+	var qm = _quest_manager()
+	if not best.is_empty() and qm != null and qm.has_method("is_charge_hold") \
+			and bool(qm.is_charge_hold(best)) and str(best.get("status", "")) != "ready" \
+			and qm.has_method("charge_attended") and bool(qm.charge_attended(_active_farm())):
+		return "[%s] then [E] for more" % SurfaceRooms.KEY_HELD
+	return "[E] more about this"
+
+
 ## The single ranked winning quest/offer — shared by objective_text() (the
 ## text banner) and objective_target_key() (the visual spotlight), so both
 ## always agree on what "the one live objective" is. {} when there's none.
