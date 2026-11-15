@@ -198,6 +198,25 @@ func _pause_sim(value: bool) -> void:
 # STAGES
 # =============================================================================
 
+## The one spawn rule (RuntimeMount's story_flag_fired listener calls it):
+## a main-campaign flag marked `ending` (spec: campaigns[demos].ending) or
+## `win` (#123, 🍼 planted at home) opens the ceremony on `layer`, unless a
+## fixture is replaying ancestors or a ceremony is already up. Returns the
+## overlay it began, or null.
+static func spawn_for_flag(flag: Dictionary, layer: Node, farm: Node, shell: Node) -> EndingOverlay:
+	if not (bool(flag.get("ending", false)) or is_win(flag)) \
+			or str(flag.get("campaign", "")) != StoryAtlas.MAIN_CAMPAIGN \
+			or CampaignFixture.replaying or layer == null:
+		return null
+	if layer.get_node_or_null("EndingOverlay") != null:
+		return null
+	var ending := EndingOverlay.new()
+	ending.name = "EndingOverlay"
+	layer.add_child(ending)
+	ending.begin(farm, shell, flag)
+	return ending
+
+
 ## True for the flag that is the demo's win (campaign beat `win: true`).
 static func is_win(flag: Dictionary) -> bool:
 	return bool(flag.get("win", false))

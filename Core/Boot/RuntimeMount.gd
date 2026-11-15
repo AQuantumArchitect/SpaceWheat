@@ -458,25 +458,15 @@ func stage_ui(farm: Node, shell: Node, quantum_viz: Node, world_builder) -> void
 					shell.quest_manager.story_flag_fired.connect(act_cb)
 					_verbose.info("boot", "📮", "Act-postcard listener armed")
 
-				# island_free ceremony: the campaign's political finale gets a
+				# island_free ceremony (and the demo's 🍼 win, #123): a
 				# real close (title → postcard montage → stats → credits →
 				# door). Headed only, same guard as postcards; the flag has
 				# already fired when this spawns (pure presentation).
 				var shell_ref = shell
 				var overlay_layer_ref = shell_overlay_layer
 				var ending_cb := func(_flag_id: String, flag: Dictionary):
-					# The main campaign's ending (spec: campaigns[demos].ending),
-					# or the demo's win (#123: `win`, 🍼 planted at home).
-					if not (bool(flag.get("ending", false)) or EndingOverlay.is_win(flag)) \
-							or str(flag.get("campaign", "")) != StoryAtlas.MAIN_CAMPAIGN \
-							or CampaignFixture.replaying:
-						return
-					if overlay_layer_ref.get_node_or_null("EndingOverlay") != null:
-						return
-					var ending := EndingOverlay.new()
-					ending.name = "EndingOverlay"
-					overlay_layer_ref.add_child(ending)
-					ending.begin(farm_ref, shell_ref, flag)
+					# The main campaign's ending, or the demo's win (#123).
+					EndingOverlay.spawn_for_flag(flag, overlay_layer_ref, farm_ref, shell_ref)
 				if not shell.quest_manager.story_flag_fired.is_connected(ending_cb):
 					shell.quest_manager.story_flag_fired.connect(ending_cb)
 					_verbose.info("boot", "🚪", "island_free ceremony listener armed")
