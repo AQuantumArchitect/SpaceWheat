@@ -204,6 +204,14 @@ func _run() -> void:
 			continue
 		if reg.get_atom(p0) == null or reg.get_atom(p1) == null:
 			continue
+		# Since 2026-11-16 every faction word has physics; the physics-less
+		# pairs left are the 12 faction-space axes. Use one whose atoms carry
+		# physics of their own, or the "H from its atoms" path has nothing to read.
+		var a0 = reg.get_atom(p0)
+		var a1 = reg.get_atom(p1)
+		if (absf(a0.self_energy) < 1e-9 and a0.hamiltonian_couplings.is_empty()) \
+				or (absf(a1.self_energy) < 1e-9 and a1.hamiltonian_couplings.is_empty()):
+			continue
 		bare = {"pole_0": p0, "pole_1": p1}
 		break
 	if not bare.is_empty():
