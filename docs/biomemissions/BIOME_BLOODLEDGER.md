@@ -19,7 +19,7 @@ initialise your way to a free village. Only active intervention collapses it.
 
 | Axis | Pole 0 | Pole 1 | Physics role |
 |---|---|---|---|
-| **Authority** | ⚜ seal | ⚖ scales | Dominance axis. ⚜ sustained by 📜 autocatalytic loop (rate 25.0, power 2). Carrion Throne H: ⚜↔🏰 (0.8), ⚜↔🦅 (0.6), ⚜↔📜 (0.6). |
+| **Dominion** | ⚜ seal | ⚖ scales | Dominance axis. ⚜ sustained by 📜 autocatalytic loop (rate 25.0, power 2). Carrion Throne H: ⚜↔🏰 (0.8), ⚜↔🦅 (0.6), ⚜↔📜 (0.6). |
 | **Heritage** | 🏰 fortress | 📜 document | Infrastructure axis. 📜 is the autocatalytic fuel. 📜↔🏰 (0.6). Documentation sustains the fortress which sustains documentation. |
 | **Predation** | 🦅 hawk | 🩸 blood | Enforcement axis. 🦅↔⚜ (0.6), 🦅↔🩸 (0.4). Hawks enforce authority; blood is the cost of enforcement — and of its resistance. |
 | **Extraction** | 👥 people | 💰 coin | Tribute axis. 💰 dominant (0.170). 💰 flows in from Village; 👥 are present but subordinate (⚜↔👥 anti-coupled −0.28). |
