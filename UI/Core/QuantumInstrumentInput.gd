@@ -966,13 +966,12 @@ func _execute_incorporate_icon() -> Dictionary:
 		elif bool(result.get("already_known", false)):
 			_toast_player("🧬 %s/%s re-harvested — phase counted, the word was already yours" % [inc_n, inc_s])
 		else:
-			# The berry was spent but the word did NOT join: the north emoji
-			# already anchors another signature word. Saying "woven into your
-			# signature" here sent hub leg L4d chasing a signature that never
-			# grew (anti-gating law: no false help).
+			# The berry was spent but the word did NOT join. Since the pole-overlap
+			# rule went (2026-11-16) only a malformed axis lands here. Saying
+			# "woven into your signature" would be false help (anti-gating law).
 			# Not a failure: the loop counts for berry goals (wave 19 keeper, wave 20
 			# distractible — both read the old ✗ as a refused step on the Monolith).
-			_toast_player("🧬 loop counted — %s/%s stays out of your signature (%s already anchors one of your words)" % [inc_n, inc_s, inc_n])
+			_toast_player("🧬 loop counted — %s/%s stays out of your signature" % [inc_n, inc_s])
 	elif str(result.get("message", "")) != "":
 		_toast_player("✗ %s" % str(result.get("message", "")))
 	# Mirror on the QII signal too, for UI listeners (the engine emits its own). Same

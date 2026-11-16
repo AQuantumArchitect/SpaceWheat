@@ -1569,19 +1569,22 @@ static func _unknown_cols(biome: String) -> Array:
 	var b = farm.grid.get_biome(biome)
 	if b == null or b.quantum_computer == null or b.quantum_computer.register_map == null:
 		return out
-	# A word joins the signature only if its NORTH pole is neither pole of a
-	# word you already hold (Farm.discover_icon) — so "unknown" means an
-	# unanchored north, not merely an unseen pair.
-	var anchored: Dictionary = {}
-	for ic in (farm.known_icons if "known_icons" in farm else []):
-		if ic is Dictionary:
-			anchored[str(ic.get("north", ""))] = true
-			anchored[str(ic.get("south", ""))] = true
+	# "Unknown" means a word you do not hold yet (Farm.discover_icon learns any
+	# word that is not already yours, in either spelling: IconRegistry.same_word).
+	# The old pole-overlap rule, mirrored here, is gone (owner ruling 2026-11-16).
+	var known: Array = farm.known_icons if "known_icons" in farm else []
 	var rm = b.quantum_computer.register_map
 	var br = b.quantum_computer.berry_register
 	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
 		var ax: Dictionary = rm.axis(col)
-		if anchored.has(str(ax.get("north", ""))):
+		var held := false
+		for ic in known:
+			if ic is Dictionary and preload("res://Core/Factions/IconRegistry.gd").same_word(
+					str(ic.get("north", "")), str(ic.get("south", "")),
+					str(ax.get("north", "")), str(ax.get("south", ""))):
+				held = true
+				break
+		if held:
 			continue
 		# A word the ritual cannot reach (no transverse term: it never moves,
 		# so it never ripens) is not learnable here; counting it sent the

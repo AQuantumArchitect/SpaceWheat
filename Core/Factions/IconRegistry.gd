@@ -396,11 +396,37 @@ func get_icons_by_name(_name: String) -> Array:
 	return out
 
 
+## Physics for a SEAT pole_0/pole_1 (register north/south). When the seat is
+## the word read the other way round (the reverse fallback: B/A is not a word
+## of its own, so it is word A/B seated inverted), the word's physics is mapped
+## onto the seat's poles: self_energy_0 belongs to the word's pole_0 atom,
+## which is this seat's SOUTH, so the two self-energies swap. Rabi is symmetric
+## and hamiltonian_couplings are keyed by target ATOM and applied from both
+## source poles (HamiltonianBuilder), so they carry over unchanged. The result
+## is marked "seated_inverted". Before 2026-11-16 the self-energies were not
+## swapped, so an inverted seat (the campaign teaches 🏭/⚙, 🪵/🪓, 🩸/🦅,
+## 📜/🏰, and starts the player on 🌾/👥) put each word's energies on the
+## wrong atoms: the same spectrum, with the two atoms' populations exchanged.
+## (A driver stays with the seat's north; drivers are not applied at runtime.)
 func get_icon_physics_by_pair(pole_0: String, pole_1: String) -> Dictionary:
-	var record = find_icon_by_pair(pole_0, pole_1)
-	if record.is_empty():
-		return {}
-	return _physics_from_record(record)
+	var key = _pair_key(pole_0, pole_1)
+	if _by_pair.has(key):
+		return _physics_from_record(_by_pair[key])
+	var rev = _pair_key(pole_1, pole_0)
+	if _by_pair.has(rev):
+		var ph := _physics_from_record(_by_pair[rev])
+		var se0: float = ph["self_energy_0"]
+		ph["self_energy_0"] = ph["self_energy_1"]
+		ph["self_energy_1"] = se0
+		ph["seated_inverted"] = true
+		return ph
+	return {}
+
+
+## True when the seat pole_0/pole_1 is a word read the other way round (no
+## record in this orientation, one in the reverse).
+func is_seated_inverted(pole_0: String, pole_1: String) -> bool:
+	return not _by_pair.has(_pair_key(pole_0, pole_1)) and _by_pair.has(_pair_key(pole_1, pole_0))
 
 
 func _physics_from_record(record: Dictionary) -> Dictionary:

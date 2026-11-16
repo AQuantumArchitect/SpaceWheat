@@ -201,7 +201,7 @@ fed by both its watershed and its own agriculture. No factory, no chains.
 **Physics:** this is the lowest-drama option but the highest
 cross-biome connectivity — 💧 brings the spring in, 🌱 connects to
 the forest and woodlot. Three islands are wired together through real
-flows. Commerce (🧺|💰) runs warmly in the background.
+flows. Market (🧺|💰) runs warmly in the background.
 
 **Circle wiring:** most wired path in the set.
 - FreshwaterSpring → Village 💧 (flow active)

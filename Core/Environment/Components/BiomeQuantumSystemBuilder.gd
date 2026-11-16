@@ -41,7 +41,7 @@ func relabel_axis(qubit_index: int, north_emoji: String, south_emoji: String) ->
 	rebuild_operators_from_register_map()
 	if quantum_computer.density_matrix != null \
 			and quantum_computer.density_matrix.n == quantum_computer.register_map.dim():
-		quantum_computer.apply_ry(qubit_index, quantum_computer.DAWN_KICK_RAD)
+		quantum_computer.apply_ry(qubit_index, seat_kick_angle(north_emoji, south_emoji, quantum_computer.DAWN_KICK_RAD))
 	return {
 		"success": true,
 		"qubit_index": qubit_index,
@@ -115,7 +115,7 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 	# (an exact |0⟩ never precesses — un-trackable, un-ripenable).
 	if quantum_computer.density_matrix != null \
 			and quantum_computer.density_matrix.n == quantum_computer.register_map.dim():
-		quantum_computer.apply_ry(new_qubit_index, quantum_computer.DAWN_KICK_RAD)
+		quantum_computer.apply_ry(new_qubit_index, seat_kick_angle(north_emoji, south_emoji, quantum_computer.DAWN_KICK_RAD))
 	else:
 		# Belt-and-braces: dims out of sync (shouldn't happen — allocate_axis
 		# ran above) → the full reset is the only honest recovery.
@@ -135,6 +135,22 @@ func expand_quantum_system(north_emoji: String, south_emoji: String) -> Dictiona
 		"north_emoji": north_emoji,
 		"south_emoji": south_emoji
 	}
+
+
+## The Ry angle a freshly planted seat gets (it was |0⟩, the register north).
+## A new seat starts at its WORD's north pole, kicked. For a seat in the word's
+## own orientation that is the register north: Ry(kick). For a word seated
+## inverted (IconRegistry.get_icon_physics_by_pair maps its physics onto the
+## seat, the self-energies swapped) the word's north is the register SOUTH:
+## Ry(π − kick)|0⟩ = X·Ry(kick)|0⟩, so the seat runs exactly the trajectory the
+## word runs when planted its own way, poles relabelled (same ripening, same
+## Berry phase; 2026-11-16).
+static func seat_kick_angle(north: String, south: String, kick: float, lexicon = null) -> float:
+	if lexicon == null:
+		lexicon = (Engine.get_main_loop().root.get_node_or_null("/root/IconRegistry") if Engine.get_main_loop() and Engine.get_main_loop().root else null)
+	if lexicon == null or not lexicon.has_method("is_seated_inverted"):
+		return kick
+	return PI - kick if lexicon.is_seated_inverted(north, south) else kick
 
 
 ## Rebuild H+L (+ drivers + physics_signature) from the CURRENT register_map

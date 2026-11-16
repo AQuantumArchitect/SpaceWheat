@@ -20,7 +20,7 @@ not dissipated. Score: skipped (assay requires Lindblad).
 | Axis | Pole 0 | Pole 1 | Physics role |
 |---|---|---|---|
 | **CelestialCycle** | ☀ sun | 🌙 moon | Sky driver. Celestial Archons H: ε☀=1.0, ε🌙=0.8. ☀↔🌙 coupling (0.025). Without L, the system oscillates between sun and moon with no damping. |
-| **Harvest** | 🌾 grain | 🍄 mushroom | Productive output pair. Pollinator Guild H: 🐝↔🌾 (0.6). Mycelial Web H: 🌙→🍄 (0.65). Both channels run; neither dissipates. |
+| **Spore** | 🌾 grain | 🍄 mushroom | Productive output pair. Pollinator Guild H: 🐝↔🌾 (0.6). Mycelial Web H: 🌙→🍄 (0.65). Both channels run; neither dissipates. |
 | **Death** | 🍂 litter | 💀 death | Decomposition pair. Mycelial Web chiral H triangle: 🍄↔🍂↔💀 (imaginary couplings). Population rotates around the triangle — the rot clock runs, but nothing actually rots. |
 
 ---
