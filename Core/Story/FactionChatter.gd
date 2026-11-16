@@ -43,6 +43,7 @@ extends RefCounted
 
 const GlyphLanguage := preload("res://Core/Story/GlyphLanguage.gd")
 const BiomeMeasurementSampler := preload("res://Core/Story/BiomeMeasurementSampler.gd")
+const _IconRegistryScript := preload("res://Core/Factions/IconRegistry.gd")
 
 const NEWS_CAP := 20.0           # nats; weighs "never spoken of" (∞) against finite news
 const PLAYER_FACTION := "The Demos"
@@ -202,7 +203,10 @@ static func faction_registers(faction_name: String, world: Dictionary, icon_regi
 		if p0 == "" or p1 == "":
 			continue
 		var entries: Array = world.get("%s|%s" % [p0, p1], [])
-		if entries.is_empty():
+		# A register seated inverted is still this word, unless the inverse is
+		# a word of its own (ordered pair identity): then it is another
+		# faction's word and not this faction's to speak of.
+		if entries.is_empty() and not _IconRegistryScript.has_inverse_word(p0, p1):
 			entries = world.get("%s|%s" % [p1, p0], [])
 		out.append({"pair": [p0, p1], "entries": entries})
 	return out

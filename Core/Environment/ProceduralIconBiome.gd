@@ -81,6 +81,8 @@ static func materialize(seed: Dictionary, biome_name: String, parent_node: Node)
 	if lexicon != null and lexicon.has_method("get_all"):
 		var seen: Dictionary = {}
 		seen[pole_0 + "|" + pole_1] = true
+		# The inverse word (B/A, ordered pair identity) is kept out on purpose:
+		# it shares both atoms with the seed, the same rule as a boot loadout.
 		seen[pole_1 + "|" + pole_0] = true
 		var all_icons = lexicon.get_all()
 		if all_icons is Array:

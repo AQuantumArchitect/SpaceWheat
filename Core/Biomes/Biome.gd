@@ -127,9 +127,14 @@ func get_neighborhood_icons() -> Array:
 			# Each emoji maps to exactly one qubit; skip icons that share a pole
 			# with an already-placed icon (within-faction overlaps like Swift Herd's
 			# Herd+Flight both using 🐇 — only the first encountered wins).
+			# This also means one boot loadout never seats both orientations of
+			# a pair (A/B and B/A are two words but share both poles): the first
+			# native faction's word wins the atoms. Planting can still seat the
+			# other word on a second qubit (duplicate emojis are legal).
 			if claimed.has(p0) or claimed.has(p1):
 				continue
-			var key := "%s|%s" % [p0, p1] if p0 < p1 else "%s|%s" % [p1, p0]
+			# Ordered pair identity: A/B and B/A are different words.
+			var key := "%s|%s" % [p0, p1]
 			if seen.has(key):
 				continue
 			seen[key] = true

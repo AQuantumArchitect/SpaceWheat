@@ -49,12 +49,22 @@ def load_world():
     biomes = json.loads((ROOT / "Core/Biomes/data/biomes.json").read_text(encoding="utf-8"))
     fs = {f["name"]: f for f in factions if isinstance(f, dict) and "name" in f}
     bs = {b["name"]: b for b in biomes if isinstance(b, dict) and "name" in b}
+    # Ordered pair identity (IconRegistry): A/B and B/A can be two words with
+    # two owners (Commerce ⚖/💰 is the Throne's, Levy 💰/⚖ the Bailiffs').
     pair_owners: dict = {}
     for f in fs.values():
         for ic in f.get("icons", []) or []:
-            key = frozenset((n(ic["pole_0"]), n(ic["pole_1"])))
+            key = (n(ic["pole_0"]), n(ic["pole_1"]))
             pair_owners.setdefault(key, []).append(f["name"])
     return fs, bs, pair_owners
+
+
+def owners_of(pair_owners: dict, p: tuple) -> list:
+    """Port of IconRegistry.get_factions_for_pair(): the exact orientation's
+    owners; the reversed word's only when this orientation is not a word."""
+    if p in pair_owners:
+        return pair_owners[p]
+    return pair_owners.get((p[1], p[0]), [])
 
 
 def boot_pairs(bs: dict, fs: dict, name: str) -> list:
@@ -73,7 +83,7 @@ def boot_pairs(bs: dict, fs: dict, name: str) -> list:
                 continue
             if p0 in claimed or p1 in claimed:
                 continue
-            key = frozenset((p0, p1))
+            key = (p0, p1)
             if key in seen:
                 continue
             seen.add(key)
@@ -86,7 +96,7 @@ def market_cloud(bs, fs, pair_owners, name: str) -> set:
     """Emojis the factions admitted in a biome can pay out (contract rewards)."""
     out = set()
     for p in boot_pairs(bs, fs, name):
-        for fac in pair_owners.get(frozenset(p), []):
+        for fac in owners_of(pair_owners, p):
             out |= {n(c) for c in (fs.get(fac, {}).get("cloud") or [])}
     return out
 
@@ -94,7 +104,7 @@ def market_cloud(bs, fs, pair_owners, name: str) -> set:
 def admitted(bs, fs, pair_owners, name: str) -> set:
     out = set()
     for p in boot_pairs(bs, fs, name):
-        out |= set(pair_owners.get(frozenset(p), []))
+        out |= set(owners_of(pair_owners, p))
     return out
 
 
