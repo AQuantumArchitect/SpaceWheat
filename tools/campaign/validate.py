@@ -307,16 +307,19 @@ def validate(spec: dict, report_table: bool = False) -> Report:
         avail_biomes = biomes | ({own_chart} if own_chart else set())
         incorporates_taught = "first_breath" in anc or bid == "first_breath"
 
-        # vocabulary reachable: start + taught + incorporable from loaded biomes (north-uniqueness rule)
-        poles: set = set()
+        # vocabulary reachable: start + taught + incorporable from loaded biomes.
+        # Port of Farm.discover_icon: any word not already held, in either
+        # spelling (the pole-overlap rule went 2026-11-16). B/A is the same word
+        # as A/B unless B/A is a word of its own.
         sig: list = []
 
         def learn(p):
-            if p[0] in poles:
+            if p in sig:
                 return
-            if p not in sig and (p[1], p[0]) not in sig:
-                sig.append(p)
-                poles.update(p)
+            rev = (p[1], p[0])
+            if rev in sig and not (p in owners and rev in owners):
+                return  # the same word read the other way round
+            sig.append(p)
         for p in known:
             learn(p)
         if incorporates_taught:

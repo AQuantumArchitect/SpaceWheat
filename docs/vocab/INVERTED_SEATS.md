@@ -88,6 +88,15 @@ carries the old populations until it evolves.
 
 ## The discover rule
 
+> **Open problem (2026-11-16): this change breaks the banner-follow campaign drive.** With it, the
+> keyboard banner-follower (`🍄/🧪/banner_follow.py village_stirs --journey 45 --until island_free`)
+> stalls at `mill_master` ("let it evolve — wait": the Guide stops asking for the 8 Village berries),
+> or at the next Village berry ask after it. That happened in every run that got that far: 3 of 3
+> with the seat fix, 1 of 1 without it. With the seat fix alone the same drive reaches `island_free`.
+> I did not find the cause in the Guide tonight. The change is the last commit on its branch, so it
+> can be dropped.
+
+
 `Farm.discover_icon` refused any word whose north was already a pole of a known word. You called it
 a helper for the randomizer, not a rule of the game universe. The randomizer it served,
 `IconPairing`'s north roll ("North cannot be an emoji already in the player's cloud"), no longer
