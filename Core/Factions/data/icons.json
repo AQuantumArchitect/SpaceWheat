@@ -1014,7 +1014,7 @@
     }
   },
   {
-    "name": "Decree",
+    "name": "Countersign",
     "pole_0": "📜",
     "pole_1": "🖋",
     "self_energy_0": 0.15,
@@ -3087,7 +3087,7 @@
     }
   },
   {
-    "name": "Edict",
+    "name": "Decree",
     "pole_0": "📜",
     "pole_1": "⚖",
     "self_energy_0": 0.15,

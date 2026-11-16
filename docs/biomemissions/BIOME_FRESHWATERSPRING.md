@@ -18,7 +18,7 @@ dynamics and cross-biome hub topology. The spring feeds four downstream biomes.
 |---|---|---|---|
 | **Phase** | 🧊 ice | 🔥 fire | Temperature axis. 🧊 is the primary reservoir (22.6%). 🗑→🧊 pump (0.30) — "ice wells up from deep stone." Celestial Archons H: ε☀=1.0, 🔥↔💧 anti-coupled (−0.4). |
 | **Scale** | 💧 drop | 🌊 wave | Volume axis. 💧 at 13.3%, 🌊 at 9.0%. Celestial Archons H: 🌙↔💧 (0.5), 🌬↔💧 (0.6). Water scale spans single drops to wave. |
-| **Cycle** | 🫧 bubble | 🌿 herb | Ephemeral/growth axis. 🌿 dominant at 31.6% — water feeds plant life. 🫧 at 2.7% — bubbles appear and vanish instantly (fast L decay). |
+| **Sprout** | 🫧 bubble | 🌿 herb | Ephemeral/growth axis. 🌿 dominant at 31.6% — water feeds plant life. 🫧 at 2.7% — bubbles appear and vanish instantly (fast L decay). |
 
 ---
 

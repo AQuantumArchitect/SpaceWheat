@@ -1,0 +1,1169 @@
+{
+  "_doc": "One name per ordered pair (north/south; the south pole is what the word provides). Applied by tools/vocab/apply_names.py to factions.json and icons.json. Each entry: pair, the name it ends with, and a one-line reason. 2026-11-16.",
+  "renames": [
+    {
+      "pair": "⌛/⏰",
+      "name": "Interval",
+      "why": "icons.json name; Cycle stays with Pack Lords' 💀/🌱"
+    },
+    {
+      "pair": "⏰/⚙",
+      "name": "Clockwork",
+      "why": "icons.json name; a clock that yields gearwork; frees Mechanism for ⚙/🔩"
+    },
+    {
+      "pair": "⏳/🕰",
+      "name": "Epoch",
+      "why": "icons.json name; Witness stays with Mossline Brokers' 🧫/🧿"
+    },
+    {
+      "pair": "⚔/🌬",
+      "name": "Gale",
+      "why": "icons.json name; Strike stays with Fencebreakers' ⚔/🧨"
+    },
+    {
+      "pair": "⚔/🛡",
+      "name": "Guard",
+      "why": "icons.json name and HyperDuster's; Scythe Provosts' listing said Combat"
+    },
+    {
+      "pair": "⚙/🔩",
+      "name": "Mechanism",
+      "why": "icons.json name; Gearwright Circle and Obsidian Will listed Machinery"
+    },
+    {
+      "pair": "⚜/⚖",
+      "name": "Dominion",
+      "why": "icons.json name; the lily yields the scales of rule"
+    },
+    {
+      "pair": "⚜/🩸",
+      "name": "Bloodline",
+      "why": "icons.json name; Nobility stays with the Throne's ⚜/👥"
+    },
+    {
+      "pair": "⛪/🗝",
+      "name": "Confession",
+      "why": "icons.json name; Iron Confessors' own word"
+    },
+    {
+      "pair": "🌉/🔥",
+      "name": "Bridge",
+      "why": "icons.json name; Crossing stays with Nexus Wardens' 🚪/🗝"
+    },
+    {
+      "pair": "🌉/🪔",
+      "name": "Viaduct",
+      "why": "icons.json name and one of its two listings"
+    },
+    {
+      "pair": "🌊/🪨",
+      "name": "Surf",
+      "why": "icons.json name; Tide stays with The Submersed's 🌊/🐠"
+    },
+    {
+      "pair": "🌙/🍂",
+      "name": "Moonfall",
+      "why": "icons.json name; Phase Keepers' moon brings the leaf-fall"
+    },
+    {
+      "pair": "🌾/🍄",
+      "name": "Spore",
+      "why": "icons.json name; grain that yields fungus"
+    },
+    {
+      "pair": "🌾/🏜",
+      "name": "Haul",
+      "why": "icons.json name; grain carried out across the dunes"
+    },
+    {
+      "pair": "🌿/🌾",
+      "name": "Forage",
+      "why": "icons.json name and Hearth Witches' listing; Pasture stays with 🧭/🌾"
+    },
+    {
+      "pair": "🎵/🧩",
+      "name": "Tune",
+      "why": "icons.json name; Broadcast stays with Symphony Smiths' 💎/📡"
+    },
+    {
+      "pair": "🏁/🧂",
+      "name": "Checkpoint",
+      "why": "icons.json name; the flag post where salt is stopped"
+    },
+    {
+      "pair": "🏛/💰",
+      "name": "Treasury",
+      "why": "icons.json name; Vault stays with House Adamant's 💰/🔒"
+    },
+    {
+      "pair": "🐑/🐺",
+      "name": "Pursuit",
+      "why": "icons.json name; Predation stays with the Throne's 🦅/🩸"
+    },
+    {
+      "pair": "💀/⚱",
+      "name": "Vestige",
+      "why": "icons.json name; Aftermath stays with Brotherhood of Ash's ⚱/🌫"
+    },
+    {
+      "pair": "💊/📦",
+      "name": "Mandate",
+      "why": "icons.json name; the Ukase's supply order"
+    },
+    {
+      "pair": "💨/🏭",
+      "name": "Draft",
+      "why": "icons.json name; Drive stays with Tinker Team's 🚐/⚙"
+    },
+    {
+      "pair": "💫/🏮",
+      "name": "Luminary",
+      "why": "icons.json name; Lantern stays with Lantern Cant's 🏮/🕯"
+    },
+    {
+      "pair": "💫/🔊",
+      "name": "Flash",
+      "why": "icons.json name; Spark stays with Reality Midwives' 🌠/⚡"
+    },
+    {
+      "pair": "💱/🕴",
+      "name": "Barter",
+      "why": "icons.json name; Exchange stays with Market Spirits' 📦/🏚"
+    },
+    {
+      "pair": "💾/🗝",
+      "name": "Repository",
+      "why": "icons.json name; Archive stays with Chronicle Keepers' 🗃/📖"
+    },
+    {
+      "pair": "📒/📋",
+      "name": "Logbook",
+      "why": "icons.json name; Record stays with Ledger Bailiffs' 📘/💸"
+    },
+    {
+      "pair": "📜/⚖",
+      "name": "Decree",
+      "why": "the name the game shows and HyperDuster's overlay uses (icons.json said Edict); the written order yields law"
+    },
+    {
+      "pair": "📜/🖋",
+      "name": "Countersign",
+      "why": "Ink Wardens sign where indicated: the paper calls for the pen; frees Decree for 📜/⚖ (icons.json said Decree)"
+    },
+    {
+      "pair": "📡/✨",
+      "name": "Glimmer",
+      "why": "icons.json name; Signal stays with 📡/📶"
+    },
+    {
+      "pair": "📡/👘",
+      "name": "Frequency",
+      "why": "icons.json name; Seamstress Syndicate's coded cloth"
+    },
+    {
+      "pair": "📡/📶",
+      "name": "Signal",
+      "why": "icons.json name and Engram Freighters' listing; Relay Lattice listed Uplink"
+    },
+    {
+      "pair": "📯/🏁",
+      "name": "Fanfare",
+      "why": "icons.json name; the horn that raises the flag"
+    },
+    {
+      "pair": "📯/🗼",
+      "name": "Tower",
+      "why": "icons.json name; the horn answered from the tower"
+    },
+    {
+      "pair": "🔇/🌑",
+      "name": "Null",
+      "why": "icons.json name; Silence stays with Symphony Smiths' 🔇/❄"
+    },
+    {
+      "pair": "🔌/♻",
+      "name": "Loop",
+      "why": "icons.json name; Circuit stays with Kilowatt Collective's 🔌/☀"
+    },
+    {
+      "pair": "🔌/⚡",
+      "name": "Socket",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🔔/🗝",
+      "name": "Tithe",
+      "why": "icons.json name; Toll stays with Station Lords' 🚀/💰 (HyperDuster)"
+    },
+    {
+      "pair": "🔥/🪨",
+      "name": "Cinder",
+      "why": "icons.json name; Magma stays with Volcanic Foundry's 🌋/🔥"
+    },
+    {
+      "pair": "🕯/🔥",
+      "name": "Consecration",
+      "why": "icons.json name; Vigil stays with Keepers of Silence's 🧘/🕯"
+    },
+    {
+      "pair": "🕳/⚡",
+      "name": "Rupture",
+      "why": "icons.json name; Singularity stays with Black Horizon's 🌀/⚫"
+    },
+    {
+      "pair": "🕵/⛓",
+      "name": "Surveillance",
+      "why": "icons.json name; the watcher yields the chain"
+    },
+    {
+      "pair": "🕷/🐛",
+      "name": "Entangle",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🕸/🌑",
+      "name": "Hollow",
+      "why": "icons.json name; Void stays with Black Horizon's 🕳/🪐"
+    },
+    {
+      "pair": "🕸/🕯",
+      "name": "Cobweb",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🗃/♟",
+      "name": "Chronicle",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🚔/🔓",
+      "name": "Enforcement",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🛰/⭐",
+      "name": "Satellite",
+      "why": "icons.json name; Orbit stays with Starforge Reliquary's 🌀/🌙"
+    },
+    {
+      "pair": "🤖/🛡",
+      "name": "Sentinel",
+      "why": "icons.json name; Guard stays with ⚔/🛡"
+    },
+    {
+      "pair": "🥣/🫙",
+      "name": "Larder",
+      "why": "icons.json name; the bowl filled into jars"
+    },
+    {
+      "pair": "🦗/🧬",
+      "name": "Contagion",
+      "why": "icons.json name; Vector stays with Plague Vectors' 🐝/💀"
+    },
+    {
+      "pair": "🦠/💀",
+      "name": "EuAnaerobe",
+      "why": "icons.json name and Twilight Recyclers' listing, in the Eu- family with EuPhotobloom; Plague Vectors listed Contagion"
+    },
+    {
+      "pair": "🧤/🏭",
+      "name": "Toil",
+      "why": "icons.json name; the gloved hand that keeps the factory: one of the three Labors"
+    },
+    {
+      "pair": "🧪/🧫",
+      "name": "Colony",
+      "why": "icons.json name; Culture stays with Flesh Architects' 🩸/🧫"
+    },
+    {
+      "pair": "🧵/🧶",
+      "name": "Yarn",
+      "why": "icons.json name; Thread stays with Knot-Shriners' 🧵/🪡"
+    },
+    {
+      "pair": "🧷/🧿",
+      "name": "Clasp",
+      "why": "icons.json name; Ward stays with Hearth Witches' 🕯/🧿"
+    },
+    {
+      "pair": "🧺/💰",
+      "name": "Market",
+      "why": "icons.json name; owner kept Commerce for ⚖/💰 and asked to rename the other"
+    },
+    {
+      "pair": "🧿/🏮",
+      "name": "Shrine",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🧿/🔦",
+      "name": "Illuminate",
+      "why": "icons.json name; Lantern Cant's light-code"
+    },
+    {
+      "pair": "🧿/🪢",
+      "name": "Tether",
+      "why": "icons.json name"
+    },
+    {
+      "pair": "🩸/🚀",
+      "name": "Martyr",
+      "why": "icons.json name; Sacrifice stays with Children of the Ember's ⚔/🩸"
+    },
+    {
+      "pair": "🪔/📯",
+      "name": "Lamppost",
+      "why": "icons.json name; the lamp that sounds the horn"
+    },
+    {
+      "pair": "🪞/👤",
+      "name": "Double",
+      "why": "icons.json name; Reflection stays with House of Thorns' 🪞/⚖"
+    },
+    {
+      "pair": "🪤/🪝",
+      "name": "Trap",
+      "why": "icons.json name; Snare stays with Clan of the Hidden Root's 🪨/🪤"
+    },
+    {
+      "pair": "🪨/📜",
+      "name": "Inscription",
+      "why": "icons.json name; Salt Scribes cut the record in stone"
+    },
+    {
+      "pair": "🫥/🪦",
+      "name": "Memorial",
+      "why": "icons.json name; Absence stays with Chorus of Oblivion's 🫥/🕯"
+    },
+    {
+      "pair": "🫧/🌿",
+      "name": "Sprout",
+      "why": "icons.json name; Cycle stays with 💀/🌱"
+    },
+    {
+      "pair": "👥/🪓",
+      "name": "Woodcutting",
+      "why": "the second Labor: Hearth Keepers' people take up the axe for the hearth, feeding Lumber 🪓/🪵; Labor stays with 👥/🍞"
+    },
+    {
+      "pair": "🧂/🛶",
+      "name": "Freight",
+      "why": "Salt Runners' salt pays for the boat; Cargo stays with Quay Rooks' 🚢/💰"
+    },
+    {
+      "pair": "💧/⛓",
+      "name": "Sluice",
+      "why": "Salt Runners' water held behind chains and gates; Channel stays with 🛶/💧"
+    },
+    {
+      "pair": "🚢/⚓",
+      "name": "Anchorage",
+      "why": "Quay Rooks' ship comes to anchor; Fleet stays with 🚀/🛸"
+    },
+    {
+      "pair": "🪨/💎",
+      "name": "Geode",
+      "why": "Volcanic Foundry's rock that yields crystal; Forge stays with Symphony Smiths' 🔨/⚙"
+    },
+    {
+      "pair": "🪣/🌾",
+      "name": "Irrigation",
+      "why": "Irrigation Jury's bucket that yields grain; Harvest stays with Verdant Pulse's 🌾/🍂"
+    },
+    {
+      "pair": "💰/🪝",
+      "name": "Usury",
+      "why": "Quay Rooks' coin that sets the hook; Ledger stays with Archivists' 📜/💰 (Debt is taken)"
+    },
+    {
+      "pair": "🛶/📋",
+      "name": "Tally",
+      "why": "Quay Rooks' dockside count of what the boat carries; Manifest stays with Nexus Wardens' 🛂/📋"
+    },
+    {
+      "pair": "🧤/🗑",
+      "name": "Leavings",
+      "why": "the Scavenged Psithurism's hand gathers what is left; Salvage stays with Bone Merchants' 🦴/💰 (HyperDuster; Gleaning is taken)"
+    },
+    {
+      "pair": "🔓/🔍",
+      "name": "Search",
+      "why": "Salt Runners: the opened lock yields the search; Tradecraft stays with ⛓/🔓"
+    },
+    {
+      "pair": "💧/🌧",
+      "name": "Rainfall",
+      "why": "Irrigation Jury's water returned as rain; Water stays with Hearth Keepers' 💧/🏜"
+    },
+    {
+      "pair": "💎/⚡",
+      "name": "Electrify",
+      "why": "icons.json name; Spark stays with Reality Midwives' 🌠/⚡"
+    },
+    {
+      "pair": "📡/🔊",
+      "name": "Amplify",
+      "why": "icons.json name; Resonance Dancers' dish that yields the loudspeaker"
+    },
+    {
+      "pair": "⚡/🔋",
+      "name": "Accumulate",
+      "why": "icons.json name; lightning stored in the cell; Power stays with Kilowatt Collective's 🔋/⚙"
+    }
+  ],
+  "before": {
+    "📡/📶": {
+      "factions": [
+        "Signal",
+        "Uplink"
+      ],
+      "icons": "Signal",
+      "owners": [
+        "Engram Freighters",
+        "Relay Lattice"
+      ]
+    },
+    "⚙/🔩": {
+      "factions": [
+        "Mechanism",
+        "Mechanism",
+        "Machinery"
+      ],
+      "icons": "Mechanism",
+      "owners": [
+        "Gearwright Circle",
+        "Obsidian Will",
+        "Forgewright Union"
+      ]
+    },
+    "💎/⚡": {
+      "factions": [
+        "Spark"
+      ],
+      "icons": "Electrify",
+      "owners": [
+        "Gearwright Circle"
+      ]
+    },
+    "👥/🪓": {
+      "factions": [
+        "Labor"
+      ],
+      "icons": "",
+      "owners": [
+        "Hearth Keepers"
+      ]
+    },
+    "🌿/🌾": {
+      "factions": [
+        "Forage",
+        "Pasture"
+      ],
+      "icons": "Forage",
+      "owners": [
+        "Hearth Witches",
+        "Swift Herd"
+      ]
+    },
+    "📜/🖋": {
+      "factions": [
+        "Decree"
+      ],
+      "icons": "Decree",
+      "owners": [
+        "Ink Wardens"
+      ]
+    },
+    "🤖/🛡": {
+      "factions": [
+        "Guard"
+      ],
+      "icons": "Sentinel",
+      "owners": [
+        "Iron Confessors"
+      ]
+    },
+    "⛪/🗝": {
+      "factions": [
+        "Vigil"
+      ],
+      "icons": "Confession",
+      "owners": [
+        "Iron Confessors"
+      ]
+    },
+    "⚔/🛡": {
+      "factions": [
+        "Guard",
+        "Combat"
+      ],
+      "icons": "Guard",
+      "owners": [
+        "Iron Shepherds",
+        "Scythe Provosts"
+      ]
+    },
+    "💧/🌧": {
+      "factions": [
+        "Water"
+      ],
+      "icons": "",
+      "owners": [
+        "Irrigation Jury"
+      ]
+    },
+    "🪣/🌾": {
+      "factions": [
+        "Harvest"
+      ],
+      "icons": "",
+      "owners": [
+        "Irrigation Jury"
+      ]
+    },
+    "🔔/🗝": {
+      "factions": [
+        "Toll"
+      ],
+      "icons": "Tithe",
+      "owners": [
+        "Knot-Shriners"
+      ]
+    },
+    "🧿/🔦": {
+      "factions": [
+        "Ward"
+      ],
+      "icons": "Illuminate",
+      "owners": [
+        "Lantern Cant"
+      ]
+    },
+    "⚔/🌬": {
+      "factions": [
+        "Strike"
+      ],
+      "icons": "Gale",
+      "owners": [
+        "Locusts"
+      ]
+    },
+    "🏛/💰": {
+      "factions": [
+        "Vault"
+      ],
+      "icons": "Treasury",
+      "owners": [
+        "Market Spirits"
+      ]
+    },
+    "💾/🗝": {
+      "factions": [
+        "Archive"
+      ],
+      "icons": "Repository",
+      "owners": [
+        "Memory Merchants"
+      ]
+    },
+    "🫥/🪦": {
+      "factions": [
+        "Absence"
+      ],
+      "icons": "Memorial",
+      "owners": [
+        "Memory Weavers"
+      ]
+    },
+    "🕸/🌑": {
+      "factions": [
+        "Void"
+      ],
+      "icons": "Hollow",
+      "owners": [
+        "Memory Weavers"
+      ]
+    },
+    "🦠/💀": {
+      "factions": [
+        "Contagion",
+        "EuAnaerobe"
+      ],
+      "icons": "EuAnaerobe",
+      "owners": [
+        "Plague Vectors",
+        "Twilight Recyclers"
+      ]
+    },
+    "🦗/🧬": {
+      "factions": [
+        "Vector"
+      ],
+      "icons": "Contagion",
+      "owners": [
+        "Quarantine Sealwrights"
+      ]
+    },
+    "🧪/🧫": {
+      "factions": [
+        "Culture"
+      ],
+      "icons": "Colony",
+      "owners": [
+        "Quarantine Sealwrights"
+      ]
+    },
+    "🚢/⚓": {
+      "factions": [
+        "Fleet"
+      ],
+      "icons": "",
+      "owners": [
+        "Quay Rooks"
+      ]
+    },
+    "💰/🪝": {
+      "factions": [
+        "Ledger"
+      ],
+      "icons": "",
+      "owners": [
+        "Quay Rooks"
+      ]
+    },
+    "🛶/📋": {
+      "factions": [
+        "Manifest"
+      ],
+      "icons": "",
+      "owners": [
+        "Quay Rooks"
+      ]
+    },
+    "📡/🔊": {
+      "factions": [
+        "Signal"
+      ],
+      "icons": "Amplify",
+      "owners": [
+        "Resonance Dancers"
+      ]
+    },
+    "🕯/🔥": {
+      "factions": [
+        "Vigil"
+      ],
+      "icons": "Consecration",
+      "owners": [
+        "Sacred Flame Keepers"
+      ]
+    },
+    "🪨/📜": {
+      "factions": [
+        "Record"
+      ],
+      "icons": "Inscription",
+      "owners": [
+        "Salt Scribes"
+      ]
+    },
+    "🕵/⛓": {
+      "factions": [
+        "Contraband"
+      ],
+      "icons": "Surveillance",
+      "owners": [
+        "Salt-Runners"
+      ]
+    },
+    "🧵/🧶": {
+      "factions": [
+        "Thread"
+      ],
+      "icons": "Yarn",
+      "owners": [
+        "Seamstress Syndicate"
+      ]
+    },
+    "📡/👘": {
+      "factions": [
+        "Signal"
+      ],
+      "icons": "Frequency",
+      "owners": [
+        "Seamstress Syndicate"
+      ]
+    },
+    "📜/⚖": {
+      "factions": [
+        "Decree"
+      ],
+      "icons": "Edict",
+      "owners": [
+        "The Indelible Precept"
+      ]
+    },
+    "🧤/🗑": {
+      "factions": [
+        "Salvage"
+      ],
+      "icons": "",
+      "owners": [
+        "The Scavenged Psithurism"
+      ]
+    },
+    "💊/📦": {
+      "factions": [
+        "Decree"
+      ],
+      "icons": "Mandate",
+      "owners": [
+        "The Sovereign Ukase"
+      ]
+    },
+    "🔌/♻": {
+      "factions": [
+        "Circuit"
+      ],
+      "icons": "Loop",
+      "owners": [
+        "Tinker Team"
+      ]
+    },
+    "🪞/👤": {
+      "factions": [
+        "Reflection"
+      ],
+      "icons": "Double",
+      "owners": [
+        "Veiled Sisters"
+      ]
+    },
+    "🧷/🧿": {
+      "factions": [
+        "Ward"
+      ],
+      "icons": "Clasp",
+      "owners": [
+        "Veiled Sisters"
+      ]
+    },
+    "💫/🏮": {
+      "factions": [
+        "Lantern"
+      ],
+      "icons": "Luminary",
+      "owners": [
+        "Void Troubadours"
+      ]
+    },
+    "🪨/💎": {
+      "factions": [
+        "Forge"
+      ],
+      "icons": "",
+      "owners": [
+        "Volcanic Foundry"
+      ]
+    },
+    "🔥/🪨": {
+      "factions": [
+        "Magma"
+      ],
+      "icons": "Cinder",
+      "owners": [
+        "Forgewright Union"
+      ]
+    },
+    "🌉/🔥": {
+      "factions": [
+        "Crossing"
+      ],
+      "icons": "Bridge",
+      "owners": [
+        "Lamplighters"
+      ]
+    },
+    "📯/🏁": {
+      "factions": [
+        "Signal"
+      ],
+      "icons": "Fanfare",
+      "owners": [
+        "Lamplighters"
+      ]
+    },
+    "🌉/🪔": {
+      "factions": [
+        "Viaduct",
+        "Crossing"
+      ],
+      "icons": "Viaduct",
+      "owners": [
+        "Lamplighters",
+        "orphaned_icons"
+      ]
+    },
+    "⏰/⚙": {
+      "factions": [
+        "Mechanism"
+      ],
+      "icons": "Clockwork",
+      "owners": [
+        "Timekeepers"
+      ]
+    },
+    "🌙/🍂": {
+      "factions": [
+        "Harvest"
+      ],
+      "icons": "Moonfall",
+      "owners": [
+        "Phase Keepers"
+      ]
+    },
+    "🕳/⚡": {
+      "factions": [
+        "Singularity"
+      ],
+      "icons": "Rupture",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "📒/📋": {
+      "factions": [
+        "Record"
+      ],
+      "icons": "Logbook",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "⚜/🩸": {
+      "factions": [
+        "Nobility"
+      ],
+      "icons": "Bloodline",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "💀/⚱": {
+      "factions": [
+        "Aftermath"
+      ],
+      "icons": "Vestige",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🌾/🍄": {
+      "factions": [
+        "Harvest"
+      ],
+      "icons": "Spore",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "⚜/⚖": {
+      "factions": [
+        "Authority"
+      ],
+      "icons": "Dominion",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🎵/🧩": {
+      "factions": [
+        "Broadcast"
+      ],
+      "icons": "Tune",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🗃/♟": {
+      "factions": [
+        "Archive"
+      ],
+      "icons": "Chronicle",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🩸/🚀": {
+      "factions": [
+        "Sacrifice"
+      ],
+      "icons": "Martyr",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🕸/🕯": {
+      "factions": [
+        "Vigil"
+      ],
+      "icons": "Cobweb",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🔇/🌑": {
+      "factions": [
+        "Silence"
+      ],
+      "icons": "Null",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🚔/🔓": {
+      "factions": [
+        "Authority"
+      ],
+      "icons": "Enforcement",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🫧/🌿": {
+      "factions": [
+        "Cycle"
+      ],
+      "icons": "Sprout",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🌾/🏜": {
+      "factions": [
+        "Cargo"
+      ],
+      "icons": "Haul",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "📯/🗼": {
+      "factions": [
+        "Relay"
+      ],
+      "icons": "Tower",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🏁/🧂": {
+      "factions": [
+        "Contraband"
+      ],
+      "icons": "Checkpoint",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "💱/🕴": {
+      "factions": [
+        "Exchange"
+      ],
+      "icons": "Barter",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "💨/🏭": {
+      "factions": [
+        "Drive"
+      ],
+      "icons": "Draft",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🕷/🐛": {
+      "factions": [
+        "Predation"
+      ],
+      "icons": "Entangle",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🧿/🏮": {
+      "factions": [
+        "Ward"
+      ],
+      "icons": "Shrine",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🐑/🐺": {
+      "factions": [
+        "Predation"
+      ],
+      "icons": "Pursuit",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🥣/🫙": {
+      "factions": [
+        "Harvest"
+      ],
+      "icons": "Larder",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🔌/⚡": {
+      "factions": [
+        "Circuit"
+      ],
+      "icons": "Socket",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "💫/🔊": {
+      "factions": [
+        "Spark"
+      ],
+      "icons": "Flash",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🛰/⭐": {
+      "factions": [
+        "Orbit"
+      ],
+      "icons": "Satellite",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🧤/🏭": {
+      "factions": [
+        "Labor"
+      ],
+      "icons": "Toil",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "⚡/🔋": {
+      "factions": [
+        "Power"
+      ],
+      "icons": "Accumulate",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "📡/✨": {
+      "factions": [
+        "Signal"
+      ],
+      "icons": "Glimmer",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🌊/🪨": {
+      "factions": [
+        "Tide"
+      ],
+      "icons": "Surf",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🪤/🪝": {
+      "factions": [
+        "Snare"
+      ],
+      "icons": "Trap",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🧺/💰": {
+      "factions": [
+        "Commerce"
+      ],
+      "icons": "Market",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🧿/🪢": {
+      "factions": [
+        "Ward"
+      ],
+      "icons": "Tether",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "⌛/⏰": {
+      "factions": [
+        "Cycle"
+      ],
+      "icons": "Interval",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "⏳/🕰": {
+      "factions": [
+        "Witness"
+      ],
+      "icons": "Epoch",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🪔/📯": {
+      "factions": [
+        "Relay"
+      ],
+      "icons": "Lamppost",
+      "owners": [
+        "orphaned_icons"
+      ]
+    },
+    "🧂/🛶": {
+      "factions": [
+        "Cargo"
+      ],
+      "icons": "",
+      "owners": [
+        "Salt Runners"
+      ]
+    },
+    "💧/⛓": {
+      "factions": [
+        "Channel"
+      ],
+      "icons": "",
+      "owners": [
+        "Salt Runners"
+      ]
+    },
+    "🔓/🔍": {
+      "factions": [
+        "Tradecraft"
+      ],
+      "icons": "",
+      "owners": [
+        "Salt Runners"
+      ]
+    }
+  }
+}
