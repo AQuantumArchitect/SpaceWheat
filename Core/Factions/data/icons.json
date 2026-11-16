@@ -8120,5 +8120,267 @@
       "phase": 0.0,
       "type": "sine"
     }
+  },
+  {
+    "name": "Suture",
+    "pole_0": "🩸",
+    "pole_1": "🧵",
+    "self_energy_0": 0.18,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🫀": 0.6,
+      "🦴": 0.35,
+      "🧫": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Woodcutting",
+    "pole_0": "👥",
+    "pole_1": "🪓",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🪵": 0.5,
+      "🔥": 0.4,
+      "🍞": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Judgment",
+    "pole_0": "⚖",
+    "pole_1": "🌱",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💧": 0.5,
+      "🪣": 0.4,
+      "🌾": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Rainfall",
+    "pole_0": "💧",
+    "pole_1": "🌧",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🌱": 0.45,
+      "🪣": 0.35,
+      "🌾": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Irrigation",
+    "pole_0": "🪣",
+    "pole_1": "🌾",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💧": 0.6,
+      "🌱": 0.4,
+      "🛶": 0.2
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Density",
+    "pole_0": "🐝",
+    "pole_1": "🐇",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🦠": 0.4,
+      "🌾": 0.3,
+      "💀": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Anchorage",
+    "pole_0": "🚢",
+    "pole_1": "⚓",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🪝": 0.5,
+      "💰": 0.35,
+      "💧": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Usury",
+    "pole_0": "💰",
+    "pole_1": "🪝",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🚢": 0.35,
+      "⚓": 0.3,
+      "💸": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Tally",
+    "pole_0": "🛶",
+    "pole_1": "📋",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.45,
+    "hamiltonian_couplings": {
+      "🚢": 0.45,
+      "💰": 0.3,
+      "🛂": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Graze",
+    "pole_0": "🦌",
+    "pole_1": "🌿",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.08,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🐺": 0.35,
+      "🌾": 0.3,
+      "🐇": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Flight",
+    "pole_0": "🐇",
+    "pole_1": "🌿",
+    "self_energy_0": 0.08,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.3,
+    "hamiltonian_couplings": {
+      "🦅": 0.4,
+      "🦌": 0.3,
+      "🌱": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Leavings",
+    "pole_0": "🧤",
+    "pole_1": "🗑",
+    "self_energy_0": 0.1,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "♻": 0.5,
+      "🏭": 0.3,
+      "💀": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Geode",
+    "pole_0": "🪨",
+    "pole_1": "💎",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.3,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {
+      "🌋": 0.4,
+      "🔥": 0.3,
+      "⛏": 0.45
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Kiln",
+    "pole_0": "🌫",
+    "pole_1": "✨",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🔥": 0.45,
+      "💎": 0.3,
+      "🏜": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Ore",
+    "pole_0": "💎",
+    "pole_1": "⛏",
+    "self_energy_0": 0.3,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🪨": 0.5,
+      "🌋": 0.25,
+      "💰": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Above",
+    "pole_0": "🦋",
+    "pole_1": "🕷",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.1,
+    "rabi_coupling": 0.35,
+    "hamiltonian_couplings": {},
+    "energy_couplings": {}
+  },
+  {
+    "name": "Freight",
+    "pole_0": "🧂",
+    "pole_1": "🛶",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "💧": 0.45,
+      "🔓": 0.3,
+      "⛓": 0.25
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Sluice",
+    "pole_0": "💧",
+    "pole_1": "⛓",
+    "self_energy_0": 0.2,
+    "self_energy_1": 0.25,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🛶": 0.45,
+      "🧂": 0.3,
+      "🔓": 0.3
+    },
+    "energy_couplings": {}
+  },
+  {
+    "name": "Search",
+    "pole_0": "🔓",
+    "pole_1": "🔍",
+    "self_energy_0": 0.15,
+    "self_energy_1": 0.2,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🧂": 0.4,
+      "⛓": 0.3,
+      "🕵": 0.3
+    },
+    "energy_couplings": {}
   }
 ]

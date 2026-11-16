@@ -223,21 +223,28 @@ def analyse(data: dict) -> dict:
 
     # Sparsity: per word, per biome that boots it, the number of strong
     # coupling terms incident to it in that biome's boot Hamiltonian.
-    sparsity = []
+    # A word with Rabi 0 and no live coupling at all in a biome has no
+    # transverse term there (QuantumComputer.qubit_has_transverse_term): it
+    # never leaves its pole, so it can never ripen and never be learned.
+    sparsity, frozen = [], []
     for bn, pairs in boots.items():
         atoms_here = {a for q in pairs for a in q}
         for p in pairs:
-            live = 0
+            live = touching = 0
             for atom, v in out_c.get(p, {}).items():
-                if atom in atoms_here and atom not in p and mag(v) >= STRONG:
-                    live += 1
+                if atom in atoms_here and atom not in p:
+                    touching += mag(v) > 1e-12
+                    live += mag(v) >= STRONG
             for q in pairs:
                 if q == p:
                     continue
                 for atom, v in out_c.get(q, {}).items():
-                    if atom in p and mag(v) >= STRONG:
-                        live += 1
+                    if atom in p:
+                        touching += mag(v) > 1e-12
+                        live += mag(v) >= STRONG
             sparsity.append((p, bn, live))
+            if p in physics_of and abs(float(physics_of[p][0].get("rabi_coupling", 0.0))) < 1e-12 and not touching:
+                frozen.append((p, bn))
 
     return {
         "rows": rows, "listings": listings, "collisions": collisions,
@@ -245,7 +252,7 @@ def analyse(data: dict) -> dict:
         "listing_disagree": listing_disagree, "physicsless": physicsless,
         "reversed_only": reversed_only, "registered_no_physics": registered_no_physics,
         "unowned_physics": unowned_physics, "dup_physics": dup_physics, "rabi0": rabi0,
-        "atoms_no_icon": atoms_no_icon, "boots": boots, "sparsity": sparsity,
+        "atoms_no_icon": atoms_no_icon, "boots": boots, "sparsity": sparsity, "frozen": frozen,
         "axis_pairs": axis_pairs, "name_of": {r["pair"]: r["name"] for r in rows},
     }
 
@@ -284,6 +291,7 @@ def summary(a: dict) -> dict:
         "duplicate_physics_entries": len(a["dup_physics"]),
         "rabi_zero_words": len(a["rabi0"]),
         "atoms_without_icon": len(a["atoms_no_icon"]),
+        "rabi_zero_frozen_at_boot": len(a["frozen"]),
         "sparsity_over_%d" % SPARSE_MAX: sum(1 for *_, k in a["sparsity"] if k > SPARSE_MAX),
     }
 
@@ -314,6 +322,8 @@ def markdown(a: dict, title: str) -> str:
     L += ["- %s %s" % (ps(p), a["name_of"].get(p, "")) for p in a["registered_no_physics"]] or ["(none)"]
     L += ["", "## Words with Rabi 0 (no transverse term: cannot ripen, so cannot be learned)", ""]
     L += ["- %s %s" % (ps(p), a["name_of"].get(p, "")) for p in a["rabi0"]] or ["(none)"]
+    L += ["", "## Rabi-0 words frozen at boot (no Rabi and no live coupling in that biome)", ""]
+    L += ["- %s %s in %s" % (ps(p), a["name_of"].get(p, ""), b) for p, b in sorted(a["frozen"])] or ["(none)"]
     L += ["", "## Atoms with no icon", "", " ".join(a["atoms_no_icon"]) or "(none)"]
     over = [(p, b, k) for p, b, k in a["sparsity"] if k > SPARSE_MAX]
     L += ["", "## Sparsity: words with more than %d live couplings of |c| >= %.1f at boot" % (SPARSE_MAX, STRONG), ""]
