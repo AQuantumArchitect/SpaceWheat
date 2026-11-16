@@ -776,14 +776,13 @@ func _check_flag_predicate(pred: Dictionary, farm) -> float:
 			var biome = farm.grid.get_biome(str(pred.get("biome", "")))
 			return 1.0 if (biome != null and biome.get("quantum_computer") != null) else 0.0
 		"icon_incorporated":
-			# This exact word (either pole order) is on the deliberate
-			# incorporation ledger. Structural 1/0.
+			# This word is on the deliberate incorporation ledger. Structural
+			# 1/0. Ordered pair identity: the reversed pole order counts only
+			# when it is not a word of its own (ProbeActions.same_word).
 			var ina := str(pred.get("north", ""))
 			var inb := str(pred.get("south", ""))
 			for ic in farm.incorporated_icons:
-				var ia := str(ic.get("north", ""))
-				var ib := str(ic.get("south", ""))
-				if (ia == ina and ib == inb) or (ia == inb and ib == ina):
+				if ProbeActions.same_word(ic, ina, inb):
 					return 1.0
 			return 0.0
 		"home_biome_has_emoji":

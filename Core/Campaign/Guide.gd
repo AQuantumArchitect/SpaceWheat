@@ -1547,7 +1547,8 @@ static func _learn_word(q: Dictionary) -> Dictionary:
 	return {}
 
 
-## Columns of `biome` whose axis is the word north/south (either pole order).
+## Columns of `biome` whose axis is the word north/south (ordered pair
+## identity: the reversed pole order only when it is not a word of its own).
 static func _axis_cols(biome: String, north: String, south: String) -> Array:
 	var farm = UIP._active_farm()
 	var out: Array = []
@@ -1557,9 +1558,7 @@ static func _axis_cols(biome: String, north: String, south: String) -> Array:
 	var rm = b.quantum_computer.register_map
 	for col in range(mini(int(rm.num_qubits), BERRY_ROWS)):
 		var ax: Dictionary = rm.axis(col)
-		var a := str(ax.get("north", ""))
-		var c := str(ax.get("south", ""))
-		if (a == north and c == south) or (a == south and c == north):
+		if ProbeActions.same_word(ax, north, south):
 			out.append(col)
 	return out
 

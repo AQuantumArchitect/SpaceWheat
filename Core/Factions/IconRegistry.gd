@@ -66,6 +66,61 @@ static func _pair_key(p0: String, p1: String) -> String:
 	return "%s|%s" % [norm_emoji(p0), norm_emoji(p1)]
 
 
+## ORDERED PAIR IDENTITY (owner ruling 2026-11-16). An icon is an ORDERED pair:
+## pole_0 (north) then pole_1 (south), and the south pole is what the word
+## provides. A/B and B/A may be two different words (Commerce ⚖/💰 provides
+## 💰, Levy 💰/⚖ provides ⚖). When the inverse orientation is NOT a word of its
+## own, B/A is the same word read the other way round, so either orientation
+## still finds it (old saves, taught pairs and planted axes keep working).
+##
+## `_inverse_words` holds the ordered key of every record whose reverse is a
+## different registered word. It is static so the static helpers below
+## (`same_word`, `discovered_set_from_icons`) can answer without an instance;
+## any registry build refreshes it.
+static var _inverse_words: Dictionary = {}
+static var _inverse_words_built: bool = false
+static var _static_fallback = null
+
+
+## True when n/s and s/n are two different registered words.
+static func has_inverse_word(n: String, s: String) -> bool:
+	_ensure_inverse_words()
+	return _inverse_words.has(_pair_key(n, s))
+
+
+## THE word-identity test: does the axis n1/s1 name the same word as n2/s2?
+## Exact orientation always matches; the reversed orientation matches only
+## when that pair has no inverse word of its own.
+static func same_word(n1: String, s1: String, n2: String, s2: String) -> bool:
+	if n1 == "" or s1 == "" or n2 == "" or s2 == "":
+		return false
+	var a := _pair_key(n1, s1)
+	if a == _pair_key(n2, s2):
+		return true
+	if a != _pair_key(s2, n2):
+		return false
+	return not has_inverse_word(n1, s1)
+
+
+static func _ensure_inverse_words() -> void:
+	if _inverse_words_built:
+		return
+	# No registry built yet in this process (a bare static call from a tool or
+	# test): build one once, which fills the table.
+	if _static_fallback == null:
+		_static_fallback = load("res://Core/Factions/IconRegistry.gd").new()
+
+
+func _rebuild_inverse_words() -> void:
+	_inverse_words.clear()
+	for key in _by_pair:
+		var rec: Dictionary = _by_pair[key]
+		var rev := _pair_key(str(rec.get("pole_1", "")), str(rec.get("pole_0", "")))
+		if rev != key and _by_pair.has(rev):
+			_inverse_words[key] = true
+	_inverse_words_built = true
+
+
 func _reload_all() -> void:
 	_by_pair.clear()
 	_by_name.clear()
@@ -83,6 +138,7 @@ func _reload_all() -> void:
 	# never sets SEMANTICA_EXPLORER, so this branch is dead weight for them.
 	if RuntimeEnv.semantica_explorer():
 		_load_semantica_icon_physics()
+	_rebuild_inverse_words()
 	_rebuild_atom_cache()
 	_loaded = true
 
@@ -319,6 +375,9 @@ func find_icon_by_emoji(emoji: String) -> Dictionary:
 	return {}
 
 
+## Ordered lookup: the exact pole_0/pole_1 word first. The reversed record is
+## returned only when this orientation is not a word of its own (then B/A is
+## the same word read inverted; see ORDERED PAIR IDENTITY above).
 func find_icon_by_pair(pole_0: String, pole_1: String) -> Dictionary:
 	var key = _pair_key(pole_0, pole_1)
 	if _by_pair.has(key):
@@ -357,10 +416,12 @@ func _physics_from_record(record: Dictionary) -> Dictionary:
 
 
 func get_factions_for_pair(p0: String, p1: String) -> Array:
+	# Ordered: when p0/p1 is a word of its own, its owners are its owners (an
+	# inverse word's factions never leak onto it). Only a pair with no record
+	# in this orientation falls back to the reversed word's owners.
 	var key = _pair_key(p0, p1)
-	var facs = _pair_to_factions.get(key, [])
-	if not facs.is_empty():
-		return facs
+	if _by_pair.has(key):
+		return _pair_to_factions.get(key, [])
 	return _pair_to_factions.get(_pair_key(p1, p0), [])
 
 
@@ -403,13 +464,18 @@ static func discovered_set_from_icons(icon: Array) -> Dictionary:
 		if n == "" or s == "":
 			continue
 		out[_pair_key(n, s)] = true
-		out[_pair_key(s, n)] = true
+		# The reversed orientation is the same word only when it is not a
+		# word of its own (ordered pair identity).
+		if not has_inverse_word(s, n):
+			out[_pair_key(s, n)] = true
 	return out
 
 
 func is_icon_discovered(pole_0: String, pole_1: String, discovered: Dictionary) -> bool:
 	if discovered.has(_pair_key(pole_0, pole_1)):
 		return true
+	if has_inverse_word(pole_0, pole_1):
+		return false
 	return discovered.has(_pair_key(pole_1, pole_0))
 
 

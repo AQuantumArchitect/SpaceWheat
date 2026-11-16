@@ -521,6 +521,7 @@ const TIER_ICON := "icon"
 const MULT_EMOJI := 2.0
 const MULT_ICON_ON_TOP := 3.0
 const HOME_BIOME := "TheDemos"
+const _IconRegistryScript = preload("res://Core/Factions/IconRegistry.gd")
 
 
 ## {tier, multiplier} for the axis north/south against farm's vocabulary.
@@ -584,13 +585,14 @@ static func tier_label(tier: String) -> String:
 	return ""
 
 
-## One ledger entry against one axis, orientation-blind (an icon is its axis).
+## One ledger entry against one axis. Ordered pair identity (IconRegistry):
+## the exact orientation is the word; the reversed one is the same word only
+## when it is not a word of its own (Labor 👥/🍞 is not Bread 🍞/👥).
 static func same_word(ic, north: String, south: String) -> bool:
 	if not (ic is Dictionary) or north == "" or south == "":
 		return false
-	var a := str(ic.get("north", ""))
-	var b := str(ic.get("south", ""))
-	return (a == north and b == south) or (a == south and b == north)
+	return _IconRegistryScript.same_word(
+			str(ic.get("north", "")), str(ic.get("south", "")), north, south)
 
 
 ## What one strike of `resource` at strike-time probability `p` pays: the

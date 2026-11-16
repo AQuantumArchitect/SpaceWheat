@@ -92,7 +92,7 @@ These terms are **locked** — use them exactly. The authority is `Core/Document
 |------|--------------------|
 | **atom** | A single emoji. The smallest named unit of matter. |
 | **cloud** | A set of atoms — "everything that touches a thing." (A faction's emoji set.) |
-| **icon** | A named two-atom physics record; **provides H** to a neighborhood. (= one qubit axis, `pole_0`/`pole_1`.) |
+| **icon** | A named two-atom physics record; **provides H** to a neighborhood. (= one qubit axis, `pole_0`/`pole_1`.) The pair is **ordered**: the south pole is what the word provides, and `B/A` can be a different word from `A/B` (Commerce `⚖/💰`, Levy `💰/⚖`). See `Core/Documentation/glossary/icon.md`. |
 | **sibling** | The two atoms that share one icon's axis (north & south pole of one qubit). |
 | **signature** | **A set of icons.** The icon side of a faction or neighborhood. This is the player's growing "vocabulary of physics." |
 | **family** | All atoms reachable by (open-system) Lindblad transfers — the weak-coupling graph. |
