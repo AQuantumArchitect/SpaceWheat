@@ -68,7 +68,7 @@ The details are in three places, depending on who you are:
 | | |
 |---|---|
 | Biomes | 164, each with its own Hamiltonian; 66 also carry authored Lindblad (open-system) channels |
-| Factions | 102, with 367 icons (two-emoji qubit axes) |
+| Factions | 102, with 368 icons (two-emoji qubit axes) |
 | Gates | 14 exact unitaries (Paulis, H, S, T and their inverses, rotations, CNOT, CZ, SWAP); Bell, GHZ and cluster states built from them |
 | Simulation | C++ GDExtension on Eigen: exact unitary propagation, Lindblad for open biomes |
 | Code | ~126k lines GDScript, ~45k Python (tools, tests and the agent rig), ~6.5k C++ |

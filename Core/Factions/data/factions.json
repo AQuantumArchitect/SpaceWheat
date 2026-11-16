@@ -5867,6 +5867,11 @@
         "name": "Subsistence",
         "pole_0": "👥",
         "pole_1": "🌾"
+      },
+      {
+        "name": "Bastion",
+        "pole_0": "🛡",
+        "pole_1": "🚪"
       }
     ],
     "neighborhoods": [

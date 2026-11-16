@@ -7173,6 +7173,22 @@
     }
   },
   {
+    "name": "Bastion",
+    "pole_0": "🛡",
+    "pole_1": "🚪",
+    "self_energy_0": 0.25,
+    "self_energy_1": 0.15,
+    "rabi_coupling": 0.4,
+    "hamiltonian_couplings": {
+      "🌾": 0.5,
+      "🍞": 0.3,
+      "🔥": 0.3,
+      "⛓": -0.6,
+      "🛸": 0.4
+    },
+    "energy_couplings": {}
+  },
+  {
     "name": "Hub",
     "pole_0": "⚫",
     "pole_1": "⭐",
