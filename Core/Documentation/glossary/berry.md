@@ -28,9 +28,9 @@ biome's `QuantumComputer` (headless-visible; the viz cache only mirrors it):
 - **Neglect decays it** — an untracked qubit's residual phase fades with a ~47 s
   half-life until the entry is dropped. Ripeness must be tended.
 
-The story reads the same register: `first_breath` is `signature_growth_gte 0.5`
-(the first stretch of the player's signature, not a Berry harvest). First
-berry *credit* is `forest_evolving` (`berry_consumed_count_gte 1`).
+The story reads the same register: `first_breath` is the first Village harvest
+(`berry_consumed_count_gte 1`), and the guide points it at the 🔥/❄ plot, the
+fire the Druid spends; `spiral_breaks` takes the next word from the forest.
 `forest_communion` gates on 4π — two full hemispheres of deliberate steering
 (`berry_total_phase_gte: 12.566`). The predicates `berry_consumed_count_gte` /
 `berry_total_phase_gte` count what harvesting consumes.

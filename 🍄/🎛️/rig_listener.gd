@@ -857,6 +857,8 @@ func _execute_command(cmd: Dictionary) -> Dictionary:
 		"known_icons":
 			var icons = _instrument.get_known_icons() if _instrument else []
 			result["icons"] = icons if icons is Array else []
+			# The deliberate incorporation ledger, oldest first (Farm.incorporated_icons).
+			result["incorporated"] = _farm.incorporated_icons.duplicate() if _farm != null and "incorporated_icons" in _farm else []
 
 		"atom_diversity":
 			# Distinct atom emojis across all loaded biomes + per-biome breakdown — used to
