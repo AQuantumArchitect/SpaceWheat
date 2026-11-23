@@ -22,7 +22,7 @@ var _sounds: Dictionary = {}
 
 ## Pool of AudioStreamPlayers for overlapping SFX
 var _players: Array[AudioStreamPlayer] = []
-const POOL_SIZE := 4
+const POOL_SIZE := 6  # a rare Gather stacks three layers
 const SFX_BASE_PATH := "res://Assets/Audio/SFX/"
 
 ## Volume (linear 0.0–1.0)
@@ -74,6 +74,11 @@ func _register_default_events() -> void:
 		"menu_close",
 		"fractal_descend",
 		"fractal_ascend",
+		# Harvest-loop juice (#60): Gather's upper layers + the quiet cues.
+		"harvest_sparkle",
+		"harvest_rare",
+		"plant_soft",
+		"ripe_ready",
 	]
 	var loaded := 0
 	for event_id in events:
@@ -250,13 +255,49 @@ func reset() -> void:
 # SIGNAL HANDLERS
 # ═══════════════════════════════════════════════════════════════════════
 
-# Pop chain ladder (Mini-Metro/shapez trick): pops within the window step the
-# pitch up a pentatonic degree; silence resets the ladder. Pure celebration —
-# reads only the already-computed result, never touches mechanics.
-const _PENTATONIC_SEMITONES: Array[int] = [0, 2, 4, 7, 9, 12]
-const _POP_CHAIN_WINDOW_MS := 2000
+# Pop chain ladder (Mini-Metro/shapez trick): pops within the combo window
+# step the pitch up a pentatonic degree; silence resets the ladder. Pure
+# celebration: reads only the already-computed result, never mechanics.
+# Every knob is in FeedbackTuning.
 var _pop_chain: int = 0
 var _last_pop_ms: int = -1000000
+
+
+## Advance (or reset) the combo ladder for a Gather at `now_ms`; returns the step.
+func _step_pop_chain(now_ms: int) -> int:
+	if now_ms - _last_pop_ms <= FeedbackTuning.COMBO_WINDOW_MS:
+		_pop_chain = mini(_pop_chain + 1, FeedbackTuning.COMBO_SEMITONES.size() - 1)
+	else:
+		_pop_chain = 0
+	_last_pop_ms = now_ms
+	return _pop_chain
+
+
+## Layered Gather: thump always; sparkle fades in with surprisal; the bell only
+## on rare payouts. The whole stack climbs the combo ladder. Intensity scales
+## the upper layers; at 0 only the thump remains (the action still confirms).
+func play_harvest(credits: float) -> void:
+	var step := _step_pop_chain(Time.get_ticks_msec())
+	var rel := FeedbackTuning.rel_for(credits)
+	var pitch := pow(2.0, float(FeedbackTuning.COMBO_SEMITONES[step]) / 12.0)
+	var juice := FeedbackTuning.intensity()
+	play("pop_success", FeedbackTuning.HARVEST_BASE_VOL + FeedbackTuning.HARVEST_BASE_VOL_PER_REL * rel, pitch)
+	if juice <= 0.0:
+		return
+	if rel >= FeedbackTuning.HARVEST_SPARKLE_MIN_REL:
+		var sparkle_gain := (rel - FeedbackTuning.HARVEST_SPARKLE_MIN_REL) \
+				/ (1.0 - FeedbackTuning.HARVEST_SPARKLE_MIN_REL)
+		play("harvest_sparkle", FeedbackTuning.HARVEST_SPARKLE_VOL * sparkle_gain * juice,
+				pitch * (1.0 + FeedbackTuning.HARVEST_SPARKLE_PITCH_PER_STEP * step))
+	if rel >= FeedbackTuning.BIG_POP_REL:
+		play("harvest_rare", FeedbackTuning.HARVEST_RARE_VOL * juice, pitch)
+
+
+## A tracked plot just ripened. Called by FloatingRewardLayer's ripe watcher.
+func play_ripe() -> void:
+	var juice := FeedbackTuning.intensity()
+	if juice > 0.0:
+		play("ripe_ready", FeedbackTuning.RIPE_VOL * juice)
 
 
 func _on_action_performed(action: String, result: Dictionary) -> void:
@@ -264,21 +305,18 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 	if result.get("success", false):
 		match action:
 			"explore":
-				play("explore_success")
+				play("explore_success", FeedbackTuning.EXPLORE_VOL)
+			"inject_icon", "plant":
+				# Planting (an icon into a biome, or Ace's Rabi pulse) is
+				# anticipation, not payoff: a quiet low pluck.
+				play("plant_soft", FeedbackTuning.PLANT_VOL)
 			"measure":
 				play("measure_success")
 			"pop":
 				# Surprisal-scaled celebration: bigger payouts (rarer outcomes,
-				# E = −kT·log p) land louder; quick chains climb the pentatonic.
-				var now := Time.get_ticks_msec()
-				if now - _last_pop_ms <= _POP_CHAIN_WINDOW_MS:
-					_pop_chain = mini(_pop_chain + 1, _PENTATONIC_SEMITONES.size() - 1)
-				else:
-					_pop_chain = 0
-				_last_pop_ms = now
-				var rel := tanh(float(result.get("credits", 0)) / 40.0)
-				var pitch := pow(2.0, float(_PENTATONIC_SEMITONES[_pop_chain]) / 12.0)
-				play("pop_success", 0.85 + 0.45 * rel, pitch)
+				# E = −kT·log p) land louder and stack more layers; quick chains
+				# climb the pentatonic.
+				play_harvest(FeedbackTuning.harvest_size(result))
 			"reap":
 				play("reap_success")
 			"enter_icon":

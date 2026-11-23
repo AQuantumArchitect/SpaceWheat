@@ -1288,10 +1288,14 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 # via board_specs() — the single source of truth. open_only rows (Lindbladian-only)
 # are filtered out in the closed system.
 const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 45}
+# Harvest-loop juice (#60): how loud the flourish is, and whether anything moves.
+# Persisted by FeedbackTuning beside the audio volumes.
+const _FEEDBACK_ROW := {"id": "feedback_intensity", "label": "Feedback", "category": "Audio", "value_path": [], "kind": "feedback_pct", "step": 25, "min": 0, "max": 100, "default": 100}
+const _MOTION_ROW := {"id": "reduced_motion", "label": "Reduced motion", "category": "Audio", "value_path": [], "kind": "toggle_motion", "step": 1, "min": 0, "max": 1, "default": 0}
 
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():
-		_balance_settings = [_MUSIC_ROW.duplicate(true)]
+		_balance_settings = [_MUSIC_ROW.duplicate(true), _FEEDBACK_ROW.duplicate(true), _MOTION_ROW.duplicate(true)]
 		var closed: bool = not BalanceConfig.dissipative_enabled()
 		for d in BalanceConfig.board_specs():
 			if closed and bool(d.get("open_only", false)):
@@ -1309,6 +1313,10 @@ func _balance_setting_value(setting: Dictionary) -> Variant:
 		if music and music.has_method("get_volume"):
 			return int(round(float(music.get_volume()) * 100.0))
 		return int(setting.get("default", 70))
+	if kind == "feedback_pct":
+		return int(round(FeedbackTuning.intensity() * 100.0))
+	if kind == "toggle_motion":
+		return 1 if FeedbackTuning.reduced_motion() else 0
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
 		return setting.get("default", 0.0)
@@ -1330,6 +1338,12 @@ func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
 		var music = get_node_or_null("/root/MusicManager")
 		if music and music.has_method("set_volume"):
 			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
+		return
+	if kind == "feedback_pct":
+		FeedbackTuning.set_intensity(float(value) / 100.0)
+		return
+	if kind == "toggle_motion":
+		FeedbackTuning.set_reduced_motion(int(value) != 0)
 		return
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
@@ -1356,8 +1370,10 @@ func _balance_setting_format(setting: Dictionary) -> String:
 	var kind: String = str(setting.get("kind", "float"))
 	var v = _balance_setting_value(setting)
 	match kind:
-		"music_pct":
+		"music_pct", "feedback_pct":
 			return "%d%%" % int(v)
+		"toggle_motion":
+			return "On" if int(v) != 0 else "Off"
 		"int":
 			return "%d" % int(v)
 		"float":
@@ -1377,7 +1393,7 @@ func _nudge_balance_setting(direction: int) -> void:
 	var current = _balance_setting_value(setting)
 	var next
 	match kind:
-		"music_pct", "int":
+		"music_pct", "feedback_pct", "toggle_motion", "int":
 			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
 		_:
 			next = clampf(float(current) + direction * step, float(lo), float(hi))

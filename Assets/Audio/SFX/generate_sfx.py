@@ -204,6 +204,60 @@ def gen_fractal_ascend():
     return make_samples(dur, f)
 
 
+# ── harvest_sparkle ──────────────────────────────────────────────────────────
+# Gather's second layer: a bright, airy two-partial shimmer that sits an octave
+# and a fifth above pop_success's thump. SFXRegistry fades it in with the
+# payout's surprisal, so a trickle is just the thump and a real payout glitters.
+def gen_harvest_sparkle():
+    dur = 0.32
+    def f(t, d):
+        env = env_gaussian(t, d, center_frac=0.22, sigma_frac=0.30)
+        trem = 0.75 + 0.25 * math.sin(2.0 * math.pi * 23.0 * t)
+        return (sine(t, 1568.0) * 0.07 + sine(t, 2349.3) * 0.045) * env * trem
+    return make_samples(dur, f)
+
+
+# ── harvest_rare ─────────────────────────────────────────────────────────────
+# Gather's third layer, rare payouts only: a soft bell triad (G5·B5·D6) with
+# slightly inharmonic overtones and a long tail. The big moment's sound.
+def gen_harvest_rare():
+    dur = 0.90
+    def f(t, d):
+        out = 0.0
+        for freq, amp in ((783.99, 0.08), (987.77, 0.06), (1174.66, 0.05)):
+            out += sine(t, freq, amp) + sine(t, freq * 2.76, amp * 0.25)
+        return out * env_gaussian(t, d, center_frac=0.10, sigma_frac=0.38)
+    return make_samples(dur, f)
+
+
+# ── plant_soft ───────────────────────────────────────────────────────────────
+# Planting an icon: a quiet low pluck that hints upward. Anticipation, not
+# payoff — deliberately softer and lower than anything in the harvest stack.
+def gen_plant_soft():
+    dur = 0.26
+    def f(t, d):
+        freq = 196.0 * (1.0 + 0.12 * (t / d))
+        env = env_gaussian(t, d, center_frac=0.20, sigma_frac=0.32)
+        return (sine(t, freq) * 0.14 + sine(t, freq * 2.0) * 0.03) * env
+    return make_samples(dur, f)
+
+
+# ── ripe_ready ───────────────────────────────────────────────────────────────
+# A tracked plot ripened (Berry phase reached 2π): two soft rising notes, a
+# fourth apart. "Something is ready over there" — a nudge, not a fanfare.
+def gen_ripe_ready():
+    dur = 0.46
+    def f(t, d):
+        half = d * 0.5
+        if t < half:
+            note = sine(t, 523.25) * env_gaussian(t, half, center_frac=0.35, sigma_frac=0.30)
+        else:
+            tt = t - half
+            note = sine(tt, 698.46) * env_gaussian(tt, half, center_frac=0.35, sigma_frac=0.34)
+        return note * 0.10
+    return make_samples(dur, f)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 
 GENERATORS = {
@@ -219,6 +273,12 @@ GENERATORS = {
     "menu_close": gen_menu_close,
     "fractal_descend": gen_fractal_descend,
     "fractal_ascend": gen_fractal_ascend,
+    # Appended (not interleaved) so random.seed(42) leaves every earlier file
+    # byte-identical on a regeneration.
+    "harvest_sparkle": gen_harvest_sparkle,
+    "harvest_rare": gen_harvest_rare,
+    "plant_soft": gen_plant_soft,
+    "ripe_ready": gen_ripe_ready,
 }
 
 if __name__ == "__main__":
