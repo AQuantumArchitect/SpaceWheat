@@ -319,6 +319,11 @@ static func action_measure(terminal, biome, economy = null, farm = null) -> Dict
 			"error": "collapse_failed",
 			"message": "Measurement collapse failed: biome quantum state unavailable."
 		}
+	# The collapse wrote ρ outside the evolution tick. Re-project it now: while
+	# the sim is paused (E, the banner's "more", Ace Pause) no tick follows, and
+	# the bubbles kept showing the pre-strike state — after a Bell weave, a
+	# strike that "did nothing" (#90). Gates already do this.
+	_refresh_viz(biome)
 
 	# 5. Bank the strike and go dark. The probe stays on the plot (bound,
 	#    unmeasured) holding the bank; F lights it again and R can strike
@@ -436,8 +441,18 @@ static func _resolve_drain_fraction(_biome, purity: float, farm = null) -> float
 	return clampf(base_drain * clampf(purity, 0.0, 1.0), 0.0, 1.0)
 
 
+## ρ → viz cache, through the biome's one projection (BiomeBase.refresh_viz_projection).
+static func _refresh_viz(biome) -> void:
+	if biome and biome.has_method("refresh_viz_projection"):
+		biome.refresh_viz_projection()
+
+
 static func _resolve_measurement_context(terminal, biome) -> Dictionary:
 	var register_id = terminal.bound_register_id if terminal else -1
+	# Sample from the live ρ, not from whatever the cache last saw: a write that
+	# skipped the projection (or a paused clock) would otherwise Born-sample the
+	# old state, then project onto an outcome the live state may barely hold.
+	_refresh_viz(biome)
 	var north_prob = biome.get_register_probability(register_id) if biome and biome.has_method("get_register_probability") else -1.0
 	var south_prob = 1.0 - north_prob if north_prob >= 0.0 else -1.0
 	var snapshot: Dictionary = {}
