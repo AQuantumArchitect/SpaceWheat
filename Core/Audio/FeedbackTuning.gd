@@ -57,6 +57,8 @@ const HARVEST_RARE_VOL := 0.8
 # ═══════════════════════════════════════════════════════════════════════
 
 const PLANT_VOL := 0.6
+## The planted orb is revealed a beat after inject_icon; wait for it.
+const PLANT_CUE_DELAY_S := 0.15
 const EXPLORE_VOL := 0.75
 const RIPE_VOL := 0.55
 

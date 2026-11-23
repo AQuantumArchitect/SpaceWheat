@@ -97,7 +97,7 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 		"inject_icon":
 			# Planting: a quiet green ring once the new orb is on screen.
 			var tw := create_tween()
-			tw.tween_interval(0.15)
+			tw.tween_interval(FeedbackTuning.PLANT_CUE_DELAY_S)
 			tw.tween_callback(_quiet_cue.bind(str(result.get("biome", "")),
 					int(result.get("qubit_index", -1)), FeedbackTuning.PLANT_COLOR, FeedbackTuning.PUNCH_PLANT))
 		"measure":
