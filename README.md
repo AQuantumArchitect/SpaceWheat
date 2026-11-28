@@ -3,7 +3,7 @@
 [![CI](https://github.com/AQuantumArchitect/SpaceWheat/actions/workflows/ci.yml/badge.svg)](https://github.com/AQuantumArchitect/SpaceWheat/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/AQuantumArchitect/SpaceWheat?include_prereleases&label=download)](https://github.com/AQuantumArchitect/SpaceWheat/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Godot 4.5](https://img.shields.io/badge/Godot-4.5-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org)
+[![Godot 4.6.2](https://img.shields.io/badge/Godot-4.6.2-478cbf?logo=godot-engine&logoColor=white)](https://godotengine.org)
 
 **A farming game where every field is a real quantum system.** Each plot is a
 qubit, each biome is a density matrix evolving under its own Hamiltonian, and
@@ -22,7 +22,7 @@ ending with a fleet of coding, playtesting and review bots.
 - **Download (Windows):** the newest build is on the
   [releases page](https://github.com/AQuantumArchitect/SpaceWheat/releases).
   Unzip it and run `SpaceWheat.exe`.
-- **From source (Linux or Windows):** open the folder in Godot 4.5 and press
+- **From source (Linux or Windows):** open the folder in Godot 4.6.2 and press
   Play. The native physics library is prebuilt for both in `native/bin/`.
 
 Status: **alpha**. The main campaign, *The Demos*, has seven acts (0–6) from

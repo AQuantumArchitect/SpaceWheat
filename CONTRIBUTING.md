@@ -1,6 +1,6 @@
 # Contributing to SpaceWheat
 
-SpaceWheat is a Godot 4.5 game where the physics is real (a density-matrix
+SpaceWheat is a Godot 4.6.2 game where the physics is real (a density-matrix
 quantum simulation drives every biome). Contributions that touch gameplay,
 UI, or the native extension should hold that bar: no faked numbers, no
 decorative "quantum" flavor text standing in for an actual computation.
@@ -15,7 +15,7 @@ decorative "quantum" flavor text standing in for an actual computation.
 
 ## Building
 
-Requires Godot 4.5. See [`BUILDING.md`](BUILDING.md) for full instructions,
+Requires Godot 4.6.2. See [`BUILDING.md`](BUILDING.md) for full instructions,
 including the native C++ extension (`cd native && scons`).
 
 ```bash

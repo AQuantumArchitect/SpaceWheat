@@ -81,7 +81,7 @@ GODOT_BIN="$(sw_godot_bin)"
 if ! command -v "$GODOT_BIN" &> /dev/null; then
     warn "Godot not found: $GODOT_BIN"
     echo ""
-    echo "Please download Godot 4.5+ from: https://godotengine.org/download/"
+    echo "Please download Godot 4.6.2 from: https://godotengine.org/download/archive/4.6.2-stable/"
     echo "After installing, add it to PATH or set GODOT_BIN environment variable."
     echo ""
     read -p "Press Enter when Godot is installed..."
