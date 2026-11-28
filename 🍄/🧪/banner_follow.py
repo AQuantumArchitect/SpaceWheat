@@ -180,6 +180,7 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
     rep["contract_claims"] = 0
     rep["accepted"] = False
     same, last_sig, seen_lines, waits = 0, None, [], 0
+    t_start = time.time()
     for i in range(cap):
         banner = f.banner()
         line = banner[0] if banner else ""
@@ -196,6 +197,7 @@ def follow(rig, beat: str, cap: int = PRESS_CAP) -> dict:
         if new_flags or beat_claim:
             rep["outcome"] = "moved"
             rep["moved_by"] = {"flags": new_flags, "beat_claimed": bool(beat_claim)}
+            rep["follow_seconds"] = round(time.time() - t_start, 1)
             break
         if not line:
             rep["outcome"] = "no_banner"

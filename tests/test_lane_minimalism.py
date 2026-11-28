@@ -1021,7 +1021,7 @@ def test_berry_walk_names_one_first_breath_key():
     assert "[5]" in hint
     assert "[F]" in hint
     assert "[R]" in hint
-    assert "90" in hint
+    assert "wait ~1 min" in hint  # measured by tests/test_first_breath_fire_ice.py (#125)
     assert len(hint) <= 70
     assert "⏩" not in hint
 
