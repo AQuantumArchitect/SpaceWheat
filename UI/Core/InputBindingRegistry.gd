@@ -112,6 +112,7 @@ const GLOBAL_BINDINGS := [
 	{"key": "Shift+Q", "label": "Mass Gather", "description": "Gather every bound terminal in the checked set"},
 	{"key": "]", "label": "Descend", "description": "Enter the focused register's icon world (costs; needs the incorporation gate)"},
 	{"key": "Shift+]", "label": "Ascend", "description": "Surface one fractal level back toward the world above (free)"},
+	{"key": "F11", "label": "Fullscreen", "description": "Toggle fullscreen / windowed (saved; also Escape → Balance → Display)"},
 	{"key": "F12", "label": "Postcard", "description": "Capture the view with the physics watermark + sidecar certificate (user://postcards/)"},
 ]
 

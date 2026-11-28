@@ -1289,9 +1289,14 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 # are filtered out in the closed system.
 const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 45}
 
+const _DISPLAY_ROW := {"id": "display_mode", "label": "Display (F11)", "category": "Display", "value_path": [], "kind": "display_mode", "step": 1, "min": 0, "max": 1, "default": 0}
+
+func _display_settings() -> Node:
+	return get_node_or_null("/root/DisplaySettings")
+
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():
-		_balance_settings = [_MUSIC_ROW.duplicate(true)]
+		_balance_settings = [_MUSIC_ROW.duplicate(true), _DISPLAY_ROW.duplicate(true)]
 		var closed: bool = not BalanceConfig.dissipative_enabled()
 		for d in BalanceConfig.board_specs():
 			if closed and bool(d.get("open_only", false)):
@@ -1309,6 +1314,9 @@ func _balance_setting_value(setting: Dictionary) -> Variant:
 		if music and music.has_method("get_volume"):
 			return int(round(float(music.get_volume()) * 100.0))
 		return int(setting.get("default", 70))
+	if kind == "display_mode":
+		var ds = _display_settings()
+		return 1 if (ds and ds.is_fullscreen()) else 0
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
 		return setting.get("default", 0.0)
@@ -1330,6 +1338,11 @@ func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
 		var music = get_node_or_null("/root/MusicManager")
 		if music and music.has_method("set_volume"):
 			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
+		return
+	if kind == "display_mode":
+		var ds = _display_settings()
+		if ds:
+			ds.set_fullscreen(int(value) != 0)
 		return
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
@@ -1358,6 +1371,8 @@ func _balance_setting_format(setting: Dictionary) -> String:
 	match kind:
 		"music_pct":
 			return "%d%%" % int(v)
+		"display_mode":
+			return "Fullscreen" if int(v) != 0 else "Windowed"
 		"int":
 			return "%d" % int(v)
 		"float":
@@ -1377,7 +1392,7 @@ func _nudge_balance_setting(direction: int) -> void:
 	var current = _balance_setting_value(setting)
 	var next
 	match kind:
-		"music_pct", "int":
+		"music_pct", "int", "display_mode":
 			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
 		_:
 			next = clampf(float(current) + direction * step, float(lo), float(hi))
