@@ -55,7 +55,7 @@ terms must exist. This INDEX file is deliberately excluded from the in-game load
 | [coherence](coherence.md) | Superposition strength — the normalized weight sitting off the diagonal of ρ. |
 | [collapse](collapse.md) | The projective step of measurement — ρ snaps to one eigenstate. |
 | [incorporation](incorporation.md) | Adding a ripe icon to YOUR signature — the only way your vocabulary grows. |
-| [harvest](harvest.md) | Cashing a collapsed outcome for resources — reward = surprisal, ×4 if known. |
+| [harvest](harvest.md) | Gathering a banked strike yield, scaled by the vocabulary tier. |
 | [standing](standing.md) | A six-channel reputation edge between the player and one faction. |
 | [soft_gate](soft_gate.md) | 0.5·(1+tanh((x−center)/width)) — the smooth step every quest threshold uses. |
 | [width](width.md) | The transition-zone size of a soft gate — how far past center it takes to fire. |
