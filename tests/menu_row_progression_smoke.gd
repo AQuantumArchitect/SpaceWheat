@@ -22,6 +22,13 @@ class ShellStub:
 	var quest_manager: Node = null
 
 
+class OMStub:
+	extends Node
+	var toggled: Array = []
+	func toggle_overlay(name: String) -> void:
+		toggled.append(name)
+
+
 class FarmStub:
 	extends Node
 	var story_flags_fired: Dictionary = {}
@@ -90,6 +97,26 @@ func _run() -> void:
 	row.refresh_progression()
 	await process_frame
 	_check(row.get_button_pulse_target("C") != null, "refresh_progression surfaces the C chip")
+
+	# Graph chip: the "[" entry is on the row exactly when neighborhood_graph
+	# is unlocked (village_stirs), and clicking it toggles the same overlay.
+	_check(not UIProgressionScript.is_menu_visible("neighborhood_graph"),
+		"Graph is gated before village_stirs")
+	_check(row.get_button_pulse_target("[") == null, "no Graph chip while gated")
+	farm.story_flags_fired = {"village_stirs": true}
+	_check(UIProgressionScript.is_menu_visible("neighborhood_graph"),
+		"Graph unlocks at village_stirs")
+	row.refresh_progression()
+	await process_frame
+	_check(row.get_button_pulse_target("[") != null, "Graph chip renders once unlocked")
+	var toggled: Array = []
+	var om := OMStub.new()
+	om.toggled = toggled
+	row.set_overlay_manager(om)
+	for id in row._entry_by_id:
+		if str(row._entry_by_id[id].get("key_label", "")) == "[":
+			row._on_button_selected(id)
+	_check(toggled == ["neighborhood_graph"], "Graph chip toggles the overlay")
 
 	gsm.active_farm = prev_farm
 	_finish("Menu row progression smoke")

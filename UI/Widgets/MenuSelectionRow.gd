@@ -51,7 +51,8 @@ func _rebuild_buttons() -> void:
 	var idx := 0
 
 	# Emoji-only chips; the name + key live in the tooltip (Apple-minimal).
-	# Keyless entries first (e.g. FarmView), then strict ZXCVBNM order.
+	# Keyless entries first (e.g. FarmView), then strict ZXCVBNM order, then the
+	# bracket key ("[" Graph) that sits beside M for mouse / touch players.
 	for entry in MenuRegistry.TOP_LEVEL_MENUS:
 		if str(entry.get("key_label", "")) != "":
 			continue
@@ -65,7 +66,7 @@ func _rebuild_buttons() -> void:
 		_entry_by_id[idx] = entry
 		idx += 1
 
-	var key_order: Array = ["Z", "X", "C", "V", "B", "N", "M"]
+	var key_order: Array = ["Z", "X", "C", "V", "B", "N", "M", "["]
 	var by_key: Dictionary = {}
 	for entry in MenuRegistry.TOP_LEVEL_MENUS:
 		by_key[str(entry.get("key_label", ""))] = entry
