@@ -29,9 +29,8 @@ doc for full context.
 - **Hat-key toggles (number row) have no visual affordance** for which hat
   is currently worn — a deliberate, still-open design question, not a bug —
   `docs/history/2026-08-10_PLAYTEST_SWEEP.md`.
-- **Touch drag selection is unimplemented** (`UI/PlotGridDisplay.gd`) and the
-  neighborhood-graph overlay is reachable only via the literal `[` key with
-  no button-row slot. Mobile-port-only; not a desktop-blocking gap —
+- The neighborhood-graph overlay is reachable only via the literal `[` key with
+  no button-row slot. (Touch drag-select on the 2D rack landed in #145.) Mobile-port-only; not a desktop-blocking gap —
   `docs/history/2026-07-29_SLOP_PATROL.md` knot #41.
 
 ## Performance
