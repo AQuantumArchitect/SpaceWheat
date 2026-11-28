@@ -69,6 +69,7 @@ const TIME_BAR_HEIGHT_BASE = 48.0
 var viewport_size: Vector2
 var scale_factor: float = 1.0
 var is_touch_device: bool = false
+var _input_mode_announced: bool = false
 var grid_config: GridConfig = null  # Grid configuration (Phase 5)
 
 # Calculated layout dimensions (updated when viewport resizes)
@@ -103,26 +104,24 @@ func _ready():
 
 
 func _detect_input_mode():
-	# Detect if device supports touch input
-	is_touch_device = RuntimeEnv.is_touch()
+	# One predicate for desktop, Web and mobile: RuntimeEnv asks the DisplayServer.
+	_set_touch_device(RuntimeEnv.is_touch())
 
-	# Additional detection for HTML5 export
-	if OS.get_name() == "HTML5":
-		# For web, check user agent
-		is_touch_device = is_touch_device or _detect_mobile_browser()
 
+func _set_touch_device(value: bool) -> void:
+	var changed := value != is_touch_device
+	is_touch_device = value
 	_log_debug("UILayoutManager: Input mode detected - %s" % ("TOUCH" if is_touch_device else "MOUSE"))
-	input_mode_changed.emit(is_touch_device)
+	if changed or not _input_mode_announced:
+		_input_mode_announced = true
+		input_mode_changed.emit(is_touch_device)
 
 
-func _detect_mobile_browser() -> bool:
-	# Check if running in mobile browser (HTML5 export)
-	if OS.get_name() != "HTML5":
-		return false
-
-	# Note: JavaScript.eval requires careful handling
-	# For now, rely on OS.has_touchscreen_ui_hint()
-	return false
+func _input(event: InputEvent) -> void:
+	# A real touch confirms touch mode even if the capability query said no (or the device
+	# was plugged in after boot). Mouse input never turns it back off.
+	if not is_touch_device and event is InputEventScreenTouch:
+		_set_touch_device(true)
 
 
 func inject_grid_config(config: GridConfig) -> void:
