@@ -434,7 +434,7 @@ def test_selection_button_row_defers_to_a_live_3d_pick_target() -> None:
     assert 'get_tree().get_nodes_in_group("quantum_field_3d")' in row_src
     assert "func _defers_to_field3d(screen_pos: Vector2) -> bool:" in row_src
     assert "func _forward_to_field3d(screen_pos: Vector2, button: int, shift: bool) -> void:" in row_src
-    assert "if _defers_to_field3d(event.global_position):" in row_src
+    assert "if _defers_to_field3d(gpos):" in row_src
 
     field_src = _read("Core/Visualization/QuantumField3D.gd")
     assert 'add_to_group("quantum_field_3d")' in field_src
