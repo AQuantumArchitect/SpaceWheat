@@ -78,7 +78,9 @@ jobs:
           echo "::notice title=pytest::$(tail -1 pytest.log)"
 
   # The shipping exports, built by the same script a release uses (tools/build.ps1).
+  # Manual only: GitHub-hosted minutes stay near zero (needs pwsh, which box runners lack).
   build:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
