@@ -242,7 +242,7 @@ def test_action_chip_click_threads_shift_state_for_reap_season() -> None:
     # event.is_shift_pressed()) and threading it through every hop.
     apr_src = _read("UI/Widgets/ActionPreviewRow.gd")
     assert "signal action_pressed(action_key: String, shift: bool)" in apr_src
-    assert "action_pressed.emit(action_key, event.shift_pressed)" in apr_src
+    assert "action_pressed.emit(action_key, event is InputEventMouseButton and event.shift_pressed)" in apr_src
 
     shell_src = _read("UI/PlayerShell.gd")
     assert "func _route_action_key(action_key: String, shift: bool = false) -> void:" in shell_src

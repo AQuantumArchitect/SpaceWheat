@@ -398,7 +398,7 @@ func _on_activated() -> void:
 # =============================================================================
 
 func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+	if not ClickWire.is_release(event):
 		return
 	accept_event()
 	match key:
@@ -413,7 +413,7 @@ func _on_row_gui_input(event: InputEvent, idx: int) -> void:
 	# Acts on PRESS, not release: the 1 s board heartbeat (_process ->
 	# _render_all) rebuilds every row node, and a click whose press and
 	# release straddled a rebuild lost its release with the freed node.
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed):
+	if not ClickWire.is_press(event):
 		return
 	accept_event()
 	_select(idx)
