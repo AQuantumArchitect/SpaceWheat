@@ -19,7 +19,7 @@ a druid gate flip wakes the mill and switches it to warm commerce mode.
 | **Hearth** | 🔥 fire | ❄ ice | Atmospheric poles. Both have autocatalytic pumps (bread→fire, basket→ice). Hearth Keepers H has a strong 🔥↔❄ Rabi coupling (0.8) that mixes them too fast for a hard bistable flip — fire stays soft-dominant due to self-energy bias (ε🔥=0.8, ε❄=−0.3). An X-gate on Hearth shifts the atmosphere but doesn't latch. |
 | **Labor** | 👥 people | 🍞 bread | People produce bread (H coupling 0.6 via Hearth Keepers, 0.45 via Millwright's). The dominant axis by population — bread is what the village makes. |
 | **WindMill** | ⚙ gear | 💨 wind | Mill coupling: Millwright's Union drives ⚙↔💨 (H 0.6). Both show strong bistability (diff 0.065 / 0.056) — the mill either runs or doesn't depending on starting conditions. |
-| **Commerce** | 🧺 basket | 💰 coin | **The actual bistable axis (score 0.186).** Preservation mode (🧺 dominant, from empty start) vs. commerce mode (balanced 🍞/⚙/💨, from loaded start). Granary Guilds H drives 💰↔🍞 (0.58) and 💰↔🧺 (0.5). |
+| **Market** | 🧺 basket | 💰 coin | **The actual bistable axis (score 0.186).** Preservation mode (🧺 dominant, from empty start) vs. commerce mode (balanced 🍞/⚙/💨, from loaded start). Granary Guilds H drives 💰↔🍞 (0.58) and 💰↔🧺 (0.5). |
 
 ---
 
@@ -62,7 +62,7 @@ switch. The hard switch is on **Commerce**.
 
 ## Player Mission: Wake the Mill (the light switch)
 
-**The mechanic:** An X gate on the Commerce qubit (🧺|💰) flips 🧺↑ → 💰↑.
+**The mechanic:** An X gate on the Market qubit (🧺|💰) flips 🧺↑ → 💰↑.
 With coin circulating, Granary Guilds H drives 💰↔🍞 (0.58) and 💰↔🧺 (0.5),
 and Millwright's H drives ⚙↔💨 (0.60) — the whole mill economy activates.
 The wind picks up, the gear turns, bread produces.
@@ -136,7 +136,7 @@ with no new physics needed — the H is already there.
 
 | Assay | Score | Site | Notes |
 |---|---|---|---|
-| `transition_assay` bistability | **0.186** | 🧺 | Commerce axis; above 0.10 threshold |
+| `transition_assay` bistability | **0.186** | 🧺 | Market axis; above 0.10 threshold |
 | Secondary bistable sites | 0.065 / 0.056 / 0.052 | ⚙ / 💨 / 👥 | Mill and labor also show strong seed-dependence |
 
 Run `python3 tools/transition_assay.py --biome Village` to reproduce.
