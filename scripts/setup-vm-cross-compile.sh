@@ -12,13 +12,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/log.sh"
 source "$SCRIPT_DIR/lib/godot_runtime_env.sh"
 
+GODOT_VERSION="4.6.2"
+GODOT_RELEASE="${GODOT_VERSION}-stable"
+GODOT_ASSET="Godot_v${GODOT_RELEASE}_linux.x86_64"
+
 log "SpaceWheat VM Cross-Compile Setup"
 echo ""
 echo "This will install:"
 echo "  - MinGW (Windows cross-compiler)"
 echo "  - Emscripten (WebAssembly compiler)"
 echo "  - SCons (build system)"
-echo "  - Godot 4.5 (if not already installed)"
+echo "  - Godot $GODOT_VERSION (if not already installed)"
 echo ""
 read -p "Continue? (y/N) " -n 1 -r
 echo
@@ -83,13 +87,13 @@ success "Emscripten activated: $(emcc --version | head -1)"
 if command -v "$(sw_godot_bin)" >/dev/null 2>&1; then
     success "Godot already installed: $("$(sw_godot_bin)" --version)"
 else
-    log "Installing Godot 4.5..."
+    log "Installing Godot $GODOT_VERSION..."
     cd /tmp
-    wget -q https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip
-    unzip -q Godot_v4.5-stable_linux.x86_64.zip
-    sudo mv Godot_v4.5-stable_linux.x86_64 /usr/local/bin/godot
+    wget -q "https://github.com/godotengine/godot-builds/releases/download/$GODOT_RELEASE/$GODOT_ASSET.zip"
+    unzip -q "$GODOT_ASSET.zip"
+    sudo mv "$GODOT_ASSET" /usr/local/bin/godot
     sudo chmod +x /usr/local/bin/godot
-    rm Godot_v4.5-stable_linux.x86_64.zip
+    rm "$GODOT_ASSET.zip"
     success "Godot installed: $(godot --version)"
 fi
 

@@ -33,6 +33,17 @@ def _read(p: Path) -> str:
     return p.read_text(encoding="utf-8")
 
 
+def test_contributor_docs_name_the_shipping_godot_version():
+    for name in ("README.md", "CONTRIBUTING.md"):
+        body = _read(ROOT / name)
+        assert re.search(r"\bGodot\s+4\.6\.2\b(?!\.\d)", body), (
+            f"{name} must name Godot 4.6.2"
+        )
+        assert not re.search(r"\bGodot[\s-]+4\.5\b", body), (
+            f"{name} still points contributors to Godot 4.5"
+        )
+
+
 def test_project_version_is_not_the_stale_beta():
     """The exact string that went stale must not silently come back."""
     version = re.search(r'^config/version="([^"]+)"', _read(PROJECT_GODOT), re.M)
