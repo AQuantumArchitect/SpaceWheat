@@ -13,7 +13,7 @@ jobs:
       (github.event_name == 'issue_comment' &&
        contains(github.event.comment.body, '@claude') &&
        github.event.comment.user.login == github.repository_owner))
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, box]
     timeout-minutes: 60
     concurrency:
       group: claude-builder-${{ github.repository }}-${{ github.event.issue.number }}
