@@ -103,10 +103,10 @@ const MENU_PAGE_PREV_KEYCODES := [KEY_PAGEUP, KEY_LEFT, KEY_A, KEY_R]
 const MENU_PAGE_NEXT_KEYCODES := [KEY_PAGEDOWN, KEY_RIGHT, KEY_D, KEY_F]
 const GLOBAL_BINDINGS := [
 	# Descriptions state what the RUNTIME does (PlayerShell is the authority);
-	# aspirational bindings are labeled reserved, not advertised as working.
+	# a binding that is not wired must not be listed here.
 	{"key": "Tab", "label": "Cycle Hat", "description": "Advance the archetype frame (4-0)"},
-	{"key": "-", "label": "Time Down", "description": "Reserved — sim-speed wiring pending (PlayerShell stub)"},
-	{"key": "=", "label": "Time Up", "description": "Reserved — sim-speed wiring pending (PlayerShell stub)"},
+	{"key": "-", "label": "Time Down", "description": "Slow the active biome's clock (halves observation_stride; 0 locks it)"},
+	{"key": "=", "label": "Time Up", "description": "Speed the active biome's clock (doubles observation_stride, up to ×256)"},
 	{"key": "Shift+-", "label": "Resolution Down", "description": "Use finer substeps with a 10x smaller dt"},
 	{"key": "Shift+=", "label": "Resolution Up", "description": "Use coarser substeps with a 10x larger dt"},
 	{"key": "Shift+Q", "label": "Mass Gather", "description": "Gather every bound terminal in the checked set"},
