@@ -46,20 +46,28 @@ jobs:
           unzip -q /tmp/godot.zip -d ~/godot
           mv ~/godot/Godot_v${GODOT_VERSION}_linux.x86_64 ~/godot/godot
 
-      - name: Put Godot on PATH
+      # Godot lives at $HOME/godot/godot on the box runner and is not on the
+      # default PATH. Call it by full path here. pytest's rig_boot still looks
+      # up `godot` by name (tests/conftest.py), so keep the directory on PATH
+      # and also export SW_GODOT_BIN / GODOT4 / GODOT_BIN for the helpers.
+      - name: Locate Godot
         run: |
-          chmod +x ~/godot/godot
+          chmod +x "$HOME/godot/godot"
+          echo "SW_GODOT_BIN=$HOME/godot/godot" >> "$GITHUB_ENV"
+          echo "GODOT_BIN=$HOME/godot/godot" >> "$GITHUB_ENV"
+          echo "GODOT4=$HOME/godot/godot" >> "$GITHUB_ENV"
           echo "$HOME/godot" >> "$GITHUB_PATH"
 
       - name: Install test dependencies
         run: python3 -m pip install pytest pytest-timeout
 
       - name: Import the project
-        run: godot --headless --audio-driver Dummy --path . --import 2>&1 | tail -5
+        run: |
+          "$HOME/godot/godot" --headless --audio-driver Dummy --path . --import 2>&1 | tail -5
 
       - name: Boot without script errors
         run: |
-          n=$(timeout 120 godot --headless --audio-driver Dummy --path . --quit 2>&1 \
+          n=$(timeout 120 "$HOME/godot/godot" --headless --audio-driver Dummy --path . --quit 2>&1 \
                 | grep -cE "SCRIPT ERROR|Parse Error|ERROR: Failed to" || true)
           echo "boot errors: $n"
           test "$n" = "0"
