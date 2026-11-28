@@ -17,9 +17,9 @@ everything else is thriving. Score 0.005.
 
 | Axis | Pole 0 | Pole 1 | Physics role |
 |---|---|---|---|
-| **Predation** | 🐑 sheep | 🐺 wolf | LV predation: wolf presence drains sheep (rate 1.5). Wolf outnumbers sheep in steady state (0.130 vs 0.068). |
+| **Pursuit** | 🐑 sheep | 🐺 wolf | LV predation: wolf presence drains sheep (rate 1.5). Wolf outnumbers sheep in steady state (0.130 vs 0.068). |
 | **Pollination** | 🐝 bee | 🌿 herb | Pollination axis. Pollinator Guild H: 🐝↔🌿 (0.55). Meadow is the energy source (🗑→🌿 pump 0.6). |
-| **Harvest** | 🥣 porridge | 🫙 honey jar | Output axis. 🫙 dominant (0.189) — stored goods lead. 🥣 fills nonlinearly from abundant meadow. |
+| **Larder** | 🥣 porridge | 🫙 honey jar | Output axis. 🫙 dominant (0.189) — stored goods lead. 🥣 fills nonlinearly from abundant meadow. |
 | **Commons** | 🤲 hands | 🌾 grain | 🤲 near zero from empty start (0.000/0.005). Commons only exists when the system is well-loaded. |
 
 ---

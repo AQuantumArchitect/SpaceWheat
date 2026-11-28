@@ -12,6 +12,7 @@ extends Node
 # Grid configuration (Phase 2)
 
 const TerminalPoolClass = preload("res://Core/GameMechanics/TerminalPool.gd")
+const _IconRegistryScript = preload("res://Core/Factions/IconRegistry.gd")
 const BiomeEvolutionBatcherClass = preload("res://Core/Environment/BiomeEvolutionBatcher.gd")
 const AlignmentGraphCls = preload("res://Core/Alignment/AlignmentGraph.gd")
 
@@ -466,18 +467,20 @@ func discover_icon(north: String, south: String) -> bool:
 	if north == "" or south == "" or north == south:
 		return false
 
-	# Check if exact pair already exists
+	# Already known: the same WORD in either spelling (IconRegistry.same_word:
+	# the exact pair, or the reverse when the reverse is not a word of its own,
+	# e.g. 🏭/⚙ is Factory ⚙/🏭). A/B and B/A that are two words (Labor 👥/🍞
+	# and Bread 🍞/👥) are two entries: both can be known.
 	for icon in known_icons:
-		if icon.get("north", "") == north and icon.get("south", "") == south:
-			return false  # Already known
-
-	# North must be new; south may repeat across pairs.
-	for icon in known_icons:
-		var existing_north = icon.get("north", "")
-		var existing_south = icon.get("south", "")
-		if north == existing_north or north == existing_south:
-			# North already known (as north or south) - can't add overlapping north
+		if _IconRegistryScript.same_word(str(icon.get("north", "")), str(icon.get("south", "")), north, south):
 			return false
+
+	# No pole-overlap rule (owner ruling 2026-11-16). "A new word's north must
+	# not already be a pole of a known word" was a helper for the randomizer
+	# that rolled new pairs from the player's cloud (IconPairing's north roll,
+	# since removed). It is not a rule of the game universe, and as a
+	# restriction on learning it blocked words the story teaches (Predation
+	# 🦅/🩸 once Raptor 🦅/🐇 is known) and both words of a pair.
 
 	known_icons.append({"north": north, "south": south})
 	_sync_current_state_signature()

@@ -1067,7 +1067,7 @@
         "pole_1": "🧰"
       },
       {
-        "name": "Spark",
+        "name": "Electrify",
         "pole_0": "💎",
         "pole_1": "⚡"
       },
@@ -1190,7 +1190,7 @@
         "pole_1": "👥"
       },
       {
-        "name": "Labor",
+        "name": "Woodcutting",
         "pole_0": "👥",
         "pole_1": "🪓"
       },
@@ -1442,7 +1442,7 @@
     ],
     "icons": [
       {
-        "name": "Decree",
+        "name": "Countersign",
         "pole_0": "📜",
         "pole_1": "🖋"
       },
@@ -1506,12 +1506,12 @@
         "pole_1": "📿"
       },
       {
-        "name": "Guard",
+        "name": "Sentinel",
         "pole_0": "🤖",
         "pole_1": "🛡"
       },
       {
-        "name": "Vigil",
+        "name": "Confession",
         "pole_0": "⛪",
         "pole_1": "🗝"
       }
@@ -1644,12 +1644,12 @@
         "pole_1": "🌱"
       },
       {
-        "name": "Water",
+        "name": "Rainfall",
         "pole_0": "💧",
         "pole_1": "🌧"
       },
       {
-        "name": "Harvest",
+        "name": "Irrigation",
         "pole_0": "🪣",
         "pole_1": "🌾"
       }
@@ -1850,7 +1850,7 @@
         "pole_1": "🪡"
       },
       {
-        "name": "Toll",
+        "name": "Tithe",
         "pole_0": "🔔",
         "pole_1": "🗝"
       }
@@ -1912,7 +1912,7 @@
         "pole_1": "🕯"
       },
       {
-        "name": "Ward",
+        "name": "Illuminate",
         "pole_0": "🧿",
         "pole_1": "🔦"
       }
@@ -2089,7 +2089,7 @@
         "pole_1": "🐜"
       },
       {
-        "name": "Strike",
+        "name": "Gale",
         "pole_0": "⚔",
         "pole_1": "🌬"
       },
@@ -2201,7 +2201,7 @@
         "pole_1": "🐻"
       },
       {
-        "name": "Vault",
+        "name": "Treasury",
         "pole_0": "🏛️",
         "pole_1": "💰"
       },
@@ -2327,7 +2327,7 @@
         "pole_1": "🧩"
       },
       {
-        "name": "Archive",
+        "name": "Repository",
         "pole_0": "💾",
         "pole_1": "🗝"
       },
@@ -2381,12 +2381,12 @@
     ],
     "icons": [
       {
-        "name": "Absence",
+        "name": "Memorial",
         "pole_0": "🫥",
         "pole_1": "🪦"
       },
       {
-        "name": "Void",
+        "name": "Hollow",
         "pole_0": "🕸",
         "pole_1": "🌑"
       }
@@ -2957,7 +2957,7 @@
         "pole_1": "💀"
       },
       {
-        "name": "Contagion",
+        "name": "EuAnaerobe",
         "pole_0": "🦠",
         "pole_1": "💀"
       },
@@ -3073,12 +3073,12 @@
         "pole_1": "🚫"
       },
       {
-        "name": "Vector",
+        "name": "Contagion",
         "pole_0": "🦗",
         "pole_1": "🧬"
       },
       {
-        "name": "Culture",
+        "name": "Colony",
         "pole_0": "🧪",
         "pole_1": "🧫"
       }
@@ -3137,17 +3137,17 @@
         "pole_1": "💰"
       },
       {
-        "name": "Fleet",
+        "name": "Anchorage",
         "pole_0": "🚢",
         "pole_1": "⚓"
       },
       {
-        "name": "Ledger",
+        "name": "Usury",
         "pole_0": "💰",
         "pole_1": "🪝"
       },
       {
-        "name": "Manifest",
+        "name": "Tally",
         "pole_0": "🛶",
         "pole_1": "📋"
       }
@@ -3265,7 +3265,7 @@
     ],
     "icons": [
       {
-        "name": "Uplink",
+        "name": "Signal",
         "pole_0": "📡",
         "pole_1": "📶"
       },
@@ -3339,7 +3339,7 @@
         "pole_1": "🎶"
       },
       {
-        "name": "Signal",
+        "name": "Amplify",
         "pole_0": "📡",
         "pole_1": "🔊"
       }
@@ -3510,7 +3510,7 @@
     ],
     "icons": [
       {
-        "name": "Vigil",
+        "name": "Consecration",
         "pole_0": "🕯",
         "pole_1": "🔥"
       },
@@ -3575,7 +3575,7 @@
         "pole_1": "🧂"
       },
       {
-        "name": "Record",
+        "name": "Inscription",
         "pole_0": "🪨",
         "pole_1": "📜"
       }
@@ -3642,7 +3642,7 @@
         "pole_1": "🔓"
       },
       {
-        "name": "Contraband",
+        "name": "Surveillance",
         "pole_0": "🕵️",
         "pole_1": "⛓"
       }
@@ -3695,7 +3695,7 @@
     ],
     "icons": [
       {
-        "name": "Combat",
+        "name": "Guard",
         "pole_0": "⚔",
         "pole_1": "🛡"
       },
@@ -3751,7 +3751,7 @@
     ],
     "icons": [
       {
-        "name": "Thread",
+        "name": "Yarn",
         "pole_0": "🧵",
         "pole_1": "🧶"
       },
@@ -3761,7 +3761,7 @@
         "pole_1": "🪢"
       },
       {
-        "name": "Signal",
+        "name": "Frequency",
         "pole_0": "📡",
         "pole_1": "👘"
       }
@@ -4036,7 +4036,7 @@
         "pole_1": "🦌"
       },
       {
-        "name": "Pasture",
+        "name": "Forage",
         "pole_0": "🌿",
         "pole_1": "🌾"
       },
@@ -4584,7 +4584,7 @@
         "pole_1": "🗑"
       },
       {
-        "name": "Salvage",
+        "name": "Leavings",
         "pole_0": "🧤",
         "pole_1": "🗑"
       }
@@ -4635,7 +4635,7 @@
     ],
     "icons": [
       {
-        "name": "Decree",
+        "name": "Mandate",
         "pole_0": "💊",
         "pole_1": "📦"
       },
@@ -4822,7 +4822,7 @@
         "pole_1": "🧰"
       },
       {
-        "name": "Circuit",
+        "name": "Loop",
         "pole_0": "🔌",
         "pole_1": "♻️"
       },
@@ -4937,7 +4937,7 @@
     ],
     "icons": [
       {
-        "name": "Reflection",
+        "name": "Double",
         "pole_0": "🪞",
         "pole_1": "👤"
       },
@@ -4947,7 +4947,7 @@
         "pole_1": "🕵️"
       },
       {
-        "name": "Ward",
+        "name": "Clasp",
         "pole_0": "🧷",
         "pole_1": "🧿"
       }
@@ -5184,7 +5184,7 @@
         "pole_1": "🎼"
       },
       {
-        "name": "Lantern",
+        "name": "Luminary",
         "pole_0": "💫",
         "pole_1": "🏮"
       }
@@ -5268,7 +5268,7 @@
         "pole_1": "⬜"
       },
       {
-        "name": "Forge",
+        "name": "Geode",
         "pole_0": "🪨",
         "pole_1": "💎"
       },
@@ -5509,12 +5509,12 @@
     ],
     "icons": [
       {
-        "name": "Machinery",
+        "name": "Mechanism",
         "pole_0": "⚙",
         "pole_1": "🔩"
       },
       {
-        "name": "Magma",
+        "name": "Cinder",
         "pole_0": "🔥",
         "pole_1": "🪨"
       },
@@ -5562,7 +5562,7 @@
     "alignment_couplings": {},
     "icons": [
       {
-        "name": "Crossing",
+        "name": "Bridge",
         "pole_0": "🌉",
         "pole_1": "🔥"
       },
@@ -5572,7 +5572,7 @@
         "pole_1": "🗼"
       },
       {
-        "name": "Signal",
+        "name": "Fanfare",
         "pole_0": "📯",
         "pole_1": "🏁"
       },
@@ -5623,7 +5623,7 @@
         "pole_1": "⏳"
       },
       {
-        "name": "Mechanism",
+        "name": "Clockwork",
         "pole_0": "⏰",
         "pole_1": "⚙"
       }
@@ -5714,7 +5714,7 @@
         "pole_1": "🌘"
       },
       {
-        "name": "Harvest",
+        "name": "Moonfall",
         "pole_0": "🌙",
         "pole_1": "🍂"
       }
@@ -5923,7 +5923,7 @@
         "pole_1": "🌀"
       },
       {
-        "name": "Singularity",
+        "name": "Rupture",
         "pole_0": "🕳",
         "pole_1": "⚡"
       },
@@ -5933,7 +5933,7 @@
         "pole_1": "🫙"
       },
       {
-        "name": "Record",
+        "name": "Logbook",
         "pole_0": "📒",
         "pole_1": "📋"
       },
@@ -5948,7 +5948,7 @@
         "pole_1": "⚫"
       },
       {
-        "name": "Nobility",
+        "name": "Bloodline",
         "pole_0": "⚜",
         "pole_1": "🩸"
       },
@@ -5958,17 +5958,17 @@
         "pole_1": "🩸"
       },
       {
-        "name": "Aftermath",
+        "name": "Vestige",
         "pole_0": "💀",
         "pole_1": "⚱"
       },
       {
-        "name": "Harvest",
+        "name": "Spore",
         "pole_0": "🌾",
         "pole_1": "🍄"
       },
       {
-        "name": "Authority",
+        "name": "Dominion",
         "pole_0": "⚜",
         "pole_1": "⚖"
       },
@@ -5983,12 +5983,12 @@
         "pole_1": "🗣"
       },
       {
-        "name": "Broadcast",
+        "name": "Tune",
         "pole_0": "🎵",
         "pole_1": "🧩"
       },
       {
-        "name": "Archive",
+        "name": "Chronicle",
         "pole_0": "🗃",
         "pole_1": "♟"
       },
@@ -6013,7 +6013,7 @@
         "pole_1": "🗝"
       },
       {
-        "name": "Sacrifice",
+        "name": "Martyr",
         "pole_0": "🩸",
         "pole_1": "🚀"
       },
@@ -6033,12 +6033,12 @@
         "pole_1": "🔥"
       },
       {
-        "name": "Vigil",
+        "name": "Cobweb",
         "pole_0": "🕸",
         "pole_1": "🕯"
       },
       {
-        "name": "Silence",
+        "name": "Null",
         "pole_0": "🔇",
         "pole_1": "🌑"
       },
@@ -6048,7 +6048,7 @@
         "pole_1": "🌀"
       },
       {
-        "name": "Authority",
+        "name": "Enforcement",
         "pole_0": "🚔",
         "pole_1": "🔓"
       },
@@ -6068,7 +6068,7 @@
         "pole_1": "🔥"
       },
       {
-        "name": "Cycle",
+        "name": "Sprout",
         "pole_0": "🫧",
         "pole_1": "🌿"
       },
@@ -6103,7 +6103,7 @@
         "pole_1": "⚓"
       },
       {
-        "name": "Cargo",
+        "name": "Haul",
         "pole_0": "🌾",
         "pole_1": "🏜"
       },
@@ -6123,17 +6123,17 @@
         "pole_1": "🫥"
       },
       {
-        "name": "Crossing",
+        "name": "Viaduct",
         "pole_0": "🌉",
         "pole_1": "🪔"
       },
       {
-        "name": "Relay",
+        "name": "Tower",
         "pole_0": "📯",
         "pole_1": "🗼"
       },
       {
-        "name": "Contraband",
+        "name": "Checkpoint",
         "pole_0": "🏁",
         "pole_1": "🧂"
       },
@@ -6168,12 +6168,12 @@
         "pole_1": "🏷️"
       },
       {
-        "name": "Exchange",
+        "name": "Barter",
         "pole_0": "💱",
         "pole_1": "🕴️"
       },
       {
-        "name": "Drive",
+        "name": "Draft",
         "pole_0": "💨",
         "pole_1": "🏭"
       },
@@ -6193,7 +6193,7 @@
         "pole_1": "🌸"
       },
       {
-        "name": "Predation",
+        "name": "Entangle",
         "pole_0": "🕷",
         "pole_1": "🐛"
       },
@@ -6203,7 +6203,7 @@
         "pole_1": "📍"
       },
       {
-        "name": "Ward",
+        "name": "Shrine",
         "pole_0": "🧿",
         "pole_1": "🏮"
       },
@@ -6223,12 +6223,12 @@
         "pole_1": "⭐"
       },
       {
-        "name": "Predation",
+        "name": "Pursuit",
         "pole_0": "🐑",
         "pole_1": "🐺"
       },
       {
-        "name": "Harvest",
+        "name": "Larder",
         "pole_0": "🥣",
         "pole_1": "🫙"
       },
@@ -6238,7 +6238,7 @@
         "pole_1": "🌾"
       },
       {
-        "name": "Circuit",
+        "name": "Socket",
         "pole_0": "🔌",
         "pole_1": "⚡"
       },
@@ -6248,7 +6248,7 @@
         "pole_1": "🎸"
       },
       {
-        "name": "Spark",
+        "name": "Flash",
         "pole_0": "💫",
         "pole_1": "🔊"
       },
@@ -6263,7 +6263,7 @@
         "pole_1": "🔓"
       },
       {
-        "name": "Orbit",
+        "name": "Satellite",
         "pole_0": "🛰",
         "pole_1": "⭐"
       },
@@ -6273,7 +6273,7 @@
         "pole_1": "🗑"
       },
       {
-        "name": "Labor",
+        "name": "Toil",
         "pole_0": "🧤",
         "pole_1": "🏭"
       },
@@ -6298,7 +6298,7 @@
         "pole_1": "🫚"
       },
       {
-        "name": "Power",
+        "name": "Accumulate",
         "pole_0": "⚡",
         "pole_1": "🔋"
       },
@@ -6308,7 +6308,7 @@
         "pole_1": "🛸"
       },
       {
-        "name": "Signal",
+        "name": "Glimmer",
         "pole_0": "📡",
         "pole_1": "✨"
       },
@@ -6333,7 +6333,7 @@
         "pole_1": "🕰"
       },
       {
-        "name": "Tide",
+        "name": "Surf",
         "pole_0": "🌊",
         "pole_1": "🪨"
       },
@@ -6363,7 +6363,7 @@
         "pole_1": "💱"
       },
       {
-        "name": "Snare",
+        "name": "Trap",
         "pole_0": "🪤",
         "pole_1": "🪝"
       },
@@ -6378,12 +6378,12 @@
         "pole_1": "💨"
       },
       {
-        "name": "Commerce",
+        "name": "Market",
         "pole_0": "🧺",
         "pole_1": "💰"
       },
       {
-        "name": "Ward",
+        "name": "Tether",
         "pole_0": "🧿",
         "pole_1": "🪢"
       },
@@ -6398,12 +6398,12 @@
         "pole_1": "🧷"
       },
       {
-        "name": "Cycle",
+        "name": "Interval",
         "pole_0": "⌛",
         "pole_1": "⏰"
       },
       {
-        "name": "Witness",
+        "name": "Epoch",
         "pole_0": "⏳",
         "pole_1": "🕰"
       },
@@ -6413,7 +6413,7 @@
         "pole_1": "🧰"
       },
       {
-        "name": "Relay",
+        "name": "Lamppost",
         "pole_0": "🪔",
         "pole_1": "📯"
       },
@@ -6460,17 +6460,17 @@
     ],
     "icons": [
       {
-        "name": "Cargo",
+        "name": "Freight",
         "pole_0": "🧂",
         "pole_1": "🛶"
       },
       {
-        "name": "Channel",
+        "name": "Sluice",
         "pole_0": "💧",
         "pole_1": "⛓"
       },
       {
-        "name": "Tradecraft",
+        "name": "Search",
         "pole_0": "🔓",
         "pole_1": "🔍"
       }

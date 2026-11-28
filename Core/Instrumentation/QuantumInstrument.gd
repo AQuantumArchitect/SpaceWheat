@@ -990,15 +990,14 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	var ripe_phase: float = float(qc.berry_register.get_phase(qid))
 	var added: bool = gsm.player_progress.discover_icon(north, south)
 	qc.berry_register.consume(qid)
-	# discover_icon refuses two ways and the difference matters to the player:
-	# the exact pair already known (honest re-harvest) vs the NORTH emoji already
-	# anchoring another signature word (the word is NOT learned — the surviving
-	# uniqueness rule). Calling the second one "re-harvested" told hub leg L4d
-	# its new words joined when they never did.
+	# discover_icon refuses when the word is already known (an honest
+	# re-harvest), in either spelling (IconRegistry.same_word). The pole-overlap
+	# rule that used to refuse new words here is gone (owner ruling 2026-11-16);
+	# the third branch below now only catches a malformed axis.
 	var already_known := false
 	if not added and "known_icons" in farm and farm.known_icons is Array:
 		for kp in farm.known_icons:
-			if kp is Dictionary and str(kp.get("north", "")) == north and str(kp.get("south", "")) == south:
+			if kp is Dictionary and preload("res://Core/Factions/IconRegistry.gd").same_word(str(kp.get("north", "")), str(kp.get("south", "")), north, south):
 				already_known = true
 				break
 	# Ledger the DELIBERATE ripening-incorporation ritual — separate from
@@ -1019,7 +1018,7 @@ func action_incorporate(qubit_idx: int = -1) -> Dictionary:
 	elif already_known:
 		_log("info", "instrument", "🧬", "Re-harvested %s/%s (already in signature) — phase counted" % [north, south])
 	else:
-		_log("info", "instrument", "🧬", "Berry counted; %s/%s NOT learned — north %s already anchors a signature word" % [north, south, north])
+		_log("info", "instrument", "🧬", "Berry counted; %s/%s NOT learned (malformed axis)" % [north, south])
 	var result := {
 		"success": true,
 		"new_icon": added,
