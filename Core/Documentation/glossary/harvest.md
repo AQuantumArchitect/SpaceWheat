@@ -1,6 +1,6 @@
 ---
 term: harvest
-short_def: Cashing a collapsed outcome for resources — reward = surprisal, ×4 if known.
+short_def: Gathering a banked strike yield, scaled by the vocabulary tier.
 related: [measurement, incorporation, population]
 since: 2026-07-17
 status: canonical
@@ -16,11 +16,10 @@ The payout is the surprisal of the outcome you collapsed to:
 — a rare outcome (low `p`) pays more than a common one, because you learned more.
 `kT` is the biome's market temperature.
 
-If the harvested icon is already in your signature (see [incorporation](incorporation.md)),
-the payout is scaled by an **incorporation bonus** — up to `×4` flat in the closed
-system (`ProbeActions._incorporation_reward_multiplier`). Resources you have never
-incorporated pay the bare surprisal floor. **Resources come from harvest/the market;
-icons come from incorporation** — the two economies never substitute for each other.
+The vocabulary tier (`ProbeActions.vocabulary_tier`) scales the payout in every
+biome. A known word pays **×6**. A plot that only shares an emoji pays **×2**.
+Other plots pay **×1**. Your payout vocabulary includes your home biome's words
+and the words you've taken through [incorporation](incorporation.md).
 
 `Reap` (Ace hat, `Shift+F`) is harvest at scale: it fast-forwards the biome, then
 Born-samples and collapses every live register at once for a seasonal payout, priced by

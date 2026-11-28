@@ -309,8 +309,8 @@ either *lit* (attended) or *dark*; dark is the resting state.
    (purity stays 1). The yield is **banked on the plot** and the plot **goes
    dark**: measured, then let go.
 3. **Q = Gather (`pop`)** — pay the bank out; reward is the surprisal
-   `−kT·log p`, times an **incorporation bonus** if that icon is already in your
-   signature (closed mode: ~4× flat). Gather **never touches ρ**: no
+   `−kT·log p`, scaled by the vocabulary tier described below.
+   Gather **never touches ρ**: no
    measurement, no projection. A plot with nothing banked pays nothing (silent
    no-op). A dark plot returns to fog once gathered; a lit one stays lit.
 
@@ -413,37 +413,16 @@ Predicate families (`QuestManager.gd`):
 - **Reputation:** `standing_gte` (6 channels: trust/debt/attention/access/
   legitimacy/entanglement).
 
-### 7.2 The arc (The Demos playthrough, `story_flags.json`)
+### 7.2 The arc (The Demos playthrough)
 
-> **Superseded 2026-10-17:** the authoritative structure (three campaigns, act
-> and chapter titles, beat order) is `Core/Campaign/campaign.json`, summarized
-> in `docs/CAMPAIGN.md`. The text below describes the 2026-08 order.
-Reordered 2026-08-17 (`docs/history/2026-08-17_CAMPAIGN_REORDER.md`): the early game
-teaches only enough physics to play — farm verbs and contracts — and raises
-the bar per act; every beat also carries a `campaign` tag (the split's
-phase-0 partition, `tests/test_campaign_partition.py`).
-- **Act 0 — tutorial** (`tutorial_arc.json`): the instant verbs only — the
-  explore/strike/gather loop, reap, the contract ceremony, wayfinding (the
-  first crossing), superposition, entanglement. No berry ritual here.
-- **Acts 1–2 — teachings-first:** kept contracts raise standing; factions teach
-  their words at trust (the claim IS the teaching); planting taught words
-  couples the countries (Woodlot 🪵, Spring 💧) and the Mill's `⚙` attractor
-  forms. Reputation raises market pay (⭐, `quest_rewards.standing_reward_*`).
-- **Act 3 — What the Land Remembers:** the berry chapter (`first_breath` + the
-  forest staircase): Berry-tracking, incorporation, the first invariant — and
-  the **×6 harvest bonus**, which rides `farm.incorporated_icons` (the ritual's
-  ledger), never mere teaching.
-- **Act 4 — the hub:** all biomes coupled (`island_lives`); `village_identity`
-  ("A Character") gates on Village at its 12-atom cap + island diversity + the
-  full 15-word island vocabulary; `five_doors` names the five path keys and the
-  dark teachers (`eagle_overhead` 🩸/🦅, `serfs_ledger` 💸/💀) open their claims.
-- **Act 5 — divergent identity:** which **single atom** you built into the Village
-  forks the story — 💧 Commons / 🏭 Manufactory / 🔨 Artisan / 🦅 Watched / 💀 Cemetery.
-  Every key has a story teacher; the paths themselves pay standing only.
-- **Act 6 — the ending:** the empire (`BloodLedger`) locks a **wide** spectral gap
-  (`empire_imposes`); you win **`island_free`** iff `Village` spectral gap stays
-  **≤ 0.55** (many coexisting modes), with atom diversity ≥ 18 and signature ≥ 14.
-  *You win by composing a biome that physically cannot collapse into one shape.*
+[CAMPAIGN.md](CAMPAIGN.md) lists the current acts, chapters and beats from
+`Core/Campaign/campaign.json`. Act 0 (*The Loop*) teaches the farm verbs and
+contracts. Act 1 (*The Village*) teaches Berry tracking and incorporation in
+*First Breath* (`first_breath`). The next beat, `spiral_breaks`, asks for a
+strike on a glowing word and a second incorporation. The vocabulary payout is
+**×6** for a known word and **×2** for a shared emoji, as described in §6.
+Act 3 (*What the Land Remembers*) builds on the berry practice in *The Forest
+Listens*.
 
 ### 7.3 What the design claims is elegant
 - One keyboard algebra spans ~40 verbs; muscle memory transfers across tools.

@@ -356,11 +356,7 @@ func _refresh_data() -> void:
 	_total_pages = max(1, ceili(float(_get_display_items().size()) / float(CARDS_PER_PAGE)))
 	_current_page = clampi(_current_page, 0, _total_pages - 1)
 
-	# Header text
-	var _bonus_pct = _known_icons.size() * 300  # Each known icon = 4x = +300% on its emojis
 	_header_label.text = "%d / %d icons learned" % [_known_icons.size(), total_possible]
-	if _known_icons.size() > 0:
-		_header_label.text += "    |    Harvest bonus active on %d icons" % _known_icons.size()
 
 func _collect_all_biome_icons() -> Array:
 	# Get every icon from every exportable biome.
@@ -1063,11 +1059,14 @@ func _build_known_card_content(vbox: VBoxContainer, item: Dictionary) -> void:
 	if not speakers.is_empty():
 		bottom.add_child(_build_speaker_dots(speakers))
 
-	var yield_label = Label.new()
-	yield_label.text = "4x"
-	yield_label.add_theme_font_size_override("font_size", BADGE_SIZE)
-	yield_label.add_theme_color_override("font_color", COLOR_YIELD)
-	bottom.add_child(yield_label)
+	var tier := ProbeActions.vocabulary_tier(farm, String(item.north), String(item.south))
+	var multiplier := int(tier["multiplier"])
+	if multiplier > 1:
+		var yield_label := Label.new()
+		yield_label.text = "×%d" % multiplier
+		yield_label.add_theme_font_size_override("font_size", BADGE_SIZE)
+		yield_label.add_theme_color_override("font_color", COLOR_YIELD)
+		bottom.add_child(yield_label)
 
 func _build_affinity_ribbon(affinity: float) -> Control:
 	var clamped: float = clamp(affinity, 0.0, 1.0)

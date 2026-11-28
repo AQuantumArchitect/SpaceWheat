@@ -1453,9 +1453,9 @@ func _guide_biomes_economy() -> void:
 	_body_box.add_child(_make_spacer(4))
 	_body_box.add_child(_make_section_header("economy"))
 	_body_box.add_child(_make_body(
-		"Harvest pays the surprisal energy of the outcome: reward = −kT·log p (rare outcomes "
-		+ "pay more; kT is the biome's market temperature). Learning icon via quests grants "
-		+ "up to 4× purity bonus on seasonal reaps."))
+		"Harvest pays more for rare outcomes (−kT·log p). A strike on a glowing known word "
+		+ "pays ×6. A plot that only shares a vocabulary emoji has a faint highlight and pays ×2. "
+		+ "Your payout vocabulary includes your home biome's words and the words you've incorporated."))
 
 func _guide_things_to_try() -> void:
 	_body_box.add_child(_make_section_header("a few experiments"))

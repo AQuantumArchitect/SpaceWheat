@@ -109,16 +109,18 @@ import and export contracts on each free register, priced the same way and
 lockable. A channel you sign runs on Commitments until you close it (**Q**,
 then **F**), which is free.
 
-## Berries — how the mid-game moves
+## Berries — tracking and incorporation
 
-From act 3 (*What the Land Remembers*) the acts advance on **incorporated
-berries**, and the loop is short: pick a plot (`G H J K L ;`), put on the
-Icon hat (`5`), press **F** to track its walk (⌖). Let time run — Ace-hat F
-fast-forwards. When the loop has swept enough sky it **ripens**, and the
-Icon-hat **R** chip reads *Incorporate*: press it. One incorporation = one
-berry consumed + one new word in your signature — a word no faction taught
-you, and the only kind that earns the **×4 harvest bonus**. The Arc tab
-(**X → I**) shows exactly how many berries each act asks of which biome.
+Act 1 (*The Village*) teaches incorporation in *First Breath*. Pick a plot
+(`G H J K L ;`), put on the Icon hat (`5`), and press **F** to track its walk
+(⌖). Let time run. Ace-hat F fast-forwards. When the loop **ripens**, press
+the Icon-hat **R** chip, *Incorporate*, to consume the berry and add its word
+to your vocabulary.
+
+Your payout vocabulary includes your home biome's words and the words you've
+incorporated. Strike a glowing plot with a known word for **×6**. A faintly
+highlighted plot that only shares an emoji pays **×2**. The Arc tab
+(**X → I**) shows which biomes and berry counts the story asks for.
 
 Three things the impatient learn the hard way: loops only ripen while **time
 flows** (E pauses the world; F plays it on — the ⏸/▶ toast tells you which);
