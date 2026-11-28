@@ -53,11 +53,16 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/size/initial_position_type=2
 window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 window/vsync/vsync_mode=0
 
 [gdextension]
 
 extension_list=PackedStringArray("res://quantum_matrix.gdextension")
+
+[input_devices]
+
+pointing/emulate_mouse_from_touch=true
 
 [input]
 

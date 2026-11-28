@@ -106,8 +106,8 @@ func _detect_input_mode():
 	# Detect if device supports touch input
 	is_touch_device = RuntimeEnv.is_touch()
 
-	# Additional detection for HTML5 export
-	if OS.get_name() == "HTML5":
+	# Additional detection for Web export (OS.get_name() is "Web" in Godot 4)
+	if OS.get_name() == "Web":
 		# For web, check user agent
 		is_touch_device = is_touch_device or _detect_mobile_browser()
 
@@ -117,7 +117,7 @@ func _detect_input_mode():
 
 func _detect_mobile_browser() -> bool:
 	# Check if running in mobile browser (HTML5 export)
-	if OS.get_name() != "HTML5":
+	if OS.get_name() != "Web":
 		return false
 
 	# Note: JavaScript.eval requires careful handling
