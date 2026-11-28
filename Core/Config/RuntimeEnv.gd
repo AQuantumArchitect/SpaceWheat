@@ -118,8 +118,16 @@ static func tristate(key: String) -> int:
 static func is_headless() -> bool:
 	return OS.has_feature("headless") or DisplayServer.get_name() == "headless"
 
+## Pure predicate behind is_touch(), split out so a headless test can feed it both inputs
+## (headless never reports a real touchscreen).
+static func touch_from(screen_available: bool, has_touch_feature: bool) -> bool:
+	return screen_available or has_touch_feature
+
+## True when a touchscreen is actually present — desktop, Web and mobile alike. The runtime
+## query catches a touch laptop on the desktop build and a browser; the export feature flag
+## stays as a fallback for mobile exports. Mouse and keyboard keep working either way.
 static func is_touch() -> bool:
-	return OS.has_feature("touchscreen")
+	return touch_from(DisplayServer.is_touchscreen_available(), OS.has_feature("touchscreen"))
 
 # ============================================================================
 # Onboarding / boot variant — the class of switch that hid the welcome-trap bug.
