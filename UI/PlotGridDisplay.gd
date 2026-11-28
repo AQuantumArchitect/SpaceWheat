@@ -52,6 +52,10 @@ var current_selection: Vector2i = Vector2i.ZERO
 var is_dragging: bool = false
 var drag_plots: Dictionary = {}  # Plots touched during this drag
 var drag_start_pos: Vector2i = GridSentinel.INVALID_POSITION
+var _touch_index: int = -1  # finger driving a touch drag (-1 = none)
+var _touch_origin: Vector2 = Vector2.ZERO
+var _touch_dragging: bool = false  # finger has moved past the tap threshold
+const TOUCH_DRAG_MIN_MOVEMENT: float = 30.0  # == TouchInputManager.TAP_MAX_MOVEMENT
 var _skip_next_click: bool = false  # Skip click handler after multi-plot drag
 
 # Signals for selection state changes
@@ -1290,6 +1294,10 @@ func _input(event: InputEvent) -> void:
 	# GUI phase — hiding a Control does NOT stop _input delivery).
 	if not visible:
 		return
+	# Godot re-sends a touch as an emulated mouse event; the touch path above
+	# already handled the real one, so don't count it twice.
+	if event is InputEventMouse and event.device == InputEvent.DEVICE_ID_EMULATION:
+		return
 	if event is InputEventMouseButton:
 		if event.button_index == MOUSE_BUTTON_RIGHT:
 			# Right click = Q (gather). Mouse only; touch gathers via the Q button.
@@ -1329,12 +1337,47 @@ func _input(event: InputEvent) -> void:
 				if not drag_plots.has(plot_pos):
 					_drag_over_plot(plot_pos)
 
-	# TODO: Implement Godot 4 touch drag selection
-	# Previous implementation used InputEventScreenDrag (Godot 3 API, doesn't exist in Godot 4)
-	# New implementation needs:
-	# - Track InputEventScreenTouch with .index for multi-finger support
-	# - Monitor position changes in _process() for drag motion
-	# - Detect tap vs drag based on movement distance and time
+	elif event is InputEventScreenTouch:
+		_touch_drag_button(event)
+	elif event is InputEventScreenDrag:
+		_touch_drag_motion(event)
+
+
+## Touch drag-select. One finger, same helpers as the mouse path. The finger
+## must travel TouchInputManager.TAP_MAX_MOVEMENT before it counts as a drag,
+## so a tap (which tap_detected routes) never starts a multi-select. Nothing
+## here consumes a press or a motion; only a finished multi-plot drag eats
+## its release, exactly like the mouse.
+func _touch_drag_button(event: InputEventScreenTouch) -> void:
+	if event.pressed:
+		if _touch_index != -1:
+			return  # one finger only; a second finger is ignored
+		var plot_pos = _get_plot_at_screen_position(event.position)
+		if plot_pos == GridSentinel.INVALID_POSITION:
+			return
+		_touch_index = event.index
+		_touch_origin = event.position
+		_touch_dragging = false
+		_start_drag(plot_pos)
+	elif event.index == _touch_index:
+		var was_multi: bool = _touch_dragging and drag_plots.size() > 1
+		_touch_index = -1
+		_touch_dragging = false
+		_end_drag()
+		if was_multi:
+			get_viewport().set_input_as_handled()
+
+
+func _touch_drag_motion(event: InputEventScreenDrag) -> void:
+	if event.index != _touch_index or not is_dragging:
+		return
+	if not _touch_dragging:
+		if _touch_origin.distance_to(event.position) < TOUCH_DRAG_MIN_MOVEMENT:
+			return
+		_touch_dragging = true
+	var plot_pos = _get_plot_at_screen_position(event.position)
+	if plot_pos != GridSentinel.INVALID_POSITION and not drag_plots.has(plot_pos):
+		_drag_over_plot(plot_pos)
 
 
 func _on_touch_tap(grid_pos: Vector2) -> void:

@@ -146,10 +146,10 @@ all position-based gate methods..." The main Operator [9] gate path works (confi
 / CZ gates fire and change plot probabilities). This is a secondary route for position-based gate
 injection that doesn't block the player-facing Operator hat.
 
-### 16. Touch/mobile — not implemented
+### 16. Touch/mobile — partly closed
 
-`UI/PlotGridDisplay.gd:1176`: "TODO: Implement Godot 4 touch drag selection." Not relevant for
-desktop, blocks any mobile port.
+One-finger drag-select on the 2D rack is implemented (`UI/PlotGridDisplay.gd`, #145). Still open for
+a mobile port: full mobile layout, virtual keyboard, pinch-zoom.
 
 ### 17. Rig berry shim — private state poke
 
