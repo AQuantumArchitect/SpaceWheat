@@ -344,8 +344,7 @@ func flatten() -> void:
 
 
 func _on_gui_input(event: InputEvent) -> void:
-	var tapped: bool = (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) \
-			or (event is InputEventScreenTouch and event.pressed)
+	var tapped: bool = ClickWire.is_press(event)
 	if not tapped:
 		return
 	accept_event()
@@ -354,8 +353,7 @@ func _on_gui_input(event: InputEvent) -> void:
 	# Routed toast: the body travels, the ✕ corner just dismisses. The
 	# rect test keeps children on MOUSE_FILTER_IGNORE (hover grammar).
 	var on_close := _close_label != null \
-			and event is InputEventMouseButton \
-			and _close_label.get_global_rect().has_point(event.global_position)
+			and _close_label.get_global_rect().has_point(get_global_transform_with_canvas() * event.position)
 	if on_close:
 		flatten()
 		return

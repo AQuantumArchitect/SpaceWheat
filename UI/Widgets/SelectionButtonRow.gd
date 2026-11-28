@@ -264,16 +264,20 @@ func _on_button_input(event: InputEvent, button_id: int) -> void:
 	if not btn_data or btn_data.disabled:
 		return
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if _defers_to_field3d(event.global_position):
+	var is_press := ClickWire.is_press(event)
+	if is_press or ClickWire.is_release(event):
+		var gpos: Vector2 = event.global_position if event is InputEventMouseButton \
+				else get_global_transform_with_canvas() * (event as InputEventScreenTouch).position
+		var shift: bool = event is InputEventMouseButton and event.shift_pressed
+		if _defers_to_field3d(gpos):
 			# Don't even flash "pressed" — a chip visually reacting to a tap that isn't
 			# meant for it is the same misleading-feedback bug class this is fixing, just
 			# on the press instead of the release.
-			if not event.pressed:
-				_forward_to_field3d(event.global_position, event.button_index, event.shift_pressed)
+			if not is_press:
+				_forward_to_field3d(gpos, MOUSE_BUTTON_LEFT, shift)
 			get_viewport().set_input_as_handled()
 			return
-		if event.pressed:
+		if is_press:
 			btn_data.texture.modulate = pressed_color
 		else:
 			set_selected(button_id)

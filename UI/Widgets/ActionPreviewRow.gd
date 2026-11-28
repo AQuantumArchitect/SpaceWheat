@@ -442,13 +442,14 @@ func _on_action_button_input(event: InputEvent, action_key: String) -> void:
 		# unlocked" toast would misdescribe them. Read-only, no dispatch, so
 		# it's safe regardless of context.
 		var label_node: Label = btn_data.get("label")
-		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed \
+		if ClickWire.is_release(event) \
 				and label_node != null and label_node.text.contains("🔒"):
 			UIProgression.redirect_locked()
 		return
 
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed:
+	var is_press := ClickWire.is_press(event)
+	if is_press or ClickWire.is_release(event):
+		if is_press:
 			btn_data.texture.modulate = pressed_color
 		else:
 			_update_single_button_color(action_key)
@@ -458,7 +459,7 @@ func _on_action_button_input(event: InputEvent, action_key: String) -> void:
 			# Season" (the chip's own tooltip names it) had no mouse path at all, a real
 			# ceiling since tutorial step 2 requires exactly one reap gate. Mouse-only
 			# campaign wave 5, earnest.
-			action_pressed.emit(action_key, event.shift_pressed)
+			action_pressed.emit(action_key, event is InputEventMouseButton and event.shift_pressed)
 		get_viewport().set_input_as_handled()
 
 

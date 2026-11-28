@@ -286,7 +286,7 @@ func _build_verb_chips(container: Control) -> void:
 
 
 func _on_verb_chip_gui_input(event: InputEvent, key: String) -> void:
-	if not (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed):
+	if not ClickWire.is_release(event):
 		return
 	accept_event()
 	match key:

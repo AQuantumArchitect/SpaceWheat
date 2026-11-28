@@ -137,10 +137,7 @@ func _build() -> void:
 func _on_chip_gui_input(event: InputEvent) -> void:
 	if not _pointer_enabled:
 		return
-	if not (event is InputEventMouseButton):
-		return
-	var mb := event as InputEventMouseButton
-	if mb.button_index != MOUSE_BUTTON_LEFT or mb.pressed:
+	if not ClickWire.is_release(event):
 		return
 	if not _unlocked:
 		UIProgression.redirect_locked(VerbGrammar.REAP_LABEL)

@@ -142,7 +142,7 @@ def test_objective_banner_and_toasts_share_one_corner_and_one_form() -> None:
     assert "_raise_notification_column" in shell
     assert "_sync_toast_stack_mouse" in shell
     toast = read_source("UI/Widgets/HintToast.gd")
-    assert "InputEventScreenTouch" in toast
+    assert "ClickWire.is_press(event)" in toast  # mouse + touch via the shared helper
     assert "set_input_as_handled" in toast
     banner = read_source("UI/Widgets/ActFilament.gd")
     apply_home = banner.split("func _apply_banner_home", 1)[1].split("\nfunc ", 1)[0]

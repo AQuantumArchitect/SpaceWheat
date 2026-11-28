@@ -256,9 +256,7 @@ func _ladder_for(qid: int, plant: bool = false) -> ClickLadder:
 
 
 func _on_row_gui_input(event: InputEvent, biome: String, qid: int = -1, ready: bool = false) -> void:
-	if not ((event is InputEventMouseButton and event.pressed
-			and event.button_index == MOUSE_BUTTON_LEFT) \
-			or (event is InputEventScreenTouch and event.pressed)):
+	if not ClickWire.is_press(event):
 		return
 	accept_event()
 	var ladder := _ladder_for(qid)
