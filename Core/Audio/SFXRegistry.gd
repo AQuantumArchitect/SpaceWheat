@@ -9,7 +9,11 @@ extends Node
 ## Connects to QuantumInstrument.action_performed and ActiveBiomeManager
 ## to automatically play sounds for game events.
 
-const CONFIG_PATH = "user://spacewheat_settings.cfg"
+## One settings file for music and SFX (MusicManager writes audio.music_volume here too).
+const CONFIG_PATH = "user://settings.cfg"
+## Pre-#143 location of sfx_volume; honored once, then new writes go to CONFIG_PATH.
+const LEGACY_CONFIG_PATH = "user://spacewheat_settings.cfg"
+const DEFAULT_SFX_VOLUME := 0.7
 
 signal volume_changed(new_volume: float)
 
@@ -26,7 +30,7 @@ const POOL_SIZE := 4
 const SFX_BASE_PATH := "res://Assets/Audio/SFX/"
 
 ## Volume (linear 0.0–1.0)
-var _sfx_volume: float = 0.3
+var _sfx_volume: float = DEFAULT_SFX_VOLUME
 var _muted: bool = false
 
 ## Connection tracking
@@ -150,13 +154,21 @@ func _volume_to_db(linear: float) -> float:
 
 func _load_volume_preference() -> void:
 	var config = ConfigFile.new()
-	if config.load(CONFIG_PATH) == OK:
-		_sfx_volume = config.get_value("audio", "sfx_volume", 0.7)
+	var shared_ok: bool = config.load(CONFIG_PATH) == OK
+	if shared_ok and config.has_section_key("audio", "sfx_volume"):
+		_sfx_volume = clampf(float(config.get_value("audio", "sfx_volume", DEFAULT_SFX_VOLUME)), 0.0, 1.0)
+		return
+	# Migrate a leftover value from the old file once, into the shared file.
+	var legacy = ConfigFile.new()
+	if legacy.load(LEGACY_CONFIG_PATH) == OK and legacy.has_section_key("audio", "sfx_volume"):
+		_sfx_volume = clampf(float(legacy.get_value("audio", "sfx_volume", DEFAULT_SFX_VOLUME)), 0.0, 1.0)
+		_save_volume_preference()
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(LEGACY_CONFIG_PATH))
 
 
 func _save_volume_preference() -> void:
 	var config = ConfigFile.new()
-	config.load(CONFIG_PATH)  # Load existing to preserve other keys
+	config.load(CONFIG_PATH)  # Load existing to preserve other keys (music_volume)
 	config.set_value("audio", "sfx_volume", _sfx_volume)
 	config.save(CONFIG_PATH)
 

@@ -1287,11 +1287,12 @@ func _make_balance_action_row(idx: int, slot_idx: int) -> Control:
 # MusicManager. Every economy/physics knob is DERIVED from BalanceConfig.TUNABLES
 # via board_specs() — the single source of truth. open_only rows (Lindbladian-only)
 # are filtered out in the closed system.
+const _SFX_ROW := {"id": "sfx_volume", "label": "SFX volume", "category": "Audio", "value_path": [], "kind": "sfx_pct", "step": 5, "min": 0, "max": 100, "default": 70}
 const _MUSIC_ROW := {"id": "music_volume", "label": "Music volume", "category": "Audio", "value_path": [], "kind": "music_pct", "step": 5, "min": 0, "max": 100, "default": 45}
 
 func _ensure_balance_settings_loaded() -> void:
 	if _balance_settings.is_empty():
-		_balance_settings = [_MUSIC_ROW.duplicate(true)]
+		_balance_settings = [_MUSIC_ROW.duplicate(true), _SFX_ROW.duplicate(true)]
 		var closed: bool = not BalanceConfig.dissipative_enabled()
 		for d in BalanceConfig.board_specs():
 			if closed and bool(d.get("open_only", false)):
@@ -1308,6 +1309,11 @@ func _balance_setting_value(setting: Dictionary) -> Variant:
 		var music = get_node_or_null("/root/MusicManager")
 		if music and music.has_method("get_volume"):
 			return int(round(float(music.get_volume()) * 100.0))
+		return int(setting.get("default", 70))
+	if kind == "sfx_pct":
+		var sfx = get_node_or_null("/root/SFXRegistry")
+		if sfx and sfx.has_method("get_volume"):
+			return int(round(float(sfx.get_volume()) * 100.0))
 		return int(setting.get("default", 70))
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
@@ -1330,6 +1336,11 @@ func _balance_setting_set_value(setting: Dictionary, value: Variant) -> void:
 		var music = get_node_or_null("/root/MusicManager")
 		if music and music.has_method("set_volume"):
 			music.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
+		return
+	if kind == "sfx_pct":
+		var sfx = get_node_or_null("/root/SFXRegistry")
+		if sfx and sfx.has_method("set_volume"):
+			sfx.set_volume(clampf(float(value) / 100.0, 0.0, 1.0))
 		return
 	var path: Array = setting.get("value_path", [])
 	if path.is_empty():
@@ -1356,7 +1367,7 @@ func _balance_setting_format(setting: Dictionary) -> String:
 	var kind: String = str(setting.get("kind", "float"))
 	var v = _balance_setting_value(setting)
 	match kind:
-		"music_pct":
+		"music_pct", "sfx_pct":
 			return "%d%%" % int(v)
 		"int":
 			return "%d" % int(v)
@@ -1377,7 +1388,7 @@ func _nudge_balance_setting(direction: int) -> void:
 	var current = _balance_setting_value(setting)
 	var next
 	match kind:
-		"music_pct", "int":
+		"music_pct", "sfx_pct", "int":
 			next = clampi(int(current) + direction * int(step), int(lo), int(hi))
 		_:
 			next = clampf(float(current) + direction * step, float(lo), float(hi))
