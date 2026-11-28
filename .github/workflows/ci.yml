@@ -122,6 +122,9 @@ jobs:
       - name: Export Web-Slim
         run: pwsh -File tools/build.ps1 -Preset web-slim -Out "$PWD/build/web-slim" -Godot "$HOME/godot/godot"
 
+      - name: Export Linux
+        run: pwsh -File tools/build.ps1 -Preset linux -Godot "$HOME/godot/godot"
+
       - uses: actions/upload-artifact@v4
         with:
           name: windows
