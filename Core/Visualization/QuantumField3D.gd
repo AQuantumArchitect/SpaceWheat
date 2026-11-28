@@ -2097,6 +2097,19 @@ func _orb_at(screen_pos: Vector2) -> Dictionary:
 	return best
 
 
+## Harvest-loop juice (#60): squash-and-stretch the register's state dot — wide and
+## flat at the punch, springing back through the same decay as the pick-flash. Purely
+## cosmetic; FloatingRewardLayer drives it with FeedbackTuning's sizes.
+func punch_register(_biome_name: String, register_id: int, strength: float,
+		squash: float = 0.0) -> void:
+	if strength <= 0.0:
+		return
+	for b in _bubbles:
+		if int(b.reg) == register_id and b.get("dot") != null and is_instance_valid(b.dot):
+			b.dot.scale = Vector3(1.0 + strength, maxf(0.3, 1.0 - squash * strength), 1.0 + strength)
+			return
+
+
 ## Brief scale pop on an orb's state dot so it reads as "picked up" by the chain; the pop
 ## decays back to 1.0 in _process (same path as the tap pick-flash).
 func _flash_orb(b: Dictionary) -> void:

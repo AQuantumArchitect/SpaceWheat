@@ -14,34 +14,23 @@ extends Control
 
 const ACCENT := UIStyleFactory.COLOR_ACCENT_GOLD
 
-## Big-moment punctuation (rare): only genuinely surprising pops (high surprisal
-## `rel`) earn a hitstop + gold flash + a brief Music-bus duck. rel = tanh(credits/40)
-## so BIG_POP_REL ≈ 0.75 corresponds to ~40 credits — a real payout, not a trickle.
-const BIG_POP_REL := 0.75
-const HITSTOP_SCALE := 0.06     # how far Engine.time_scale dips
-const HITSTOP_S := 0.09         # real seconds (timer ignores time_scale)
-const MUSIC_DUCK_DB := 7.0      # how far the Music bus dips
-const MUSIC_DUCK_HOLD_S := 0.12
-const MUSIC_DUCK_RESTORE_S := 0.45
-
-## Fractal descend/ascend punctuation (light touch): this fires on EVERY dive,
-## not a rare surprisal-gated moment like the pop hitstop, so it skips the
-## Engine.time_scale dip entirely — just a brief tinted flash + a gentler,
-## shorter Music-bus duck. Colours mirror QuantumField3D's own portal hues
-## (DESCEND_HUE_COLOR indigo / CYAN ascend) so the cue reads as "the same
-## place" as the geometry the player just tapped.
-const FRACTAL_DESCEND_COLOR := Color(0.55, 0.35, 0.95)
-const FRACTAL_ASCEND_COLOR := Color(0.42, 0.95, 0.88)
-const FRACTAL_FLASH_PEAK := 0.10
-const FRACTAL_DUCK_DB := 3.5
-const FRACTAL_DUCK_HOLD_S := 0.08
-const FRACTAL_DUCK_RESTORE_S := 0.30
+## Every feel knob (sizes, timings, combo window, the big-pop threshold) and
+## the player's intensity / reduced-motion settings live in FeedbackTuning.
+## Harvest: orb squash-and-stretch, a Pop-Harvest badge, a spark burst and
+## the "+N" flier. Planting and ripening get quiet rings and a small punch,
+## so ripe plots read at a glance; harvest stays the payoff.
 
 var _farm: Node = null
 var _quantum_viz: Node = null
 var _resource_panel: Node = null
 var _connected_instrument = null
 var _retry_accum: float = 0.0
+
+## Ripe-plot watcher: "biome:qid" → seconds until that ripe plot's next breath.
+var _ripe_accum: float = 0.0
+var _ripe_biome: String = ""
+var _ripe_pulse_in: Dictionary = {}
+var _badge_texture: Texture2D = null
 
 ## Punctuation guards — prevent overlapping dips leaving global state stuck.
 var _hitstop_active: bool = false
@@ -66,6 +55,10 @@ func _process(delta: float) -> void:
 	if _retry_accum >= 1.0:
 		_retry_accum = 0.0
 		_try_connect()
+	_ripe_accum += delta
+	if _ripe_accum >= FeedbackTuning.RIPE_POLL_S:
+		_poll_ripe(_ripe_accum)
+		_ripe_accum = 0.0
 
 
 func _try_connect() -> void:
@@ -80,6 +73,8 @@ func _try_connect() -> void:
 	if instrument.has_signal("action_performed"):
 		instrument.action_performed.connect(_on_action_performed)
 		_connected_instrument = instrument
+		_ripe_biome = ""  # a new run: re-prime the ripe watcher silently
+		_ripe_pulse_in.clear()
 
 
 func _on_action_performed(action: String, result: Dictionary) -> void:
@@ -91,22 +86,28 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 			var amount := int(result.get("amount", 0))
 			if emoji == "" or amount <= 0:
 				return
-			var from_pos := _station_position(str(result.get("biome_name", "")), int(result.get("register_id", -1)))
+			var biome_name := str(result.get("biome_name", ""))
+			var reg := int(result.get("register_id", -1))
+			var from_pos := _station_position(biome_name, reg)
 			# Surprisal-scaled celebration: payout is already −kT·log p, so the
 			# reward size IS the rarity. One soft mapping, no thresholds.
-			var rel := tanh(float(result.get("credits", amount)) / 40.0)
-			_spawn_burst(from_pos, rel)
+			var rel := FeedbackTuning.rel_for(FeedbackTuning.harvest_size(result))
+			celebrate_harvest(from_pos, rel, biome_name, reg)
 			spawn_reward(emoji, amount, from_pos, rel)
-			# Rare big-moment punctuation — only the truly surprising pops.
-			if rel >= BIG_POP_REL:
-				_punctuate_big_pop(rel)
+		"inject_icon":
+			# Planting: a quiet green ring once the new orb is on screen.
+			var tw := create_tween()
+			tw.tween_interval(FeedbackTuning.PLANT_CUE_DELAY_S)
+			tw.tween_callback(_quiet_cue.bind(str(result.get("biome", "")),
+					int(result.get("qubit_index", -1)), FeedbackTuning.PLANT_COLOR, FeedbackTuning.PUNCH_PLANT))
 		"measure":
 			# Measure snap: a quick converging tick — "the answer locked in."
 			var biome := str(result.get("biome_name", ""))
 			if biome == "" and _quantum_viz != null and "active_biome" in _quantum_viz:
 				biome = str(_quantum_viz.active_biome)
 			var pos := _station_position(biome, int(result.get("register_id", -1)))
-			_spawn_burst(pos, 0.0, Color(0.45, 0.95, 1.0, 0.9), true)
+			if FeedbackTuning.motion() > 0.0:
+				_spawn_burst(pos, 0.0, Color(0.45, 0.95, 1.0, 0.9), true)
 			if str(result.get("known_tier", "none")) != "none":
 				spawn_known_strike(str(result.get("outcome", "")), int(result.get("amount", 0)),
 						str(result.get("known_tier", "none")), pos)
@@ -116,9 +117,9 @@ func _on_action_performed(action: String, result: Dictionary) -> void:
 		"fast_forward":
 			_surge_flow()
 		"enter_icon":
-			_punctuate_fractal_step(FRACTAL_DESCEND_COLOR)
+			_punctuate_fractal_step(FeedbackTuning.FRACTAL_DESCEND_COLOR)
 		"ascend_fractal":
-			_punctuate_fractal_step(FRACTAL_ASCEND_COLOR)
+			_punctuate_fractal_step(FeedbackTuning.FRACTAL_ASCEND_COLOR)
 
 
 func _surge_flow() -> void:
@@ -133,9 +134,11 @@ func _surge_flow() -> void:
 ## reliably (timers/tweens the SceneTree owns, plus an _exit_tree failsafe) so a
 ## restart mid-punctuation can never leave Engine.time_scale or the bus stuck.
 func _punctuate_big_pop(rel: float) -> void:
-	_hitstop()
-	_screen_flash(rel)
-	_duck_music()
+	if FeedbackTuning.motion() > 0.0:
+		_hitstop()
+		_screen_flash(rel)
+	if FeedbackTuning.intensity() > 0.0:
+		_duck_music()
 
 
 ## Light-touch descend/ascend punctuation — every dive earns it (unlike the
@@ -143,8 +146,10 @@ func _punctuate_big_pop(rel: float) -> void:
 ## in the portal's own hue plus a shallow, quick Music duck. Reuses the same
 ## self-contained flash/duck machinery (tween-owned, _exit_tree failsafe).
 func _punctuate_fractal_step(hue: Color) -> void:
-	_screen_flash(0.0, hue, FRACTAL_FLASH_PEAK)
-	_duck_music(FRACTAL_DUCK_DB, FRACTAL_DUCK_HOLD_S, FRACTAL_DUCK_RESTORE_S)
+	if FeedbackTuning.motion() > 0.0:
+		_screen_flash(0.0, hue, FeedbackTuning.FRACTAL_FLASH_PEAK * FeedbackTuning.motion())
+	if FeedbackTuning.intensity() > 0.0:
+		_duck_music(FeedbackTuning.FRACTAL_DUCK_DB, FeedbackTuning.FRACTAL_DUCK_HOLD_S, FeedbackTuning.FRACTAL_DUCK_RESTORE_S)
 
 
 func _hitstop() -> void:
@@ -155,9 +160,9 @@ func _hitstop() -> void:
 		return
 	_hitstop_active = true
 	_prev_time_scale = Engine.time_scale
-	Engine.time_scale = HITSTOP_SCALE
+	Engine.time_scale = FeedbackTuning.HITSTOP_SCALE
 	# ignore_time_scale=true so the restore fires after real HITSTOP_S, not dilated.
-	var t := tree.create_timer(HITSTOP_S, true, false, true)
+	var t := tree.create_timer(FeedbackTuning.HITSTOP_S, true, false, true)
 	t.timeout.connect(_restore_time_scale)
 
 
@@ -180,7 +185,7 @@ func _screen_flash(rel: float, color = null, peak_override: float = -1.0) -> voi
 	flash.z_index = 20  # above the fliers
 	add_child(flash)
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var peak: float = peak_override if peak_override >= 0.0 else (0.14 + 0.14 * rel)  # subtle; scales gently with surprisal
+	var peak: float = peak_override if peak_override >= 0.0 else (FeedbackTuning.FLASH_PEAK + FeedbackTuning.FLASH_PEAK_PER_REL * rel) * FeedbackTuning.motion()  # subtle; scales gently with surprisal
 	var tw := create_tween()
 	tw.tween_property(flash, "color:a", peak, 0.04).set_ease(Tween.EASE_OUT)
 	tw.tween_property(flash, "color:a", 0.0, 0.30).set_ease(Tween.EASE_IN)
@@ -191,8 +196,8 @@ func _screen_flash(rel: float, color = null, peak_override: float = -1.0) -> voi
 ## to MusicManager.celebrate_swell (that's the ending's alone). Parameterized
 ## so the light fractal-step punctuation can duck shallower/shorter than the
 ## big-pop moment without a second copy of the tween machinery.
-func _duck_music(db: float = MUSIC_DUCK_DB, hold_s: float = MUSIC_DUCK_HOLD_S,
-		restore_s: float = MUSIC_DUCK_RESTORE_S) -> void:
+func _duck_music(db: float = FeedbackTuning.MUSIC_DUCK_DB, hold_s: float = FeedbackTuning.MUSIC_DUCK_HOLD_S,
+		restore_s: float = FeedbackTuning.MUSIC_DUCK_RESTORE_S) -> void:
 	var idx := AudioServer.get_bus_index("Music")
 	if idx < 0 or _music_ducking:
 		return  # no Music bus (fell back to Master) or already ducking
@@ -235,18 +240,27 @@ func _exit_tree() -> void:
 	_restore_music_bus()
 
 
-func _station_position(biome_name: String, register_id: int) -> Vector2:
+func _station_position(biome_name: String, register_id: int, centre_fallback: bool = true) -> Vector2:
+	var viz := _live_renderer()
+	if viz != null and viz.has_method("get_register_screen_position"):
+		var p: Vector2 = viz.get_register_screen_position(biome_name, register_id)
+		if p.x >= 0.0:
+			return p
+	return get_viewport_rect().size * 0.5 if centre_fallback else Vector2(-1, -1)
+
+
+## The live field renderer: the 2D force graph we were handed, or the 3D field
+## FarmView holds (that one is not passed around as quantum_viz).
+func _live_renderer() -> Node:
 	var viz = _quantum_viz
 	if viz == null or not (is_instance_valid(viz) and viz.has_method("get_register_screen_position")):
 		# 3D field path: the live renderer is held by FarmView, not passed as quantum_viz.
 		var fvs = get_tree().get_nodes_in_group("farm_view")
 		if fvs.size() > 0 and fvs[0].has_method("get_field_renderer"):
 			viz = fvs[0].get_field_renderer()
-	if viz != null and is_instance_valid(viz) and viz.has_method("get_register_screen_position"):
-		var p: Vector2 = viz.get_register_screen_position(biome_name, register_id)
-		if p.x >= 0.0:
-			return p
-	return get_viewport_rect().size * 0.5
+	if viz != null and is_instance_valid(viz):
+		return viz
+	return null
 
 
 ## Expanding ring at a station — pop celebration (accent gold, size grows with
@@ -257,18 +271,19 @@ func _spawn_burst(at_global: Vector2, rel: float, color: Color = ACCENT,
 	ring.color = Color(color.r, color.g, color.b, 0.9)
 	add_child(ring)
 	ring.position = get_global_transform().affine_inverse() * at_global
-	var r_from: float = 34.0 + 26.0 * rel
-	var r_to: float = 6.0
+	var r_from: float = FeedbackTuning.RING_MEASURE_FROM + FeedbackTuning.RING_MEASURE_FROM_PER_REL * rel
+	var r_to: float = FeedbackTuning.RING_MEASURE_TO
 	if not converge:
-		r_from = 12.0
-		r_to = 40.0 + 50.0 * rel
+		r_from = FeedbackTuning.RING_POP_FROM
+		r_to = FeedbackTuning.RING_POP_TO + FeedbackTuning.RING_POP_TO_PER_REL * rel
 	ring.radius = r_from
 	ring.width = 2.0 + 3.0 * rel
 	var tw := create_tween()
 	tw.set_parallel(true)
-	tw.tween_property(ring, "radius", r_to, 0.20 if converge else 0.32) \
+	var dur: float = FeedbackTuning.RING_MEASURE_S if converge else FeedbackTuning.RING_POP_S
+	tw.tween_property(ring, "radius", r_to, dur) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-	tw.tween_property(ring, "alpha", 0.0, 0.20 if converge else 0.32)
+	tw.tween_property(ring, "alpha", 0.0, dur)
 	tw.set_parallel(false)
 	tw.tween_callback(ring.queue_free)
 
@@ -295,6 +310,193 @@ func _cascade_reap(result: Dictionary) -> void:
 		tw.tween_interval(0.08 * idx)
 		tw.tween_callback(spawn_reward.bind(emoji, amount, from, 0.4))
 		idx += 1
+
+
+## The harvest celebration at the plot, sized by the payout's surprisal and
+## the player's intensity. Reduced motion skips all of it (the flier still
+## reports the yield).
+func celebrate_harvest(at_global: Vector2, rel: float, biome_name: String = "",
+		register_id: int = -1) -> void:
+	var m := FeedbackTuning.motion()
+	if m > 0.0:
+		_punch(biome_name, register_id, (FeedbackTuning.PUNCH_BASE + FeedbackTuning.PUNCH_PER_REL * rel) * m, FeedbackTuning.PUNCH_SQUASH)
+		_spawn_badge(at_global, rel, m)
+		_spawn_burst(at_global, rel)
+		_spawn_sparks(at_global, rel, m)
+	# Rare big-moment punctuation: only the truly surprising pops.
+	if rel >= FeedbackTuning.BIG_POP_REL:
+		_punctuate_big_pop(rel)
+
+
+func _punch(biome_name: String, register_id: int, strength: float, squash: float = 0.0) -> void:
+	if register_id < 0 or strength <= 0.0:
+		return
+	var viz := _live_renderer()
+	if viz != null and viz.has_method("punch_register"):
+		viz.punch_register(biome_name, register_id, strength, squash)
+
+
+## Pop-Harvest badge (the Gather tool's own icon) at the plot: stretch tall,
+## squash wide, settle, fade. Bigger payouts get a bigger badge.
+func _spawn_badge(at_global: Vector2, rel: float, m: float) -> void:
+	if _badge_texture == null and ResourceLoader.exists(FeedbackTuning.BADGE_PATH):
+		_badge_texture = load(FeedbackTuning.BADGE_PATH)
+	if _badge_texture == null:
+		return
+	var size := FeedbackTuning.BADGE_SIZE + FeedbackTuning.BADGE_SIZE_PER_REL * rel
+	var badge := TextureRect.new()
+	badge.texture = _badge_texture
+	badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badge.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	badge.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	badge.size = Vector2(size, size)
+	badge.pivot_offset = Vector2(size, size) * 0.5
+	badge.z_index = 4
+	add_child(badge)
+	badge.position = (get_global_transform().affine_inverse() * at_global) - badge.pivot_offset
+	var k := 0.35 * m  # squash-and-stretch depth
+	badge.scale = Vector2(0.3, 0.3)
+	var tw := create_tween()
+	tw.tween_property(badge, "scale", Vector2(1.0 - k, 1.0 + k), FeedbackTuning.BADGE_STRETCH_S) \
+			.set_ease(Tween.EASE_OUT)
+	tw.tween_property(badge, "scale", Vector2(1.0 + k, 1.0 - k * 0.8), FeedbackTuning.BADGE_SQUASH_S)
+	tw.tween_property(badge, "scale", Vector2.ONE, FeedbackTuning.BADGE_SETTLE_S) \
+			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.tween_property(badge, "modulate:a", 0.0, FeedbackTuning.BADGE_FADE_S)
+	tw.tween_callback(badge.queue_free)
+
+
+func _spawn_sparks(at_global: Vector2, rel: float, m: float) -> void:
+	var n := int(round((FeedbackTuning.PARTICLES_BASE + FeedbackTuning.PARTICLES_PER_REL * rel) * m))
+	if n <= 0:
+		return
+	var sparks := SparkBurst.new()
+	sparks.color = ACCENT
+	sparks.life = FeedbackTuning.PARTICLE_LIFE_S
+	sparks.gravity = FeedbackTuning.PARTICLE_GRAVITY
+	sparks.dot_size = FeedbackTuning.PARTICLE_SIZE * (1.0 + 0.5 * rel)
+	sparks.z_index = 3
+	add_child(sparks)
+	sparks.position = get_global_transform().affine_inverse() * at_global
+	sparks.emit(n, FeedbackTuning.PARTICLE_SPEED + FeedbackTuning.PARTICLE_SPEED_PER_REL * rel)
+
+
+## A quiet anticipatory cue: a soft ring and a small punch. Only drawn when the
+## plot is actually on screen (no centred fallback for whispers).
+func _quiet_cue(biome_name: String, register_id: int, color: Color, punch: float) -> void:
+	var m := FeedbackTuning.motion()
+	if m <= 0.0 or register_id < 0:
+		return
+	var pos := _station_position(biome_name, register_id, false)
+	if pos.x < 0.0:
+		return
+	_punch(biome_name, register_id, punch * m, FeedbackTuning.PUNCH_SQUASH)
+	var ring := RingBurst.new()
+	ring.color = Color(color.r, color.g, color.b, 0.55 * m)
+	ring.width = 2.0
+	ring.radius = FeedbackTuning.RING_POP_FROM
+	add_child(ring)
+	ring.position = get_global_transform().affine_inverse() * pos
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(ring, "radius", FeedbackTuning.RING_QUIET_TO, FeedbackTuning.RING_QUIET_S) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(ring, "alpha", 0.0, FeedbackTuning.RING_QUIET_S)
+	tw.set_parallel(false)
+	tw.tween_callback(ring.queue_free)
+
+
+## Ripe-plot watcher. A tracked plot whose Berry phase reaches 2π gets a soft
+## chime and a violet breath, then keeps breathing every RIPE_PULSE_PERIOD_S
+## until it is incorporated, so ripe plots read at a glance. Switching biome
+## (or a new run) primes silently: plots that were already ripe don't chime.
+func _poll_ripe(dt: float) -> void:
+	var reg = _active_berry_register()
+	var biome_name: String = reg[0]
+	var berry = reg[1]
+	if berry == null:
+		_ripe_pulse_in.clear()
+		_ripe_biome = biome_name
+		return
+	var priming := biome_name != _ripe_biome
+	if priming:
+		_ripe_pulse_in.clear()
+		_ripe_biome = biome_name
+	var still: Dictionary = {}
+	for q in berry.tracked_qubits():
+		var qid := int(q)
+		if not berry.is_ripe(qid):
+			continue
+		var key := "%s:%d" % [biome_name, qid]
+		if not _ripe_pulse_in.has(key):
+			still[key] = FeedbackTuning.RIPE_PULSE_PERIOD_S
+			if not priming:
+				var sfx = get_node_or_null("/root/SFXRegistry")
+				if sfx != null and sfx.has_method("play_ripe"):
+					sfx.play_ripe()
+				_quiet_cue(biome_name, qid, FeedbackTuning.RIPE_COLOR, FeedbackTuning.PUNCH_RIPE)
+			continue
+		var left: float = float(_ripe_pulse_in[key]) - dt
+		if left <= 0.0:
+			left = FeedbackTuning.RIPE_PULSE_PERIOD_S
+			_quiet_cue(biome_name, qid, FeedbackTuning.RIPE_COLOR, 0.0)
+		still[key] = left
+	_ripe_pulse_in = still
+
+
+## [active biome name, its BerryPhaseRegister or null].
+func _active_berry_register() -> Array:
+	var abm = get_node_or_null("/root/ActiveBiomeManager")
+	if abm == null or not abm.has_method("get_active_biome"):
+		return ["", null]
+	var biome_name := str(abm.get_active_biome())
+	if _farm == null or not is_instance_valid(_farm) or not ("grid" in _farm) \
+			or _farm.grid == null or not _farm.grid.has_method("get_biome"):
+		return [biome_name, null]
+	var biome = _farm.grid.get_biome(biome_name)
+	if biome == null or not ("quantum_computer" in biome) or biome.quantum_computer == null:
+		return [biome_name, null]
+	var berry = biome.quantum_computer.berry_register
+	if berry == null or not berry.has_method("tracked_qubits"):
+		return [biome_name, null]
+	return [biome_name, berry]
+
+
+## Inner drawing node for the harvest spark burst: radial sparks that arc
+## under a little gravity and fade. Self-freeing; no particle server needed
+## (keeps the Web-Slim build's renderer happy).
+class SparkBurst extends Node2D:
+	var color: Color = UIStyleFactory.COLOR_ACCENT_GOLD
+	var life: float = 0.5
+	var gravity: float = 200.0
+	var dot_size: float = 2.5
+	var _age: float = 0.0
+	var _pos: PackedVector2Array = PackedVector2Array()
+	var _vel: PackedVector2Array = PackedVector2Array()
+
+	func emit(count: int, speed: float) -> void:
+		for i in range(count):
+			var a := TAU * (float(i) + randf() * 0.6) / float(count)
+			_pos.append(Vector2.ZERO)
+			_vel.append(Vector2(cos(a), sin(a)) * speed * randf_range(0.55, 1.0))
+		set_process(true)
+
+	func _process(delta: float) -> void:
+		_age += delta
+		if _age >= life:
+			queue_free()
+			return
+		for i in range(_pos.size()):
+			_vel[i] = _vel[i] * (1.0 - 2.5 * delta) + Vector2(0.0, gravity * delta)
+			_pos[i] += _vel[i] * delta
+		queue_redraw()
+
+	func _draw() -> void:
+		var t := clampf(_age / life, 0.0, 1.0)
+		var c := Color(color.r, color.g, color.b, (1.0 - t) * 0.95)
+		var r := dot_size * (1.0 - 0.6 * t)
+		for p in _pos:
+			draw_circle(p, r, c)
 
 
 ## Inner drawing node for _spawn_burst — a single animated ring.
@@ -325,7 +527,7 @@ func spawn_reward(emoji: String, amount: int, from_global: Vector2, rel: float =
 	var label := Label.new()
 	label.text = "+%d" % amount
 	# Surprisal-scaled: a rare payout arrives visibly larger. Soft, no thresholds.
-	label.add_theme_font_size_override("font_size", 20 + int(14.0 * rel))
+	label.add_theme_font_size_override("font_size", FeedbackTuning.FLIER_FONT + int(FeedbackTuning.FLIER_FONT_PER_REL * rel))
 	label.add_theme_color_override("font_color", ACCENT)
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("outline_size", 4)
@@ -341,8 +543,17 @@ func spawn_reward(emoji: String, amount: int, from_global: Vector2, rel: float =
 	# Position via local transform (this layer is full-rect at origin, but stay
 	# robust to any offset).
 	flier.position = (get_global_transform().affine_inverse() * from_global) - Vector2(24, 44)
-	flier.scale = Vector2(0.4, 0.4)
 	flier.pivot_offset = Vector2(24, 16)
+
+	if FeedbackTuning.motion() <= 0.0:
+		# Reduced motion (or feedback off): the yield is still information, so
+		# the number appears where it was earned and fades; nothing flies.
+		var still := create_tween()
+		still.tween_interval(FeedbackTuning.FLIER_INPLACE_S * 0.6)
+		still.tween_property(flier, "modulate:a", 0.0, FeedbackTuning.FLIER_INPLACE_S * 0.4)
+		still.tween_callback(flier.queue_free)
+		return
+	flier.scale = Vector2(0.4, 0.4)
 
 	var target_global: Vector2 = from_global + Vector2(0, -120)
 	if _resource_panel != null and is_instance_valid(_resource_panel) \
@@ -351,13 +562,13 @@ func spawn_reward(emoji: String, amount: int, from_global: Vector2, rel: float =
 	var target_local: Vector2 = (get_global_transform().affine_inverse() * target_global) - Vector2(24, 16)
 
 	var tw := create_tween()
-	tw.tween_property(flier, "scale", Vector2(1.15, 1.15), 0.15) \
+	tw.tween_property(flier, "scale", Vector2(1.15, 1.15), FeedbackTuning.FLIER_SPRING_S) \
 			.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_interval(0.25)
+	tw.tween_interval(FeedbackTuning.FLIER_HOLD_S)
 	tw.set_parallel(true)
-	tw.tween_property(flier, "position", target_local, 0.5) \
+	tw.tween_property(flier, "position", target_local, FeedbackTuning.FLIER_FLY_S) \
 			.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
-	tw.tween_property(flier, "scale", Vector2(0.6, 0.6), 0.5)
+	tw.tween_property(flier, "scale", Vector2(0.6, 0.6), FeedbackTuning.FLIER_FLY_S)
 	tw.set_parallel(false)
 	tw.tween_callback(_on_flier_landed.bind(flier, emoji))
 

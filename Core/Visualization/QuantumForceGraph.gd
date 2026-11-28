@@ -1140,6 +1140,16 @@ func get_register_screen_position(biome_name: String, register_id: int) -> Vecto
 	return get_global_transform() * node.position
 
 
+## Harvest-loop juice (#60): a scale pop on a register's station, springing back
+## through press_scale's own recovery. The 2D bubble is radial, so `squash` is
+## ignored here. Purely cosmetic; FloatingRewardLayer drives it.
+func punch_register(biome_name: String, register_id: int, strength: float,
+		_squash: float = 0.0) -> void:
+	var node = node_by_plot_id.get("%s_r%d" % [biome_name, register_id])
+	if node != null and strength > 0.0:
+		node.press_scale = 1.0 + strength
+
+
 func update_plot_positions(plot_positions: Dictionary, biome_name: String = "") -> void:
 	# Update plot anchors from PlotGridDisplay (screen-space coordinates).
 	#

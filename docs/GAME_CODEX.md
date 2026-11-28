@@ -335,6 +335,18 @@ No r-dependence: `signature_r_bonus` and `signature_reward_exponent` are unused.
 Verbs live in `Core/Actions/ProbeActions.gd`; rewards route through
 `Core/Markets/EnergyPricing.gd`.
 
+**Feedback is cosmetic and one file tunes it.** Gather is the payoff: the orb
+squashes and stretches, the Pop-Harvest badge pops, sparks burst, "+N" flies
+to the resource bar, and the sound stacks (thump, a sparkle faded in by
+surprisal, a bell on rare payouts). The whole stack climbs a pentatonic step
+per Gather inside the combo window. Planting and a fresh ripening only get a
+quiet ring and a soft cue. Ripe plots breathe until incorporated. Size is the
+payout itself (`FeedbackTuning.harvest_size`), so rarer harvests land bigger.
+Every knob, and the player's persisted *Feedback* intensity and *Reduced
+motion* (Esc → Balance), live in `Core/Audio/FeedbackTuning.gd`.
+`SFXRegistry` and `UI/Widgets/FloatingRewardLayer.gd` read it. Neither one
+touches ρ or the economy.
+
 **The progression verb (Icon hat):** the only way your *signature* grows.
 - **F = Track** a qubit: under the live `H` it accumulates Berry phase (solid
   angle) until it **ripens** (phase → 2π). Berry phase is the game's XP;
