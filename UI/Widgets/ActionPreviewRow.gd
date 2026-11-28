@@ -201,7 +201,10 @@ func _create_action_button(action_key: String) -> Dictionary:
 	container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	container.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	container.size_flags_stretch_ratio = 1.0
-	container.custom_minimum_size = Vector2(0, 42 * scale_factor)
+	var chip_h = 42 * scale_factor
+	if layout_manager and layout_manager.has_method("ensure_min_hit"):
+		chip_h = layout_manager.ensure_min_hit(chip_h)
+	container.custom_minimum_size = Vector2(0, chip_h)
 	container.mouse_filter = Control.MOUSE_FILTER_STOP
 	# Hand cursor = "this chip fires" (feel pass); _apply_button_projection
 	# hands the arrow back while the chip is disabled.

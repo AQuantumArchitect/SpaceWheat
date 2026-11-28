@@ -52,6 +52,13 @@ const ACTION_ROW_HEIGHT_PERCENT = 0.10  # 10% of viewport height
 const ACTION_ROW_MIN_HEIGHT = 55        # Minimum height in pixels
 const ACTION_ROW_MAX_PERCENT = 0.40     # Max 40% of viewport for both rows combined
 
+# Touch targets: when touch mode is on, tappable chrome is at least this many
+# logical px on its short side (the 44-48 px finger-size guideline).
+const TOUCH_MIN_HIT_PX = 44.0
+# Breathing room kept between an overlay and the viewport edge when it has to
+# shrink to fit a small window.
+const OVERLAY_EDGE_MARGIN = 12.0
+
 # Component constants
 const TOP_STRIP_GAP_BASE = 4.0
 const TOP_STRIP_SIDE_INSET_BASE = 200.0
@@ -395,7 +402,30 @@ func get_overlay_size() -> Vector2:
 	return get_modal_size("medium")
 
 
+func get_touch_min_size() -> float:
+	# Minimum short-side hit size for tappable chrome: 44 in touch mode, 0 otherwise.
+	return TOUCH_MIN_HIT_PX if is_touch_device else 0.0
+
+
+func ensure_min_hit(size_px: float) -> float:
+	# Raise a tappable control's short side to the touch floor (no-op for mouse).
+	return maxf(size_px, get_touch_min_size())
+
+
+func _fit_to_viewport(size: Vector2) -> Vector2:
+	# The *_MIN_* constants are comfort floors, not promises: they must never
+	# push a panel past the window, or its close/action chrome clips off-screen.
+	var limit = viewport_size - Vector2.ONE * OVERLAY_EDGE_MARGIN * 2.0
+	if limit.x <= 0.0 or limit.y <= 0.0:
+		return size
+	return Vector2(minf(size.x, limit.x), minf(size.y, limit.y))
+
+
 func get_modal_size(mode: String = "medium") -> Vector2:
+	return _fit_to_viewport(_raw_modal_size(mode))
+
+
+func _raw_modal_size(mode: String) -> Vector2:
 	# Get modal size by semantic mode.
 
 	# Modes:
@@ -457,7 +487,8 @@ func get_action_row_height() -> float:
 	if row_h * 2 > viewport_size.y * ACTION_ROW_MAX_PERCENT:
 		row_h = viewport_size.y * ACTION_ROW_MAX_PERCENT / 2
 
-	return row_h
+	# Touch floor wins last: a finger-sized row beats the 40% budget.
+	return ensure_min_hit(row_h)
 
 
 func get_resource_bar_height() -> float:
