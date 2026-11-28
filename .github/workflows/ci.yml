@@ -62,7 +62,8 @@ jobs:
         run: python3 -m pip install pytest pytest-timeout
 
       - name: Import the project
-        run: "$HOME/godot/godot" --headless --audio-driver Dummy --path . --import 2>&1 | tail -5
+        run: |
+          "$HOME/godot/godot" --headless --audio-driver Dummy --path . --import 2>&1 | tail -5
 
       - name: Boot without script errors
         run: |
