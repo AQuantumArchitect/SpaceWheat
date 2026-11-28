@@ -12,6 +12,7 @@
 | Native binaries | `native/bin/windows/*.dll`, `native/bin/web/libquantummatrix.wasm` (threaded) and `native/bin/web/libquantummatrix.nothreads.wasm` (Web-Slim) - rebuild on Windows with `.\scripts\build-all-platforms.ps1` (MinGW + emsdk 4.0.20); commit them, never ship uncommitted DLLs |
 | Play copy | `C:\Games\SpaceWheat` (should always be an itch download or a `tools/release.ps1 -DryRun` output, never a hand build) |
 | Build command | `.\tools\build.ps1 -Preset windows` or `-Preset web-slim`: the one export script. CI (`ci.yml` `build` job, which uploads both folders as artifacts) and `tools/release.ps1` call it. It needs Godot 4.6.2 and refuses a native binary that is missing, untracked or modified. |
+| Linux export | `pwsh -File tools/build.ps1 -Preset linux` writes `SpaceWheat.x86_64` and the native `.so` to `build/release/linux/`. The manually dispatched CI `build` job also checks this export. |
 | Release command | bump `config/version` in `project.godot`, commit, `git tag v<that version>` (e.g. `v0.3.1-alpha`), then `.\tools\release.ps1 -Channel windows`. Rehearse with `-DryRun` (add `-AllowUntagged` for an untagged HEAD). The script refuses a dirty tree, an untagged or mismatched tag, and a Godot that isn't 4.6.2, and checks butler before building. |
 | Last verified build | `0.3.0-alpha-e74be06-20261030` on itch `windows`: downloaded 2026-10-31, byte-identical to C:\Games\SpaceWheat, launched 75 s with no crash. Gameplay NOT yet verified by a human. |
 

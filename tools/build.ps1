@@ -4,6 +4,7 @@
 
   Usage (PowerShell 7, from anywhere):
     .\tools\build.ps1 -Preset windows               # -> build/release/windows/SpaceWheat.exe
+    .\tools\build.ps1 -Preset linux                 # -> build/release/linux/SpaceWheat.x86_64 + native .so
     .\tools\build.ps1 -Preset web-slim              # -> build/web-slim/index.html
     .\tools\build.ps1 -Preset windows -Out D:\x     # other output folder (it is emptied first)
     .\tools\build.ps1 -Preset windows -Godot PATH   # Godot binary (else env GODOT4, `godot` on PATH,
@@ -15,7 +16,7 @@
   Rebuilding the binaries themselves is scripts/build-all-platforms.{sh,ps1}, not this.
 #>
 param(
-  [Parameter(Mandatory=$true)][ValidateSet('windows', 'web-slim')][string]$Preset,
+  [Parameter(Mandatory=$true)][ValidateSet('windows', 'linux', 'web-slim')][string]$Preset,
   [string]$Out,
   [string]$Godot
 )
@@ -29,6 +30,9 @@ $Presets = @{
                   Native=@('native/bin/windows/libquantummatrix.windows.template_release.x86_64.dll',
                            'native/bin/windows/libquantummatrix.windows.template_debug.x86_64.dll')
                   Check=@('SpaceWheat.exe', 'libquantummatrix.windows.template_release.x86_64.dll') }
+  'linux'    = @{ Name='Linux Desktop'; File='SpaceWheat.x86_64'; DefaultOut='build/release/linux'
+                  Native=@('native/bin/linux/libquantummatrix.linux.template_release.x86_64.so')
+                  Check=@('SpaceWheat.x86_64', 'libquantummatrix.linux.template_release.x86_64.so') }
   'web-slim' = @{ Name='Web-Slim'; File='index.html'; DefaultOut='build/web-slim'
                   Native=@('native/bin/web/libquantummatrix.nothreads.wasm')
                   Check=@('index.html', 'index.pck', 'index.wasm', 'libquantummatrix.nothreads.wasm') }
