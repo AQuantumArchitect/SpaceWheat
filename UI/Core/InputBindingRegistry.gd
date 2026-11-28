@@ -119,7 +119,7 @@ const OVERLAY_SHORTCUTS := {
 	"escape_menu": [
 		{"key": ",", "label": "Volume Down", "description": "Lower music volume while the system menu is open"},
 		{"key": ".", "label": "Volume Up", "description": "Raise music volume while the system menu is open"},
-		{"key": "/", "label": "Mute", "description": "Toggle music mute while the system menu is open"},
+		{"key": "/", "label": "Mute", "description": "Toggle mute (music and SFX) while the system menu is open"},
 	],
 	"balance_workbench": [
 		{"key": "T", "label": "Quest Ratio +", "description": "Raise quest reward base ratio in advanced mode"},
