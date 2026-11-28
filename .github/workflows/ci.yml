@@ -19,7 +19,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-24.04
+    runs-on: [self-hosted, box]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
@@ -38,6 +38,8 @@ jobs:
       - name: Download Godot
         if: steps.godot-cache.outputs.cache-hit != 'true'
         run: |
+          # Self-hosted box runners already have Godot at ~/godot/godot; keep it.
+          if [ -x ~/godot/godot ] && ~/godot/godot --version | grep -q "^${GODOT_VERSION%-stable}.stable"; then exit 0; fi
           mkdir -p ~/godot
           curl -fsSL -o /tmp/godot.zip \
             "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
